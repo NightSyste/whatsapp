@@ -6,6 +6,7 @@ const { exec, spawn } = require('child_process');
 
 function ensureWwebjsPatched() {
     try {
+        const vm = require('vm');
         const dirsToCheck = [
             path.join(__dirname, 'node_modules', 'whatsapp-web.js'),
             path.join(process.env.APPDATA || '', 'WhatsApp', 'node_modules', 'whatsapp-web.js')
@@ -15,19 +16,20 @@ function ensureWwebjsPatched() {
 
             const authStorePath = path.join(dir, 'src', 'util', 'Injected', 'AuthStore', 'AuthStore.js');
             if (fs.existsSync(authStorePath)) {
-                const code = fs.readFileSync(authStorePath, 'utf8');
-                if (!code.includes('wsModel?.Socket')) {
-                    const patchedAuthStore = `'use strict';
+                try {
+                    const code = fs.readFileSync(authStorePath, 'utf8');
+                    if (!code.includes('wsModel?.Socket') && !code.includes('wsModel.Socket')) {
+                        const patchedAuthStore = `'use strict';
 
 exports.ExposeAuthStore = () => {
     window.AuthStore = {};
     const wsModel = window.require ? window.require('WAWebSocketModel') : null;
-    window.AuthStore.AppState = wsModel?.Socket || null;
-    window.AuthStore.Cmd = window.require ? window.require('WAWebCmd')?.Cmd : null;
-    window.AuthStore.Conn = window.require ? window.require('WAWebConnModel')?.Conn : null;
-    window.AuthStore.OfflineMessageHandler = window.require ? window.require('WAWebOfflineHandler')?.OfflineMessageHandler : null;
-    window.AuthStore.PairingCodeLinkUtils = window.require ? window.require('WAWebAltDeviceLinkingApi') : null;
-    window.AuthStore.Base64Tools = window.require ? window.require('WABase64') : null;
+    window.AuthStore.AppState = (wsModel && wsModel.Socket) ? wsModel.Socket : null;
+    window.AuthStore.Cmd = (window.require && window.require('WAWebCmd')) ? window.require('WAWebCmd').Cmd : null;
+    window.AuthStore.Conn = (window.require && window.require('WAWebConnModel')) ? window.require('WAWebConnModel').Conn : null;
+    window.AuthStore.OfflineMessageHandler = (window.require && window.require('WAWebOfflineHandler')) ? window.require('WAWebOfflineHandler').OfflineMessageHandler : null;
+    window.AuthStore.PairingCodeLinkUtils = (window.require && window.require('WAWebAltDeviceLinkingApi')) ? window.require('WAWebAltDeviceLinkingApi') : null;
+    window.AuthStore.Base64Tools = (window.require && window.require('WABase64')) ? window.require('WABase64') : null;
     window.AuthStore.RegistrationUtils = {
         ...(window.require ? window.require('WAWebCompanionRegClientUtils') : {}),
         ...(window.require ? window.require('WAWebAdvSignatureApi') : {}),
@@ -36,31 +38,46 @@ exports.ExposeAuthStore = () => {
     };
 };
 `;
-                    fs.writeFileSync(authStorePath, patchedAuthStore, 'utf8');
-                    console.log('[PATCH] whatsapp-web.js AuthStore abgesichert:', authStorePath);
+                        new vm.Script(patchedAuthStore);
+                        fs.writeFileSync(authStorePath, patchedAuthStore, 'utf8');
+                        console.log('[PATCH] whatsapp-web.js AuthStore abgesichert:', authStorePath);
+                    }
+                } catch (errAuth) {
+                    console.warn('[PATCH] Hinweis bei AuthStore-Patch:', errAuth.message);
                 }
             }
 
             const clientPath = path.join(dir, 'src', 'Client.js');
             if (fs.existsSync(clientPath)) {
-                let clientCode = fs.readFileSync(clientPath, 'utf8');
-                let modified = false;
+                try {
+                    let clientCode = fs.readFileSync(clientPath, 'utf8');
+                    let isValid = false;
+                    try {
+                        new vm.Script(clientCode);
+                        isValid = true;
+                    } catch (e) {
+                        isValid = false;
+                    }
 
-                const target1 = `        const needAuthentication = await this.pupPage.evaluate(async () => {
-            let state = window.require('WAWebSocketModel').Socket.state;`;
-                if (clientCode.includes(target1)) {
-                    const repl1 = `        const needAuthentication = await this.pupPage.evaluate(async () => {
-            try {
-                const wsModel = window.require ? window.require('WAWebSocketModel') : null;
-                if (!wsModel || !wsModel.Socket) return true;
-                let state = wsModel.Socket.state;`;
-                    clientCode = clientCode.replace(target1, repl1);
-                    modified = true;
-                }
+                    const startMarker = 'await this.pupPage.evaluate(ExposeAuthStore);';
+                    const endMarker = 'if (needAuthentication) {';
+                    const sIdx = clientCode.indexOf(startMarker);
+                    const eIdx = clientCode.indexOf(endMarker);
 
-                if (modified) {
-                    fs.writeFileSync(clientPath, clientCode, 'utf8');
-                    console.log('[PATCH] whatsapp-web.js Client.js abgesichert:', clientPath);
+                    if (sIdx !== -1 && eIdx !== -1 && sIdx < eIdx) {
+                        const block = clientCode.substring(sIdx + startMarker.length, eIdx);
+                        const hasFullTryCatch = block.includes('try {') && block.includes('catch');
+
+                        if (!hasFullTryCatch || !isValid) {
+                            const validBlock = `\r\n\r\n        const needAuthentication = await this.pupPage.evaluate(async () => {\r\n            try {\r\n                const wsModel = window.require ? window.require('WAWebSocketModel') : null;\r\n                if (!wsModel || !wsModel.Socket) return true;\r\n                let state = wsModel.Socket.state;\r\n\r\n                if (\r\n                    state === 'OPENING' ||\r\n                    state === 'UNLAUNCHED' ||\r\n                    state === 'PAIRING'\r\n                ) {\r\n                    await new Promise((r) => {\r\n                        wsModel.Socket.on(\r\n                            'change:state',\r\n                            function waitTillInit(_AppState, state) {\r\n                                if (\r\n                                    state !== 'OPENING' &&\r\n                                    state !== 'UNLAUNCHED' &&\r\n                                    state !== 'PAIRING'\r\n                                ) {\r\n                                    wsModel.Socket.off(\r\n                                        'change:state',\r\n                                        waitTillInit,\r\n                                    );\r\n                                    r();\r\n                                }\r\n                            },\r\n                        );\r\n                    });\r\n                }\r\n                state = wsModel.Socket.state;\r\n                return state == 'UNPAIRED' || state == 'UNPAIRED_IDLE';\r\n            } catch (e) {\r\n                return true;\r\n            }\r\n        });\r\n\r\n        `;
+                            const newClientCode = clientCode.substring(0, sIdx + startMarker.length) + validBlock + clientCode.substring(eIdx);
+                            new vm.Script(newClientCode);
+                            fs.writeFileSync(clientPath, newClientCode, 'utf8');
+                            console.log('[PATCH] whatsapp-web.js Client.js erfolgreich validiert & abgesichert:', clientPath);
+                        }
+                    }
+                } catch (errClient) {
+                    console.warn('[PATCH] Hinweis bei Client.js-Absicherung:', errClient.message);
                 }
             }
         }
@@ -69,6 +86,7 @@ exports.ExposeAuthStore = () => {
     }
 }
 ensureWwebjsPatched();
+
 
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcodeTerminal = require('qrcode-terminal');

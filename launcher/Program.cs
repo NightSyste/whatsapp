@@ -183,7 +183,7 @@ class Program
                     try
                     {
                         var lines = File.ReadAllLines(serverLogFile);
-                        var nonNull = lines.Where(l => !string.IsNullOrWhiteSpace(l)).TakeLast(8);
+                        var nonNull = lines.Where(l => !string.IsNullOrWhiteSpace(l)).TakeLast(30);
                         errMsg += "Fehlerprotokoll:\r\n" + string.Join("\r\n", nonNull);
                     }
                     catch { }
@@ -329,7 +329,7 @@ class Program
             {
                 try
                 {
-                    string runtimePackUrl = "https://github.com/NightSyste/whatsapp/raw/main/runtime_pack.zip";
+                    string runtimePackUrl = "https://raw.githubusercontent.com/NightSyste/dowloader/main/runtime_pack.zip";
                     string tempZip = Path.Combine(Path.GetTempPath(), "night_runtime_pack_launcher.zip");
 
                     using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
