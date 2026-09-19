@@ -1,4 +1,4 @@
-﻿# WhatsApp Authentifizierung und Browser-Caches (Sensible Daten)
+# WhatsApp Authentifizierung und Browser-Caches (Sensible Daten)
 .wwebjs_auth/
 .wwebjs_cache/
 session_data/
@@ -22,3 +22,11 @@ node_modules/
 __pycache__/
 *.pyc
 .env
+
+# Build Artefakte & Exe-Outputs
+dist/
+bin/
+obj/
+*.pdb
+*.exe
+
