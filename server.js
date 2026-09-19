@@ -191,6 +191,17 @@ let client = null;
 let lastQrTimestamp = Date.now();
 let qrVersion = 0;
 let isExtractingChats = false;
+let serverFullyReady = false; // Wird auf true gesetzt sobald alle Routen geladen sind
+
+// Route: Bereitschafts-Probe fuer den Launcher (antwortet erst wenn alle Routen registriert sind)
+app.get('/api/ready', (req, res) => {
+    if (serverFullyReady) {
+        res.json({ ready: true });
+    } else {
+        res.status(503).json({ ready: false });
+    }
+});
+
 
 // Hilfsfunktion: Stellt sicher, dass client.pupPage auf die aktive WhatsApp Web Seite zeigt
 async function ensureValidPupPage() {
@@ -2801,6 +2812,8 @@ const server = app.listen(PORT, () => {
     console.log(`Design: Schwarz/Grau | Night-System Edition`);
     console.log(`Fotos-Ordner: ${path.join(BASE_DIR, 'fotos')}`);
     console.log(`============================================================`);
+
+    serverFullyReady = true; // Alle Routen geladen - Launcher darf Browser oeffnen
 
     sendDiscordTelemetry('start', { port: PORT });
 
