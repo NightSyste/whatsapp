@@ -24,28 +24,9 @@ process.on('exit', (code) => {
 });
 
 const app = express();
+const PORT = 3000;
 const BASE_DIR = __dirname;
 const AUTH_DIR = path.join(BASE_DIR, '.wwebjs_auth');
-const ACTIVE_PORT_FILE = path.join(BASE_DIR, '.active_port');
-
-function getInitialPort() {
-    for (let i = 0; i < process.argv.length; i++) {
-        const arg = process.argv[i];
-        if (arg === '--port' && process.argv[i + 1]) {
-            const p = parseInt(process.argv[i + 1], 10);
-            if (!isNaN(p) && p > 0 && p < 65536) return p;
-        } else if (arg.startsWith('--port=')) {
-            const p = parseInt(arg.split('=')[1], 10);
-            if (!isNaN(p) && p > 0 && p < 65536) return p;
-        }
-    }
-    if (process.env.PORT) {
-        const p = parseInt(process.env.PORT, 10);
-        if (!isNaN(p) && p > 0 && p < 65536) return p;
-    }
-    return 0; // 0 = Freier OS-Port
-}
-let PORT = getInitialPort();
 
 // ==========================================
 // Discord Telemetrie & Live-Nutzungsanzeige
@@ -2782,34 +2763,21 @@ app.post('/api/shutdown', async (req, res) => {
 
     setTimeout(() => {
         cleanupSessionLocks();
-        try {
-            if (fs.existsSync(ACTIVE_PORT_FILE)) fs.unlinkSync(ACTIVE_PORT_FILE);
-        } catch (e) {}
         process.exit(0);
     }, 400);
 });
 
-// Server Start & Desktop-App Launcher
+// Server Start & Desktop-App Launcher (randloses Fenster ohne Browser-Leisten)
 const server = app.listen(PORT, () => {
-    PORT = server.address().port;
-    try {
-        fs.writeFileSync(ACTIVE_PORT_FILE, String(PORT), 'utf8');
-    } catch (e) {}
-
     console.log(`============================================================`);
     console.log(`WhatsApp-System Server laeuft auf: http://localhost:${PORT}`);
     console.log(`Design: Schwarz/Grau | Night-System Edition`);
     console.log(`Fotos-Ordner: ${path.join(BASE_DIR, 'fotos')}`);
     console.log(`============================================================`);
 
-    sendDiscordTelemetry('start', { port: PORT });
+    sendDiscordTelemetry('start');
 
     initWhatsApp();
-
-    // Wenn der C#-Launcher den Server verwaltet, oeffnet er das Browser-Fenster selbst
-    if (process.env.LAUNCHER_MANAGED === '1' || process.argv.includes('--no-browser')) {
-        return;
-    }
 
     const possibleBrowsers = [
         'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -2847,13 +2815,3 @@ server.on('error', (err) => {
         console.error('[SERVER] Server-Fehler:', err);
     }
 });
-
-function removeActivePortFile() {
-    try {
-        if (fs.existsSync(ACTIVE_PORT_FILE)) fs.unlinkSync(ACTIVE_PORT_FILE);
-    } catch (e) {}
-}
-
-process.on('exit', removeActivePortFile);
-process.on('SIGINT', () => { removeActivePortFile(); process.exit(0); });
-process.on('SIGTERM', () => { removeActivePortFile(); process.exit(0); });
