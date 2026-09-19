@@ -24,5 +24,4 @@ ja
 thx for use all codes open source 
 
 the tools its Ai 
-.....................
-lol
+
