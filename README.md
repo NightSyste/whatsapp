@@ -22,3 +22,5 @@ ja
  lg Maxi
 
 thx for use all codes open source 
+
+the tools its Ai 
