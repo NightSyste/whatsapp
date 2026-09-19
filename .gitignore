@@ -1,0 +1,24 @@
+﻿# WhatsApp Authentifizierung und Browser-Caches (Sensible Daten)
+.wwebjs_auth/
+.wwebjs_cache/
+session_data/
+qr_temp/
+
+# Private Kontakte und Medien
+WhatsApp_Kontakte.xlsx
+fotos/
+*.png.tmp
+*.jpg.tmp
+
+# Lokale Runtime-Zustaende und Einstellungen
+block_status.json
+settings.json
+bot_settings.json
+server.log
+*.log
+
+# Node & Python Abhaengigkeiten und Cache
+node_modules/
+__pycache__/
+*.pyc
+.env

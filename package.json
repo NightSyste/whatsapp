@@ -1,0 +1,19 @@
+﻿{
+  "name": "whatsapp-night-system",
+  "version": "1.0.0",
+  "description": "WhatsApp-System Desktop Edition - Night-System",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.34.7",
+    "express": "^5.2.1",
+    "ws": "^8.20.0",
+    "puppeteer": "^24.38.0",
+    "qrcode-terminal": "^0.12.0",
+    "open": "^11.0.0"
+  },
+  "author": "NightSystem",
+  "license": "ISC"
+}
