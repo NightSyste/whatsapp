@@ -17,3 +17,5 @@ Starten Sie die Anwendung über die Datei Start_Tool.bat oder manuell über die 
 npm start
 `
 Die Anwendung öffnet sich standardmäßig unter http://localhost:3000.
+
+ja
