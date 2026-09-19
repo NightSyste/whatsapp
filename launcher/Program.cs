@@ -315,11 +315,33 @@ class Program
     {
         try
         {
-            string lockPath = Path.Combine(installDir, ".wwebjs_auth", "session", "lockfile");
-            if (File.Exists(lockPath))
+            string sessionDir = Path.Combine(installDir, ".wwebjs_auth", "session");
+            if (Directory.Exists(sessionDir))
             {
-                File.Delete(lockPath);
+                foreach (var fname in new[] { "lockfile", "SingletonLock", "SingletonCookie", "SingletonSocket", "DevToolsActivePort" })
+                {
+                    string p = Path.Combine(sessionDir, fname);
+                    if (File.Exists(p))
+                    {
+                        try { File.Delete(p); } catch { }
+                    }
+                }
             }
+        }
+        catch { }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -Command \"Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'chrome.exe' -or $_.Name -eq 'msedge.exe') -and ($_.CommandLine -like '*wwebjs_auth*' -or $_.CommandLine -like '*WhatsApp*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }\"",
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+            using var p = Process.Start(psi);
+            p?.WaitForExit(3000);
         }
         catch { }
 
@@ -348,10 +370,9 @@ class Program
                     {
                         string title = proc.MainWindowTitle;
                         if (!string.IsNullOrEmpty(title) &&
-                            (title.Contains("WhatsApp", StringComparison.OrdinalIgnoreCase) ||
+                            (title.Contains("Night-System", StringComparison.OrdinalIgnoreCase) ||
                              title.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
-                             title.Contains("localhost", StringComparison.OrdinalIgnoreCase) ||
-                             title.Contains("Night-System", StringComparison.OrdinalIgnoreCase)))
+                             title.Contains("localhost", StringComparison.OrdinalIgnoreCase)))
                         {
                             proc.Kill();
                             proc.WaitForExit(500);

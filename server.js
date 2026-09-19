@@ -1,11 +1,78 @@
 const express = require('express');
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcodeTerminal = require('qrcode-terminal');
-const qrcode = require('qrcode');
-const { exec, spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { exec, spawn } = require('child_process');
+
+function ensureWwebjsPatched() {
+    try {
+        const dirsToCheck = [
+            path.join(__dirname, 'node_modules', 'whatsapp-web.js'),
+            path.join(process.env.APPDATA || '', 'WhatsApp', 'node_modules', 'whatsapp-web.js')
+        ];
+        for (const dir of dirsToCheck) {
+            if (!dir || !fs.existsSync(dir)) continue;
+
+            const authStorePath = path.join(dir, 'src', 'util', 'Injected', 'AuthStore', 'AuthStore.js');
+            if (fs.existsSync(authStorePath)) {
+                const code = fs.readFileSync(authStorePath, 'utf8');
+                if (!code.includes('wsModel?.Socket')) {
+                    const patchedAuthStore = `'use strict';
+
+exports.ExposeAuthStore = () => {
+    window.AuthStore = {};
+    const wsModel = window.require ? window.require('WAWebSocketModel') : null;
+    window.AuthStore.AppState = wsModel?.Socket || null;
+    window.AuthStore.Cmd = window.require ? window.require('WAWebCmd')?.Cmd : null;
+    window.AuthStore.Conn = window.require ? window.require('WAWebConnModel')?.Conn : null;
+    window.AuthStore.OfflineMessageHandler = window.require ? window.require('WAWebOfflineHandler')?.OfflineMessageHandler : null;
+    window.AuthStore.PairingCodeLinkUtils = window.require ? window.require('WAWebAltDeviceLinkingApi') : null;
+    window.AuthStore.Base64Tools = window.require ? window.require('WABase64') : null;
+    window.AuthStore.RegistrationUtils = {
+        ...(window.require ? window.require('WAWebCompanionRegClientUtils') : {}),
+        ...(window.require ? window.require('WAWebAdvSignatureApi') : {}),
+        ...(window.require ? window.require('WAWebUserPrefsInfoStore') : {}),
+        ...(window.require ? window.require('WAWebSignalStoreApi') : {}),
+    };
+};
+`;
+                    fs.writeFileSync(authStorePath, patchedAuthStore, 'utf8');
+                    console.log('[PATCH] whatsapp-web.js AuthStore abgesichert:', authStorePath);
+                }
+            }
+
+            const clientPath = path.join(dir, 'src', 'Client.js');
+            if (fs.existsSync(clientPath)) {
+                let clientCode = fs.readFileSync(clientPath, 'utf8');
+                let modified = false;
+
+                const target1 = `        const needAuthentication = await this.pupPage.evaluate(async () => {
+            let state = window.require('WAWebSocketModel').Socket.state;`;
+                if (clientCode.includes(target1)) {
+                    const repl1 = `        const needAuthentication = await this.pupPage.evaluate(async () => {
+            try {
+                const wsModel = window.require ? window.require('WAWebSocketModel') : null;
+                if (!wsModel || !wsModel.Socket) return true;
+                let state = wsModel.Socket.state;`;
+                    clientCode = clientCode.replace(target1, repl1);
+                    modified = true;
+                }
+
+                if (modified) {
+                    fs.writeFileSync(clientPath, clientCode, 'utf8');
+                    console.log('[PATCH] whatsapp-web.js Client.js abgesichert:', clientPath);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('[PATCH] Hinweis bei Absicherung von whatsapp-web.js:', e.message);
+    }
+}
+ensureWwebjsPatched();
+
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const qrcodeTerminal = require('qrcode-terminal');
+const qrcode = require('qrcode');
 
 process.on('uncaughtException', (err) => {
     console.warn('[SYSTEM] Abgefangener Prozessfehler (uncaughtException):', err.message || err);
@@ -767,21 +834,24 @@ function findChromiumExecutable() {
 function cleanupSessionLocks() {
     try {
         const sessionDir = path.join(AUTH_DIR, 'session');
-        const lockfilePath = path.join(sessionDir, 'lockfile');
 
         // 1. Verwaiste Puppeteer-Prozesse beenden (Chrome & Edge)
         const { execSync } = require('child_process');
         try {
-            execSync('powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq \'chrome.exe\' -or $_.Name -eq \'msedge.exe\') -and $_.CommandLine -like \'*wwebjs_auth*\' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"', { stdio: 'ignore' });
+            execSync('powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq \'chrome.exe\' -or $_.Name -eq \'msedge.exe\') -and ($_.CommandLine -like \'*wwebjs_auth*\' -or $_.CommandLine -like \'*WhatsApp*\') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"', { stdio: 'ignore' });
         } catch (e) {}
 
-        // 2. Veraltetes lockfile entfernen
-        if (fs.existsSync(lockfilePath)) {
-            try {
-                fs.unlinkSync(lockfilePath);
-                console.log('[INFO] Veraltete Browser-Sperrdatei (lockfile) erfolgreich entfernt.');
-            } catch (err) {
-                console.warn('[WARNUNG] Konnte lockfile nicht entfernen:', err.message);
+        // 2. Veraltete Lock-Dateien entfernen
+        if (fs.existsSync(sessionDir)) {
+            const lockNames = ['lockfile', 'SingletonLock', 'SingletonCookie', 'SingletonSocket', 'DevToolsActivePort'];
+            for (const name of lockNames) {
+                const p = path.join(sessionDir, name);
+                if (fs.existsSync(p)) {
+                    try {
+                        fs.unlinkSync(p);
+                        console.log(`[INFO] Veraltete Browser-Sperrdatei (${name}) erfolgreich entfernt.`);
+                    } catch (err) {}
+                }
             }
         }
     } catch (e) {
@@ -898,16 +968,41 @@ function initWhatsApp() {
         console.warn('[WA-CLIENT] Unerwarteter Client-Fehler abgefangen:', err.message || err);
     });
 
-    client.initialize().catch(err => {
+    client.initialize().catch(async (err) => {
         console.error('Fehler bei WhatsApp-Initialisierung:', err.message || err);
         currentStatus = 'error';
-        if (err.message && (err.message.includes('The browser is already running') || err.message.includes('lockfile'))) {
-            console.log('[AUTO-FIX] Erzwinge Schliessung von verwaistem Browser und entferne lockfile...');
-            cleanupSessionLocks();
+
+        cleanupSessionLocks();
+
+        const errMsg = String(err?.message || err);
+        const isRecoverable = errMsg.includes('The browser is already running') ||
+                              errMsg.includes('lockfile') ||
+                              errMsg.includes('Invariant Violation') ||
+                              errMsg.includes('Cannot read properties of null') ||
+                              errMsg.includes('Target closed') ||
+                              errMsg.includes('Protocol error') ||
+                              errMsg.includes('Session closed');
+
+        if (isRecoverable && currentStatus !== 'connected') {
+            console.log('[AUTO-FIX] Unerwarteter Browserfehler vor Verbindung. Bereinige Sitzungsreste und starte Client neu...');
+            try {
+                if (client) await client.destroy().catch(() => {});
+            } catch (e) {}
+
+            if (errMsg.includes('Invariant Violation') || errMsg.includes('Cannot read properties of null')) {
+                try {
+                    const sessionDir = path.join(AUTH_DIR, 'session');
+                    if (fs.existsSync(sessionDir)) {
+                        fs.rmSync(sessionDir, { recursive: true, force: true });
+                        console.log('[AUTO-FIX] Beschaedigte temporaere Sitzungsdateien (.wwebjs_auth/session) bereinigt.');
+                    }
+                } catch (cleanErr) {}
+            }
+
             setTimeout(() => {
-                console.log('[AUTO-FIX] Starte WhatsApp-Client erneut...');
+                console.log('[AUTO-FIX] Starte WhatsApp-Client nach automatischer Fehlerbehebung neu...');
                 initWhatsApp();
-            }, 1500);
+            }, 1800);
         }
     });
 }
@@ -2278,6 +2373,12 @@ app.post('/api/open-excel', (req, res) => {
 
 app.post('/api/force-refresh', async (req, res) => {
     try {
+        if (currentStatus === 'error' || !client || !client.pupPage) {
+            console.log('[API] force-refresh im Fehlerzustand empfangen. Starte WhatsApp-Client neu...');
+            cleanupSessionLocks();
+            initWhatsApp();
+            return res.json({ status: 'success', message: 'WhatsApp-Client wird neu gestartet...' });
+        }
         if (client && client.pupPage && currentStatus !== 'connected') {
             await client.pupPage.evaluate(() => {
                 const btn = document.querySelector('span[data-icon="refresh"], div[role="button"][data-ref], [data-testid="qrcode"] button');

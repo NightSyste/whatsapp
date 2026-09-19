@@ -553,11 +553,11 @@ async function pollStatus(manual = false) {
     } else if (data.status === 'error') {
       imgEl.style.display = 'none';
       placeholder.style.display = 'block';
-      placeholder.innerHTML = '<div style="color:#ef4444; margin-bottom:8px;"><strong>Initialisierung fehlgeschlagen</strong></div><div style="font-size:12px; margin-bottom:12px;">Der Hintergrund-Browser konnte nicht sofort starten.</div><button class="btn btn-primary btn-sm" onclick="forceRefreshQr()">Erneut versuchen</button>';
-      rotationText.textContent = 'Fehler aufgetreten';
-      liveIndicator.textContent = '[FEHLER]';
+      placeholder.innerHTML = '<div style="color:#ef4444; margin-bottom:8px;"><strong>Initialisierung fehlgeschlagen</strong></div><div style="font-size:12px; margin-bottom:12px;">Der Hintergrund-Browser wird automatisch bereinigt und neu gestartet...</div><button class="btn btn-primary btn-sm" onclick="forceRefreshQr()">Jetzt erneut starten</button>';
+      rotationText.textContent = 'Selbstheilung laeuft...';
+      liveIndicator.textContent = '[NEUSTART]';
       liveIndicator.style.color = '#ef4444';
-      setStatus('Fehler beim Starten des WhatsApp-Clients.');
+      setStatus('Automatischer Neustart des WhatsApp-Clients laeuft...');
     }
 
     lastKnownStatus = data.status;
