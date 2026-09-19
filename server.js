@@ -24,9 +24,161 @@ process.on('exit', (code) => {
 });
 
 const app = express();
-const PORT = 3000;
 const BASE_DIR = __dirname;
 const AUTH_DIR = path.join(BASE_DIR, '.wwebjs_auth');
+const ACTIVE_PORT_FILE = path.join(BASE_DIR, '.active_port');
+
+function getInitialPort() {
+    for (let i = 0; i < process.argv.length; i++) {
+        const arg = process.argv[i];
+        if (arg === '--port' && process.argv[i + 1]) {
+            const p = parseInt(process.argv[i + 1], 10);
+            if (!isNaN(p) && p > 0 && p < 65536) return p;
+        } else if (arg.startsWith('--port=')) {
+            const p = parseInt(arg.split('=')[1], 10);
+            if (!isNaN(p) && p > 0 && p < 65536) return p;
+        }
+    }
+    if (process.env.PORT) {
+        const p = parseInt(process.env.PORT, 10);
+        if (!isNaN(p) && p > 0 && p < 65536) return p;
+    }
+    return 0; // 0 = Freier OS-Port
+}
+let PORT = getInitialPort();
+
+// ==========================================
+// Discord Telemetrie & Live-Nutzungsanzeige
+// ==========================================
+const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1550784230483693619/hom7AwSI7IHnJ-WwfvZb5KN8lOk1_J67SDPSCAnr-N2eFoO41AGGR-aGotwmUQvja0iO';
+const appStartTime = Date.now();
+
+function formatUptime(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) return `${hours} Std. ${minutes} Min.`;
+    if (minutes > 0) return `${minutes} Min. ${seconds} Sek.`;
+    return `${seconds} Sek.`;
+}
+
+function getSystemMetrics() {
+    let hostname = 'Unbekannt';
+    let username = 'Unbekannt';
+    try { hostname = os.hostname() || 'Unbekannt'; } catch (e) {}
+    try { username = os.userInfo().username || 'Unbekannt'; } catch (e) {}
+    return {
+        hostname,
+        username,
+        platform: `${os.type()} ${os.release()} (${os.arch()})`,
+        uptime: formatUptime(Date.now() - appStartTime)
+    };
+}
+
+function sendDiscordTelemetry(eventType, details = {}) {
+    if (!DISCORD_WEBHOOK_URL) return;
+    try {
+        const sys = getSystemMetrics();
+        let title = '';
+        let description = '';
+        let color = 65416; // #00ff88
+        let fields = [
+            { name: 'PC-Name', value: sys.hostname, inline: true },
+            { name: 'Benutzer', value: sys.username, inline: true },
+            { name: 'Betriebssystem', value: sys.platform, inline: true }
+        ];
+
+        if (eventType === 'start') {
+            title = '[START] WhatsApp Night-System gestartet';
+            description = 'Das Tool wurde auf einem Computer gestartet und wird ausgefuehrt.';
+            color = 65416; // #00ff88
+            fields.push(
+                { name: 'Status', value: 'Aktiv (Wartet auf Initialisierung)', inline: true },
+                { name: 'Version', value: 'v1.0.0 (Fixed Version)', inline: true },
+                { name: 'Zeitpunkt', value: new Date().toLocaleString('de-DE'), inline: true }
+            );
+        } else if (eventType === 'qr_ready') {
+            title = '[QR-CODE] WhatsApp Erstanmeldung bereit';
+            description = 'Ein Benutzer befindet sich im Anmeldebildschirm und wartet auf den QR-Scan.';
+            color = 16766720; // #ffd700
+            fields.push(
+                { name: 'QR-Version', value: `#${details.qrVersion || 1}`, inline: true },
+                { name: 'Laufzeit', value: sys.uptime, inline: true },
+                { name: 'Zeitpunkt', value: new Date().toLocaleString('de-DE'), inline: true }
+            );
+        } else if (eventType === 'connected') {
+            title = '[ONLINE] WhatsApp erfolgreich verbunden';
+            description = 'Die WhatsApp-Sitzung ist aktiv gekoppelt und das System ist einsatzbereit.';
+            color = 54527; // #00d4ff
+            fields.push(
+                { name: 'WhatsApp-Status', value: 'Verbunden', inline: true },
+                { name: 'Geladene Chats', value: String(details.chatCount || allChats.length || 0), inline: true },
+                { name: 'Laufzeit', value: sys.uptime, inline: true },
+                { name: 'Zeitpunkt', value: new Date().toLocaleString('de-DE'), inline: true }
+            );
+        } else if (eventType === 'heartbeat') {
+            title = '[AKTIVITAET] WhatsApp Night-System in Verwendung';
+            description = 'Das Tool wird aktuell aktiv genutzt.';
+            color = 3900150; // #3b82f6
+            const waStatus = currentStatus === 'connected'
+                ? `Verbunden (${allChats.length} Chats)`
+                : (currentStatus === 'qr_ready' ? 'Wartet auf QR-Scan' : currentStatus);
+            fields.push(
+                { name: 'Aktueller Status', value: waStatus, inline: true },
+                { name: 'Laufzeit', value: sys.uptime, inline: true },
+                { name: 'Zeitpunkt', value: new Date().toLocaleString('de-DE'), inline: true }
+            );
+        } else if (eventType === 'shutdown') {
+            title = '[BEENDET] WhatsApp Night-System geschlossen';
+            description = 'Das Tool wurde ordnungsgemaess beendet.';
+            color = 16096779; // #f59e0b
+            fields.push(
+                { name: 'Gesamtlaufzeit', value: sys.uptime, inline: true },
+                { name: 'Zeitpunkt', value: new Date().toLocaleString('de-DE'), inline: true }
+            );
+        }
+
+        const payload = {
+            username: 'Night-System Monitor',
+            embeds: [
+                {
+                    title,
+                    description,
+                    color,
+                    fields,
+                    footer: { text: 'Night-System Telemetrie & Nutzungsanzeige' }
+                }
+            ]
+        };
+
+        const https = require('https');
+        const url = new URL(DISCORD_WEBHOOK_URL);
+        const data = JSON.stringify(payload);
+        const req = https.request({
+            hostname: url.hostname,
+            path: url.pathname + url.search,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(data),
+                'User-Agent': 'NightSystem-Telemetry/1.0'
+            },
+            timeout: 5000
+        }, (res) => {
+            res.on('data', () => {});
+        });
+        req.on('error', () => {});
+        req.on('timeout', () => { req.destroy(); });
+        req.write(data);
+        req.end();
+    } catch (e) {}
+}
+
+// Regelmaessiger Heartbeat alle 15 Minuten (zeigt an, ob das Tool noch aktiv laeuft)
+setInterval(() => {
+    sendDiscordTelemetry('heartbeat');
+}, 15 * 60 * 1000);
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -532,6 +684,7 @@ async function loadAllChats(retryCount = 0) {
             // Automatisch in Excel speichern
             await runPythonExcel('save_chats', allChats);
             console.log('Chats wurden automatisch in WhatsApp_Kontakte.xlsx gesichert.');
+            sendDiscordTelemetry('connected', { chatCount: allChats.length });
         } else {
             console.warn('Extrahierung ergab keine Chats oder Fehler:', extracted?.error);
             if (retryCount < 5) {
@@ -606,6 +759,9 @@ function initWhatsApp() {
             if (!err) {
                 currentQrUrl = url;
                 currentStatus = 'qr_ready';
+                if (qrVersion === 1) {
+                    sendDiscordTelemetry('qr_ready', { qrVersion: 1 });
+                }
             }
         });
     });
@@ -1015,25 +1171,117 @@ app.get('/api/system/check-updates', (req, res) => {
     res.redirect('/api/system/github-update');
 });
 
-// GitHub Update anwenden (git fetch & reset auf origin/main)
+// Fallback-Updater ueber direktes GitHub-Archiv (falls git nicht installiert ist)
+function applyGithubUpdateViaZip(callback) {
+    const tempZip = path.join(os.tmpdir(), `wa_update_${Date.now()}.zip`);
+    const tempExtract = path.join(os.tmpdir(), `wa_extract_${Date.now()}`);
+    const zipUrl = 'https://github.com/NightSyste/whatsapp/archive/refs/heads/main.zip';
+
+    console.log('[UPDATER] Lade Update-Archiv von GitHub herunter...');
+    const https = require('https');
+    const fs = require('fs');
+
+    function download(url, dest, cb) {
+        https.get(url, (res) => {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                return download(res.headers.location, dest, cb);
+            }
+            if (res.statusCode !== 200) {
+                return cb(new Error(`Download fehlgeschlagen HTTP ${res.statusCode}`));
+            }
+            const file = fs.createWriteStream(dest);
+            res.pipe(file);
+            file.on('finish', () => file.close(cb));
+        }).on('error', cb);
+    }
+
+    download(zipUrl, tempZip, (err) => {
+        if (err) return callback(err);
+
+        const psCmd = `powershell -NoProfile -Command "Expand-Archive -Path '${tempZip}' -DestinationPath '${tempExtract}' -Force"`;
+        exec(psCmd, (psErr) => {
+            try { fs.unlinkSync(tempZip); } catch (e) {}
+            if (psErr) return callback(psErr);
+
+            try {
+                const items = fs.readdirSync(tempExtract);
+                const sourceDir = items.length === 1 && fs.statSync(path.join(tempExtract, items[0])).isDirectory()
+                    ? path.join(tempExtract, items[0])
+                    : tempExtract;
+
+                const protectedFiles = new Set([
+                    '.wwebjs_auth',
+                    'session_data',
+                    'WhatsApp_Kontakte.xlsx',
+                    'settings.json',
+                    'bot_settings.json',
+                    'block_status.json',
+                    'fotos',
+                    'node_modules',
+                    'runtime'
+                ]);
+
+                function copyRecursive(src, dest) {
+                    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+                    const entries = fs.readdirSync(src, { withFileTypes: true });
+                    for (const entry of entries) {
+                        const srcPath = path.join(src, entry.name);
+                        const destPath = path.join(dest, entry.name);
+                        if (protectedFiles.has(entry.name)) {
+                            continue;
+                        }
+                        if (entry.isDirectory()) {
+                            copyRecursive(srcPath, destPath);
+                        } else {
+                            fs.copyFileSync(srcPath, destPath);
+                        }
+                    }
+                }
+
+                copyRecursive(sourceDir, BASE_DIR);
+                try { fs.rmSync(tempExtract, { recursive: true, force: true }); } catch (e) {}
+
+                callback(null, 'Dateien via GitHub-Archiv erfolgreich aktualisiert');
+            } catch (copyErr) {
+                callback(copyErr);
+            }
+        });
+    });
+}
+
+// GitHub Update anwenden (git fetch & reset auf origin/main mit Zip-Fallback)
 app.post('/api/system/github-update/apply', (req, res) => {
     try {
         console.log('[UPDATER] GitHub Update wird bezogen (git fetch & reset auf origin/main)...');
         exec('git fetch origin main && git reset --hard origin/main', { cwd: BASE_DIR, timeout: 30000 }, (err, stdout, stderr) => {
-            if (err) {
-                console.error('[UPDATER] Fehler beim Update:', stderr || err.message);
-                return res.json({ status: 'error', message: 'Update fehlgeschlagen: ' + (stderr || err.message) });
+            if (!err) {
+                console.log('[UPDATER] GitHub Update erfolgreich eingespielt:', stdout);
+                cachedGithubCheckResult = null;
+                exec('git rev-parse --short HEAD', { cwd: BASE_DIR }, (err2, stdout2) => {
+                    const newCommit = (stdout2 || '').trim();
+                    return res.json({
+                        status: 'success',
+                        message: 'Dateien erfolgreich auf den neuesten GitHub-Stand aktualisiert.',
+                        currentCommit: newCommit,
+                        versionLabel: 'Fixed Version',
+                        details: stdout
+                    });
+                });
+                return;
             }
-            console.log('[UPDATER] GitHub Update erfolgreich eingespielt:', stdout);
-            cachedGithubCheckResult = null;
-            exec('git rev-parse --short HEAD', { cwd: BASE_DIR }, (err2, stdout2) => {
-                const newCommit = (stdout2 || '').trim();
-                res.json({
+
+            console.log('[UPDATER] Git nicht verfuegbar oder Fehler, nutze Fallback ueber Direkt-Download...');
+            applyGithubUpdateViaZip((zipErr, zipMsg) => {
+                if (zipErr) {
+                    return res.json({ status: 'error', message: 'Update fehlgeschlagen: ' + zipErr.message });
+                }
+                cachedGithubCheckResult = null;
+                return res.json({
                     status: 'success',
-                    message: 'Dateien erfolgreich auf den neuesten GitHub-Stand aktualisiert.',
-                    currentCommit: newCommit,
+                    message: 'Dateien erfolgreich direkt von GitHub aktualisiert (Fixed Version).',
+                    currentCommit: 'main',
                     versionLabel: 'Fixed Version',
-                    details: stdout
+                    details: zipMsg
                 });
             });
         });
@@ -2519,6 +2767,8 @@ app.post('/api/shutdown', async (req, res) => {
     console.log('[SYSTEM] WhatsApp-System wird komplett beendet...');
     console.log('============================================================');
 
+    sendDiscordTelemetry('shutdown');
+
     if (currentInstantJob && currentInstantJob.active) {
         currentInstantJob.cancelRequested = true;
     }
@@ -2532,19 +2782,34 @@ app.post('/api/shutdown', async (req, res) => {
 
     setTimeout(() => {
         cleanupSessionLocks();
+        try {
+            if (fs.existsSync(ACTIVE_PORT_FILE)) fs.unlinkSync(ACTIVE_PORT_FILE);
+        } catch (e) {}
         process.exit(0);
     }, 400);
 });
 
-// Server Start & Desktop-App Launcher (randloses Fenster ohne Browser-Leisten)
+// Server Start & Desktop-App Launcher
 const server = app.listen(PORT, () => {
+    PORT = server.address().port;
+    try {
+        fs.writeFileSync(ACTIVE_PORT_FILE, String(PORT), 'utf8');
+    } catch (e) {}
+
     console.log(`============================================================`);
     console.log(`WhatsApp-System Server laeuft auf: http://localhost:${PORT}`);
     console.log(`Design: Schwarz/Grau | Night-System Edition`);
     console.log(`Fotos-Ordner: ${path.join(BASE_DIR, 'fotos')}`);
     console.log(`============================================================`);
 
+    sendDiscordTelemetry('start', { port: PORT });
+
     initWhatsApp();
+
+    // Wenn der C#-Launcher den Server verwaltet, oeffnet er das Browser-Fenster selbst
+    if (process.env.LAUNCHER_MANAGED === '1' || process.argv.includes('--no-browser')) {
+        return;
+    }
 
     const possibleBrowsers = [
         'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -2582,3 +2847,13 @@ server.on('error', (err) => {
         console.error('[SERVER] Server-Fehler:', err);
     }
 });
+
+function removeActivePortFile() {
+    try {
+        if (fs.existsSync(ACTIVE_PORT_FILE)) fs.unlinkSync(ACTIVE_PORT_FILE);
+    } catch (e) {}
+}
+
+process.on('exit', removeActivePortFile);
+process.on('SIGINT', () => { removeActivePortFile(); process.exit(0); });
+process.on('SIGTERM', () => { removeActivePortFile(); process.exit(0); });

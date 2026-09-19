@@ -12,6 +12,7 @@
     "ws": "^8.20.0",
     "puppeteer": "^24.38.0",
     "qrcode-terminal": "^0.12.0",
+    "qrcode": "^1.5.4",
     "open": "^11.0.0"
   },
   "author": "NightSystem",
