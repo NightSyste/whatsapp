@@ -2499,4 +2499,3 @@ server.on('error', (err) => {
         console.error('[SERVER] Server-Fehler:', err);
     }
 });
-.
