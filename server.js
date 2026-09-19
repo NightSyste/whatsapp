@@ -1415,46 +1415,58 @@ app.get('/api/system/check-updates', (req, res) => {
     res.redirect('/api/system/github-update');
 });
 
-// GitHub Update anwenden
-app.post('/api/system/github-update/apply', async (req, res) => {
+// NightSystem Downloader fuer vollstaendige Aktualisierung starten
+app.post(['/api/system/start-downloader-update', '/api/system/github-update/apply'], async (req, res) => {
     try {
-        console.log('[UPDATER] Wende GitHub Update an...');
+        console.log('[UPDATER] Starte NightSystem Downloader fuer Aktualisierung...');
+        const desktopDir = path.join(process.env.USERPROFILE || '', 'Desktop');
+        const desktopDownloaderExe = path.join(desktopDir, 'WhatsApp-Downloader.exe');
+        const baseDownloaderExe = path.join(BASE_DIR, 'WhatsApp-Downloader.exe');
 
-        // Remote SHA vorab holen (ohne Rate-Limit)
-        const [remoteWaSha, remoteDlSha] = await Promise.all([
-            getRemoteRepoSha('NightSyste/whatsapp'),
-            getRemoteRepoSha('NightSyste/dowloader')
-        ]);
-        const newComposite = `${remoteWaSha || ''}_${(remoteDlSha || '').substring(0, 7)}`;
+        let exeToStart = fs.existsSync(desktopDownloaderExe) ? desktopDownloaderExe : (fs.existsSync(baseDownloaderExe) ? baseDownloaderExe : null);
 
-        exec('git fetch origin main && git reset --hard origin/main', { cwd: BASE_DIR, timeout: 30000 }, (err, stdout) => {
-            const onFilesUpdated = () => {
-                // Auch die .exe Dateien aktualisieren
-                updateExecutableBinaries(() => {
-                    if (newComposite) {
-                        saveRecordedLocalSha(newComposite);
-                    }
-                    console.log('[UPDATER] Update erfolgreich abgeschlossen.');
-                    return res.json({
-                        status: 'success',
-                        message: 'Dateien und Executables erfolgreich auf den neuesten Stand aktualisiert.',
-                        currentCommit: (remoteWaSha || 'main').substring(0, 7),
-                        versionLabel: 'Fixed Version'
+        if (!exeToStart) {
+            console.log('[UPDATER] Downloader nicht lokal vorhanden, lade von Server herunter...');
+            const downloaderUrl = 'https://raw.githubusercontent.com/NightSyste/dowloader/main/WhatsApp-Downloader.exe';
+            try {
+                await new Promise((resolve, reject) => {
+                    downloadFileHttps(downloaderUrl, desktopDownloaderExe, (err) => {
+                        if (err) reject(err);
+                        else resolve();
                     });
                 });
-            };
-
-            if (!err) {
-                onFilesUpdated();
-            } else {
-                console.log('[UPDATER] Git-Pull fehlgeschlagen, nutze Fallback ueber Direkt-Download...');
-                applyGithubUpdateViaZip((zipErr) => {
-                    if (zipErr) {
-                        return res.json({ status: 'error', message: 'Update fehlgeschlagen: ' + zipErr.message });
-                    }
-                    onFilesUpdated();
-                });
+                exeToStart = desktopDownloaderExe;
+            } catch (dlErr) {
+                console.warn('[UPDATER] Fehler beim Herunterladen des Downloaders:', dlErr.message);
             }
+        }
+
+        if (exeToStart && fs.existsSync(exeToStart)) {
+            const { spawn } = require('child_process');
+            const proc = spawn(exeToStart, ['--update-tool'], {
+                detached: true,
+                stdio: 'ignore'
+            });
+            proc.unref();
+
+            res.json({ status: 'success', message: 'Downloader gestartet' });
+
+            setTimeout(() => {
+                cleanupSessionLocks();
+                try {
+                    if (fs.existsSync(ACTIVE_PORT_FILE)) fs.unlinkSync(ACTIVE_PORT_FILE);
+                } catch (e) {}
+                process.exit(0);
+            }, 600);
+            return;
+        }
+
+        // Fallback falls Downloader gar nicht ausfuehrbar ist
+        console.log('[UPDATER] Fallback auf Direkt-Update...');
+        exec('git fetch origin main && git reset --hard origin/main', { cwd: BASE_DIR, timeout: 30000 }, (err) => {
+            updateExecutableBinaries(() => {
+                res.json({ status: 'success', message: 'Update abgeschlossen' });
+            });
         });
     } catch (e) {
         res.json({ status: 'error', message: e.message });

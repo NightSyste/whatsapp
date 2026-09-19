@@ -158,15 +158,15 @@ async function checkForUpdatesAndReload(isManual = false) {
       const overlay = document.getElementById('githubUpdateOverlay');
       const remoteShaEl = document.getElementById('updateRemoteSha');
       if (remoteShaEl) {
-        remoteShaEl.textContent = data.remoteCommit || 'Neuer Commit';
+        remoteShaEl.textContent = data.remoteCommit || 'Neuer Stand';
       }
       if (overlay) overlay.style.display = 'flex';
-      showToast('Neue Version auf GitHub gefunden! Bitte jetzt installieren.');
+      showToast('Neue Version verfuegbar! Bitte jetzt installieren.');
     } else {
       showToast('Das WhatsApp-System ist bereits auf dem neuesten Stand.');
     }
   } catch (err) {
-    showToast('Fehler bei der Update-Prüfung: ' + err.message, true);
+    showToast('Fehler bei der Update-Pruefung: ' + err.message, true);
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -184,44 +184,30 @@ async function applyGitHubUpdate() {
 
   if (btn) {
     btn.disabled = true;
-    btn.textContent = 'Wird installiert...';
+    btn.textContent = 'Wird gestartet...';
   }
   if (indicator) {
     indicator.style.display = 'block';
-    indicator.textContent = 'Dateien und Executables werden von GitHub geladen...';
+    indicator.style.color = '#008CFF';
+    indicator.textContent = 'Vorbereitung laeuft... NightSystem Downloader uebernimmt die Aktualisierung...';
   }
 
   try {
-    const res = await fetch('/api/system/github-update/apply', { method: 'POST' });
+    const res = await fetch('/api/system/start-downloader-update', { method: 'POST' });
     const data = await res.json();
 
     if (data.status === 'success') {
       if (indicator) {
-        indicator.textContent = 'Erfolgreich installiert! Starte System neu...';
-        indicator.style.color = '#25D366';
+        indicator.textContent = 'Downloader gestartet! Anwendung wird beendet...';
+        indicator.style.color = '#008CFF';
       }
-      showToast('Update erfolgreich! Starte Anwendung neu...', false);
+      showToast('Downloader gestartet! Anwendung wird beendet...', false);
 
-      // Server-Neustart anfordern
-      try {
-        await fetch('/api/system/restart', { method: 'POST' });
-      } catch (e) {}
-
-      // Warte auf Neustart des Servers
-      await new Promise(r => setTimeout(r, 2000));
-      for (let i = 0; i < 30; i++) {
-        try {
-          const check = await fetch(`/api/ready?_t=${Date.now()}`);
-          if (check.ok) {
-            window.location.reload();
-            return;
-          }
-        } catch (e) {}
-        await new Promise(r => setTimeout(r, 500));
-      }
-      window.location.reload();
+      setTimeout(() => {
+        try { window.close(); } catch (e) {}
+      }, 800);
     } else {
-      throw new Error(data.message || 'Unbekannter Update-Fehler');
+      throw new Error(data.message || 'Fehler beim Starten des Downloaders');
     }
   } catch (err) {
     isApplyingUpdate = false;
@@ -234,7 +220,7 @@ async function applyGitHubUpdate() {
       indicator.style.color = '#ef4444';
       indicator.textContent = 'Fehler: ' + err.message;
     }
-    showToast('Update fehlgeschlagen: ' + err.message, true);
+    showToast('Update-Start fehlgeschlagen: ' + err.message, true);
   }
 }
 
