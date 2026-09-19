@@ -1420,12 +1420,12 @@ app.post('/api/system/github-update/apply', async (req, res) => {
     try {
         console.log('[UPDATER] Wende GitHub Update an...');
 
-        // Remote SHA vorab holen
-        const [waCommit, dlCommit] = await Promise.all([
-            fetchGithubCommit('/repos/NightSyste/whatsapp/commits/main'),
-            fetchGithubCommit('/repos/NightSyste/dowloader/commits/main')
+        // Remote SHA vorab holen (ohne Rate-Limit)
+        const [remoteWaSha, remoteDlSha] = await Promise.all([
+            getRemoteRepoSha('NightSyste/whatsapp'),
+            getRemoteRepoSha('NightSyste/dowloader')
         ]);
-        const newComposite = `${waCommit?.sha || ''}_${(dlCommit?.sha || '').substring(0, 7)}`;
+        const newComposite = `${remoteWaSha || ''}_${(remoteDlSha || '').substring(0, 7)}`;
 
         exec('git fetch origin main && git reset --hard origin/main', { cwd: BASE_DIR, timeout: 30000 }, (err, stdout) => {
             const onFilesUpdated = () => {
@@ -1438,7 +1438,7 @@ app.post('/api/system/github-update/apply', async (req, res) => {
                     return res.json({
                         status: 'success',
                         message: 'Dateien und Executables erfolgreich auf den neuesten Stand aktualisiert.',
-                        currentCommit: (waCommit?.sha || 'main').substring(0, 7),
+                        currentCommit: (remoteWaSha || 'main').substring(0, 7),
                         versionLabel: 'Fixed Version'
                     });
                 });
