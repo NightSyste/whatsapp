@@ -50,6 +50,37 @@
     </div>
   </div>
 
+  <!-- GitHub Update Detected Screen (Verschwommenes Overlay / Fixed Version) -->
+  <div id="githubUpdateOverlay" class="update-blur-overlay" style="display: none;">
+    <div class="update-blur-card">
+      <div class="update-fixed-badge" data-i18n="update_modal_badge">Fixed Version</div>
+      <h2 class="update-card-title" data-i18n="update_modal_title">Neue Version verfügbar</h2>
+      <p class="update-card-desc" data-i18n="update_modal_desc">
+        Auf GitHub wurde eine neue Version veröffentlicht. Alle veralteten Dateien werden automatisch aktualisiert und ersetzt.
+      </p>
+
+      <div class="update-meta-box">
+        <div class="update-meta-row">
+          <span class="update-meta-label">GitHub Branch:</span>
+          <span class="update-meta-val">main</span>
+        </div>
+        <div class="update-meta-row">
+          <span class="update-meta-label">Neuer Commit:</span>
+          <span id="updateRemoteSha" class="update-meta-val">-</span>
+        </div>
+      </div>
+
+      <div class="update-action-row">
+        <button id="btnApplyUpdateModal" class="btn btn-update-large" onclick="applyGitHubUpdate()" data-i18n="update_modal_btn">
+          Jetzt aktualisieren
+        </button>
+      </div>
+      <div id="updateInstallingIndicator" class="update-installing-text" style="display: none;" data-i18n="update_modal_installing">
+        Dateien werden von GitHub geladen und ersetzt...
+      </div>
+    </div>
+  </div>
+
   <div class="app-container">
 
     <!-- Header -->

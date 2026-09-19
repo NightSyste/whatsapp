@@ -176,7 +176,12 @@ const TRANSLATIONS = {
     "toast_updates_sync": "System synchronisiert. Ansicht wird neu geladen...",
     "toast_system_uptodate": "Das System ist auf dem neuesten Stand.",
     "toast_updating": "Update wird von GitHub heruntergeladen...",
-    "toast_update_success": "Update erfolgreich installiert. Ansicht wird aktualisiert..."
+    "toast_update_success": "Update erfolgreich installiert. Ansicht wird aktualisiert...",
+    "update_modal_badge": "Fixed Version",
+    "update_modal_title": "Neue Version verfügbar",
+    "update_modal_desc": "Auf GitHub wurde eine neue Version veröffentlicht. Alle veralteten Dateien werden automatisch aktualisiert und ersetzt.",
+    "update_modal_btn": "Jetzt aktualisieren",
+    "update_modal_installing": "Dateien werden von GitHub geladen und ersetzt..."
   },
   "en": {
     "app_title": "WhatsApp-System",
@@ -351,7 +356,12 @@ const TRANSLATIONS = {
     "toast_updates_sync": "System synchronized. Reloading view...",
     "toast_system_uptodate": "The system is up to date.",
     "toast_updating": "Downloading update from GitHub...",
-    "toast_update_success": "Update successfully installed. Updating view..."
+    "toast_update_success": "Update successfully installed. Updating view...",
+    "update_modal_badge": "Fixed Version",
+    "update_modal_title": "New Version Available",
+    "update_modal_desc": "A new version has been published on GitHub. All outdated files will be updated and replaced automatically.",
+    "update_modal_btn": "Update Now",
+    "update_modal_installing": "Downloading files from GitHub and replacing..."
   },
   "ru": {
     "app_title": "WhatsApp-System",
@@ -526,7 +536,12 @@ const TRANSLATIONS = {
     "toast_updates_sync": "Система синхронизирована. Перезагрузка...",
     "toast_system_uptodate": "Система обновлена до последней версии.",
     "toast_updating": "Загрузка обновления с GitHub...",
-    "toast_update_success": "Обновление успешно установлено! Интерфейс обновляется..."
+    "toast_update_success": "Обновление успешно установлено! Интерфейс обновляется...",
+    "update_modal_badge": "Fixed Version",
+    "update_modal_title": "Доступна новая версия",
+    "update_modal_desc": "На GitHub опубликована новая версия. Все устаревшие файлы будут автоматически обновлены и заменены.",
+    "update_modal_btn": "Обновить сейчас",
+    "update_modal_installing": "Загрузка файлов с GitHub и замена..."
   },
   "sq": {
     "app_title": "WhatsApp-System",
@@ -701,7 +716,12 @@ const TRANSLATIONS = {
     "toast_updates_sync": "Sistemi u sinkronizua. Po ringarkohet pamja...",
     "toast_system_uptodate": "Sistemi është i përditësuar në versionin më të fundit.",
     "toast_updating": "Po shkarkohet përditësimi nga GitHub...",
-    "toast_update_success": "Përditësimi u instalua me sukses! Ndërfaqja po përditësohet..."
+    "toast_update_success": "Përditësimi u instalua me sukses! Ndërfaqja po përditësohet...",
+    "update_modal_badge": "Fixed Version",
+    "update_modal_title": "Version i ri i disponueshëm",
+    "update_modal_desc": "Një version i ri është publikuar në GitHub. Të gjithë skedarët e vjetëruar do të përditësohen automatikisht.",
+    "update_modal_btn": "Përditëso tani",
+    "update_modal_installing": "Po shkarkohen skedarët nga GitHub dhe po zëvendësohen..."
   }
 };
 

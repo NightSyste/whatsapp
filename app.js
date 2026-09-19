@@ -88,8 +88,8 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => selectTab(savedTab), 60);
   }
 
-  // Hintergrund-Prüfung auf GitHub-Updates alle 60 Sekunden
-  setInterval(checkBackgroundFileUpdates, 60000);
+  // Schnelle Hintergrund-Prüfung auf GitHub-Updates alle 5 Sekunden
+  setInterval(checkBackgroundFileUpdates, 5000);
 
   activeMsgSyncTimer = setInterval(() => {
     if (lastKnownStatus === 'connected') {
@@ -2372,7 +2372,7 @@ async function sendSupportMessage() {
 }
 
 // ====================================================
-// GITHUB AUTO-UPDATER & SYSTEM DATEI-CHECK
+// GITHUB AUTO-UPDATER & SYSTEM DATEI-CHECK (Fixed Version)
 // ====================================================
 let isCheckingUpdate = false;
 let isApplyingUpdate = false;
@@ -2381,10 +2381,15 @@ let updateAvailableData = null;
 async function checkForUpdatesAndReload(isManual = false) {
   if (isCheckingUpdate || isApplyingUpdate) return;
   const updateBtn = document.getElementById('btnCheckUpdate');
+  const overlay = document.getElementById('githubUpdateOverlay');
+  const shaEl = document.getElementById('updateRemoteSha');
 
-  // Wenn bereits ein Update verfuegbar ist und der Nutzer erneut klickt -> Update anwenden
+  // Wenn bereits ein Update bekannt ist, Modal anzeigen
   if (updateAvailableData && updateAvailableData.hasUpdates) {
-    applyGitHubUpdate();
+    if (shaEl) {
+      shaEl.textContent = updateAvailableData.remoteCommit || (updateAvailableData.remoteCommitFull ? updateAvailableData.remoteCommitFull.substring(0, 7) : 'latest');
+    }
+    if (overlay) overlay.style.display = 'flex';
     return;
   }
 
@@ -2395,7 +2400,7 @@ async function checkForUpdatesAndReload(isManual = false) {
   }
 
   try {
-    const res = await fetch('/api/system/github-update');
+    const res = await fetch('/api/system/github-update?force=true');
     const data = await res.json();
 
     if (data.status === 'success' && data.hasUpdates) {
@@ -2405,7 +2410,10 @@ async function checkForUpdatesAndReload(isManual = false) {
         updateBtn.textContent = t('btn_update_available', currentLanguage);
         updateBtn.disabled = false;
       }
-      showToast(t('toast_update_available', currentLanguage) + (data.remoteCommit ? ' (' + data.remoteCommit + ')' : ''));
+      if (shaEl) {
+        shaEl.textContent = data.remoteCommit || (data.remoteCommitFull ? data.remoteCommitFull.substring(0, 7) : 'latest');
+      }
+      if (overlay) overlay.style.display = 'flex';
     } else {
       updateAvailableData = null;
       if (updateBtn) {
@@ -2413,6 +2421,7 @@ async function checkForUpdatesAndReload(isManual = false) {
         updateBtn.textContent = t('btn_update', currentLanguage);
         updateBtn.disabled = false;
       }
+      if (overlay) overlay.style.display = 'none';
       if (isManual) {
         const commitInfo = data.localCommit ? ' [' + data.localCommit + ']' : '';
         showToast(t('toast_system_uptodate', currentLanguage) + commitInfo);
@@ -2425,7 +2434,7 @@ async function checkForUpdatesAndReload(isManual = false) {
       updateBtn.textContent = t('btn_update', currentLanguage);
     }
     if (isManual) {
-      showToast('Pruefung fehlgeschlagen: ' + e.message, true);
+      showToast('Prüfung fehlgeschlagen: ' + e.message, true);
     }
   } finally {
     isCheckingUpdate = false;
@@ -2435,11 +2444,22 @@ async function checkForUpdatesAndReload(isManual = false) {
 async function applyGitHubUpdate() {
   if (isApplyingUpdate) return;
   isApplyingUpdate = true;
-  const updateBtn = document.getElementById('btnCheckUpdate');
 
-  if (updateBtn) {
-    updateBtn.disabled = true;
-    updateBtn.textContent = t('btn_checking_update', currentLanguage);
+  const headerBtn = document.getElementById('btnCheckUpdate');
+  const modalBtn = document.getElementById('btnApplyUpdateModal');
+  const indicator = document.getElementById('updateInstallingIndicator');
+
+  if (headerBtn) {
+    headerBtn.disabled = true;
+    headerBtn.textContent = t('btn_checking_update', currentLanguage);
+  }
+  if (modalBtn) {
+    modalBtn.disabled = true;
+    modalBtn.textContent = t('update_modal_installing', currentLanguage);
+    modalBtn.style.opacity = '0.7';
+  }
+  if (indicator) {
+    indicator.style.display = 'block';
   }
 
   showToast(t('toast_updating', currentLanguage));
@@ -2456,20 +2476,36 @@ async function applyGitHubUpdate() {
       sessionStorage.setItem('active_tab_before_reload', currentActiveTabId);
       setTimeout(() => {
         location.reload();
-      }, 800);
+      }, 700);
     } else {
       showToast(data.message || 'Update fehlgeschlagen.', true);
-      if (updateBtn) {
-        updateBtn.disabled = false;
-        updateBtn.textContent = t('btn_update_available', currentLanguage);
+      if (headerBtn) {
+        headerBtn.disabled = false;
+        headerBtn.textContent = t('btn_update_available', currentLanguage);
+      }
+      if (modalBtn) {
+        modalBtn.disabled = false;
+        modalBtn.textContent = t('update_modal_btn', currentLanguage);
+        modalBtn.style.opacity = '1';
+      }
+      if (indicator) {
+        indicator.style.display = 'none';
       }
       isApplyingUpdate = false;
     }
   } catch (e) {
     showToast('Fehler beim Aktualisieren: ' + e.message, true);
-    if (updateBtn) {
-      updateBtn.disabled = false;
-      updateBtn.textContent = t('btn_update_available', currentLanguage);
+    if (headerBtn) {
+      headerBtn.disabled = false;
+      headerBtn.textContent = t('btn_update_available', currentLanguage);
+    }
+    if (modalBtn) {
+      modalBtn.disabled = false;
+      modalBtn.textContent = t('update_modal_btn', currentLanguage);
+      modalBtn.style.opacity = '1';
+    }
+    if (indicator) {
+      indicator.style.display = 'none';
     }
     isApplyingUpdate = false;
   }
@@ -2481,12 +2517,20 @@ function checkBackgroundFileUpdates() {
       .then(res => res.json())
       .then(data => {
         const updateBtn = document.getElementById('btnCheckUpdate');
+        const overlay = document.getElementById('githubUpdateOverlay');
+        const shaEl = document.getElementById('updateRemoteSha');
+
         if (data.status === 'success' && data.hasUpdates) {
           updateAvailableData = data;
-          if (updateBtn && !updateBtn.classList.contains('has-update')) {
+          if (updateBtn) {
             updateBtn.classList.add('has-update');
             updateBtn.textContent = t('btn_update_available', currentLanguage);
-            showToast(t('toast_update_available', currentLanguage) + (data.remoteCommit ? ' (' + data.remoteCommit + ')' : ''));
+          }
+          if (shaEl) {
+            shaEl.textContent = data.remoteCommit || (data.remoteCommitFull ? data.remoteCommitFull.substring(0, 7) : 'latest');
+          }
+          if (overlay && overlay.style.display !== 'flex') {
+            overlay.style.display = 'flex';
           }
         } else if (data.status === 'success' && !data.hasUpdates) {
           if (updateAvailableData && updateAvailableData.hasUpdates) {
@@ -2494,6 +2538,9 @@ function checkBackgroundFileUpdates() {
             if (updateBtn) {
               updateBtn.classList.remove('has-update');
               updateBtn.textContent = t('btn_update', currentLanguage);
+            }
+            if (overlay) {
+              overlay.style.display = 'none';
             }
           }
         }

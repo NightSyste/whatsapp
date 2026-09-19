@@ -926,42 +926,19 @@ app.post('/api/settings', (req, res) => {
     res.json({ status: 'success', settings: updated });
 });
 
-// System Datei-Update Check (prueft Zeitstempel der Projekt-Dateien)
-app.get('/api/system/check-updates', (req, res) => {
-    try {
-        const watchedFiles = ['index.html', 'app.js', 'style.css', 'translations.js', 'server.js', 'support_config.json', 'settings.json'];
-        let maxMtime = 0;
-        let modifiedFiles = [];
-        const clientTimestamp = parseFloat(req.query.since || '0');
+// ==========================================
+// GitHub Auto-Updater (Prüft und aktualisiert direkt von GitHub)
+// ==========================================
+let lastGithubCheckTime = 0;
+let cachedGithubCheckResult = null;
 
-        watchedFiles.forEach(file => {
-            const filePath = path.join(BASE_DIR, file);
-            if (fs.existsSync(filePath)) {
-                const stat = fs.statSync(filePath);
-                const mtime = stat.mtimeMs;
-                if (mtime > maxMtime) maxMtime = mtime;
-                if (clientTimestamp > 0 && mtime > clientTimestamp + 100) {
-                    modifiedFiles.push(file);
-                }
-            }
-        });
-
-        const hasUpdates = clientTimestamp > 0 ? (modifiedFiles.length > 0) : false;
-
-        res.json({
-            status: 'success',
-            hasUpdates,
-            latestTimestamp: maxMtime,
-            modifiedFiles
-        });
-    } catch (e) {
-        res.json({ status: 'error', message: e.message });
-    }
-});
-
-// GitHub Update Check (vergleicht lokalen Git-Commit mit GitHub Remote)
 app.get('/api/system/github-update', async (req, res) => {
     try {
+        const now = Date.now();
+        if (cachedGithubCheckResult && (now - lastGithubCheckTime < 2000) && !req.query.force) {
+            return res.json(cachedGithubCheckResult);
+        }
+
         const getLocalCommit = () => new Promise((resolve) => {
             exec('git rev-parse HEAD', { cwd: BASE_DIR }, (err, stdout) => {
                 if (err) return resolve('');
@@ -970,20 +947,20 @@ app.get('/api/system/github-update', async (req, res) => {
         });
 
         const getRemoteCommit = () => new Promise((resolve) => {
-            exec('git ls-remote origin refs/heads/main', { cwd: BASE_DIR, timeout: 8000 }, (err, stdout) => {
+            exec('git ls-remote origin refs/heads/main', { cwd: BASE_DIR, timeout: 6000 }, (err, stdout) => {
                 if (!err && stdout && stdout.trim()) {
                     const parts = stdout.trim().split(/\s+/);
                     if (parts[0]) {
                         return resolve({ sha: parts[0], message: '', author: '' });
                     }
                 }
-                // Fallback: GitHub API
+                // Fallback: GitHub REST-API
                 const https = require('https');
                 const options = {
                     hostname: 'api.github.com',
                     path: '/repos/NightSyste/whatsapp/commits/main',
                     headers: { 'User-Agent': 'NightSystem-Updater' },
-                    timeout: 5000
+                    timeout: 4000
                 };
                 const reqApi = https.get(options, (apiRes) => {
                     let data = '';
@@ -1013,37 +990,49 @@ app.get('/api/system/github-update', async (req, res) => {
         const remoteSha = typeof remoteInfo === 'string' ? remoteInfo : (remoteInfo?.sha || '');
         const hasUpdates = Boolean(localSha && remoteSha && localSha !== remoteSha);
 
-        res.json({
+        const result = {
             status: 'success',
             hasUpdates,
+            versionLabel: 'Fixed Version',
             localCommit: localSha ? localSha.substring(0, 7) : '',
             localCommitFull: localSha,
             remoteCommit: remoteSha ? remoteSha.substring(0, 7) : '',
             remoteCommitFull: remoteSha,
             commitMessage: remoteInfo?.message || '',
             repoUrl: 'https://github.com/NightSyste/whatsapp'
-        });
+        };
+
+        lastGithubCheckTime = now;
+        cachedGithubCheckResult = result;
+        res.json(result);
     } catch (e) {
         res.json({ status: 'error', message: e.message });
     }
 });
 
+// Alias fuer veraltete Endpunkte
+app.get('/api/system/check-updates', (req, res) => {
+    res.redirect('/api/system/github-update');
+});
+
 // GitHub Update anwenden (git fetch & reset auf origin/main)
 app.post('/api/system/github-update/apply', (req, res) => {
     try {
-        console.log('[UPDATER] GitHub Update wird bezogen...');
+        console.log('[UPDATER] GitHub Update wird bezogen (git fetch & reset auf origin/main)...');
         exec('git fetch origin main && git reset --hard origin/main', { cwd: BASE_DIR, timeout: 30000 }, (err, stdout, stderr) => {
             if (err) {
                 console.error('[UPDATER] Fehler beim Update:', stderr || err.message);
                 return res.json({ status: 'error', message: 'Update fehlgeschlagen: ' + (stderr || err.message) });
             }
             console.log('[UPDATER] GitHub Update erfolgreich eingespielt:', stdout);
+            cachedGithubCheckResult = null;
             exec('git rev-parse --short HEAD', { cwd: BASE_DIR }, (err2, stdout2) => {
                 const newCommit = (stdout2 || '').trim();
                 res.json({
                     status: 'success',
-                    message: 'Update erfolgreich installiert.',
+                    message: 'Dateien erfolgreich auf den neuesten GitHub-Stand aktualisiert.',
                     currentCommit: newCommit,
+                    versionLabel: 'Fixed Version',
                     details: stdout
                 });
             });
