@@ -427,13 +427,21 @@ async function pollStatus(manual = false) {
     const rotationText = document.getElementById('qrRotationText');
     const liveIndicator = document.getElementById('qrLiveIndicator');
 
-    if (data.status === 'qr_ready' && data.qr) {
-      if (imgEl.src !== data.qr) {
-        imgEl.src = data.qr;
-        if (lastKnownQr !== '' && lastKnownQr !== data.qr) {
+    if (!imgEl.dataset.fallbackInit) {
+      imgEl.dataset.fallbackInit = '1';
+      imgEl.onerror = () => {
+        imgEl.src = `/api/qr-image?t=${Date.now()}`;
+      };
+    }
+
+    if (data.status === 'qr_ready' && (data.qr || data.hasQr)) {
+      const targetSrc = data.qr || `/api/qr-image?v=${data.qrVersion || 1}&t=${Date.now()}`;
+      if (imgEl.src !== targetSrc) {
+        imgEl.src = targetSrc;
+        if (lastKnownQr !== '' && lastKnownQr !== targetSrc) {
           showToast('Neuer QR-Code generiert und aktiv.');
         }
-        lastKnownQr = data.qr;
+        lastKnownQr = targetSrc;
       }
       imgEl.style.display = 'block';
       placeholder.style.display = 'none';
@@ -444,9 +452,9 @@ async function pollStatus(manual = false) {
       const age = data.qrAgeSeconds || 0;
       rotationText.textContent = `QR-Code #${data.qrVersion || 1} (${age}s)`;
       liveIndicator.textContent = t('qr_active', currentLanguage);
-      liveIndicator.style.color = '#ffffff';
+      liveIndicator.style.color = '#25D366';
 
-      setStatus('QR-Code bereit.');
+      setStatus('QR-Code bereit. Bitte mit WhatsApp scannen.');
       if (manual) showToast('QR-Code ist aktiv.');
     } else if (data.status === 'connected') {
       imgEl.style.display = 'none';
@@ -458,7 +466,7 @@ async function pollStatus(manual = false) {
 
       rotationText.textContent = `${data.chatCount || 0} Chats`;
       liveIndicator.textContent = t('qr_connected', currentLanguage);
-      liveIndicator.style.color = '#ffffff';
+      liveIndicator.style.color = '#25D366';
 
       setStatus(`Verbunden (${data.chatCount || 0} Chats).`);
 
@@ -470,11 +478,19 @@ async function pollStatus(manual = false) {
     } else if (data.status === 'loading') {
       imgEl.style.display = 'none';
       placeholder.style.display = 'block';
-      placeholder.textContent = t('qr_placeholder', currentLanguage);
-      rotationText.textContent = 'Initialisiere...';
+      placeholder.innerHTML = '<div style="margin-bottom:8px;"><strong>Initialisiere WhatsApp Web...</strong></div><div style="font-size:12px; opacity:0.8;">Browser wird gestartet. Der QR-Code erscheint in wenigen Sekunden.</div>';
+      rotationText.textContent = 'Warte auf QR-Code...';
       liveIndicator.textContent = t('status_loading', currentLanguage);
       liveIndicator.style.color = '#8696a0';
-      setStatus('Initialisiere...');
+      setStatus('WhatsApp Web wird gestartet...');
+    } else if (data.status === 'error') {
+      imgEl.style.display = 'none';
+      placeholder.style.display = 'block';
+      placeholder.innerHTML = '<div style="color:#ef4444; margin-bottom:8px;"><strong>Initialisierung fehlgeschlagen</strong></div><div style="font-size:12px; margin-bottom:12px;">Der Hintergrund-Browser konnte nicht sofort starten.</div><button class="btn btn-primary btn-sm" onclick="forceRefreshQr()">Erneut versuchen</button>';
+      rotationText.textContent = 'Fehler aufgetreten';
+      liveIndicator.textContent = '[FEHLER]';
+      liveIndicator.style.color = '#ef4444';
+      setStatus('Fehler beim Starten des WhatsApp-Clients.');
     }
 
     lastKnownStatus = data.status;

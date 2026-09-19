@@ -712,15 +712,67 @@ async function loadAllChats(retryCount = 0) {
     }
 }
 
+let currentQrRaw = '';
+
+function findChromiumExecutable() {
+    const directCandidates = [
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+        path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe'),
+        'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+        'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+        path.join(process.env.LOCALAPPDATA || '', 'Microsoft\\Edge\\Application\\msedge.exe'),
+        'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+        'C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe'
+    ];
+    for (const c of directCandidates) {
+        if (c && fs.existsSync(c)) return c;
+    }
+
+    // EdgeCore Erkennung (Windows 10/11)
+    const edgeCore = 'C:\\Program Files (x86)\\Microsoft\\EdgeCore';
+    if (fs.existsSync(edgeCore)) {
+        try {
+            const subs = fs.readdirSync(edgeCore);
+            for (const s of subs) {
+                const ep = path.join(edgeCore, s, 'msedge.exe');
+                if (fs.existsSync(ep)) return ep;
+            }
+        } catch (e) {}
+    }
+
+    // Windows Registry Abfrage
+    try {
+        const { execSync } = require('child_process');
+        const regKeys = [
+            'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe',
+            'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\msedge.exe',
+            'HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe',
+            'HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\msedge.exe'
+        ];
+        for (const k of regKeys) {
+            try {
+                const out = execSync(`reg query "${k}" /ve`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+                const m = out.match(/REG_SZ\s+([^\r\n]+)/);
+                if (m && m[1] && fs.existsSync(m[1].trim())) {
+                    return m[1].trim();
+                }
+            } catch (e) {}
+        }
+    } catch (e) {}
+
+    return null;
+}
+
 function cleanupSessionLocks() {
     try {
         const sessionDir = path.join(AUTH_DIR, 'session');
         const lockfilePath = path.join(sessionDir, 'lockfile');
 
-        // 1. Verwaiste Puppeteer-Chrome Prozesse beenden
+        // 1. Verwaiste Puppeteer-Prozesse beenden (Chrome & Edge)
         const { execSync } = require('child_process');
         try {
-            execSync('powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"Name = \'chrome.exe\'\\" | Where-Object { $_.CommandLine -like \'*wwebjs_auth*\' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"', { stdio: 'ignore' });
+            execSync('powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq \'chrome.exe\' -or $_.Name -eq \'msedge.exe\') -and $_.CommandLine -like \'*wwebjs_auth*\' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"', { stdio: 'ignore' });
         } catch (e) {}
 
         // 2. Veraltetes lockfile entfernen
@@ -742,49 +794,70 @@ function initWhatsApp() {
     console.log('Starte WhatsApp-System Web Client...');
     currentStatus = 'loading';
     qrVersion = 0;
+    currentQrUrl = '';
+    currentQrRaw = '';
+
+    const browserExe = findChromiumExecutable();
+    const puppeteerArgs = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--no-first-run',
+        '--disable-gpu',
+        '--no-zygote',
+        '--disable-extensions',
+        '--use-fake-ui-for-media-stream',
+        '--use-fake-device-for-media-stream',
+        '--autoplay-policy=no-user-gesture-required'
+    ];
+
+    const puppeteerConfig = {
+        headless: true,
+        args: puppeteerArgs
+    };
+
+    if (browserExe) {
+        console.log(`[PUPPETEER] Nutze System-Browser: ${browserExe}`);
+        puppeteerConfig.executablePath = browserExe;
+    } else {
+        console.log('[PUPPETEER] Verwende integrierte Puppeteer-Laufzeit...');
+    }
 
     client = new Client({
         authStrategy: new LocalAuth({ dataPath: AUTH_DIR }),
-        puppeteer: {
-            headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--no-first-run',
-                '--disable-gpu',
-                '--use-fake-ui-for-media-stream',
-                '--use-fake-device-for-media-stream',
-                '--autoplay-policy=no-user-gesture-required'
-            ]
-        }
+        puppeteer: puppeteerConfig
     });
 
     client.on('qr', (qr) => {
         qrVersion++;
         lastQrTimestamp = Date.now();
+        currentQrRaw = qr;
         console.log(`\n[QR-Code #${qrVersion} bereit] (WhatsApp -> Verknuepfte Geraete -> Geraet verknuepfen)`);
         qrcodeTerminal.generate(qr, { small: true });
 
         qrcode.toDataURL(qr, { margin: 1, width: 320 }, (err, url) => {
-            if (!err) {
+            if (!err && url) {
                 currentQrUrl = url;
                 currentStatus = 'qr_ready';
                 if (qrVersion === 1) {
                     sendDiscordTelemetry('qr_ready', { qrVersion: 1 });
                 }
+            } else {
+                console.warn('[QR] Fehler bei toDataURL:', err?.message || err);
             }
         });
     });
 
     client.on('authenticated', () => {
         console.log('WhatsApp-Authentifizierung erfolgreich.');
+        currentStatus = 'authenticated';
     });
 
     client.on('ready', async () => {
         console.log('\nVerbindung hergestellt! WhatsApp-System ist aktiv gekoppelt.');
         currentStatus = 'connected';
         currentQrUrl = '';
+        currentQrRaw = '';
 
         // WPPConnect wa-js in WhatsApp Web injizieren
         try {
@@ -817,6 +890,8 @@ function initWhatsApp() {
     client.on('disconnected', (reason) => {
         console.log('\nVerbindung getrennt:', reason);
         currentStatus = 'disconnected';
+        currentQrUrl = '';
+        currentQrRaw = '';
     });
 
     client.on('error', (err) => {
@@ -825,8 +900,9 @@ function initWhatsApp() {
 
     client.initialize().catch(err => {
         console.error('Fehler bei WhatsApp-Initialisierung:', err.message || err);
-        if (err.message && err.message.includes('The browser is already running')) {
-            console.log('[AUTO-FIX] Erzwinge Schliessung von verwaistem Chrome und entferne lockfile...');
+        currentStatus = 'error';
+        if (err.message && (err.message.includes('The browser is already running') || err.message.includes('lockfile'))) {
+            console.log('[AUTO-FIX] Erzwinge Schliessung von verwaistem Browser und entferne lockfile...');
             cleanupSessionLocks();
             setTimeout(() => {
                 console.log('[AUTO-FIX] Starte WhatsApp-Client erneut...');
@@ -1028,12 +1104,32 @@ app.get('/api/status', (req, res) => {
     res.json({
         status: currentStatus,
         qr: currentQrUrl,
+        hasQr: Boolean(currentQrRaw || currentQrUrl),
         qrVersion: qrVersion,
         qrAgeSeconds: Math.floor((Date.now() - lastQrTimestamp) / 1000),
         chatCount: allChats.length,
         isBlocked: block.blocked,
         blockedReason: block.reason,
-        blockedRemainingSeconds: block.remainingSeconds
+        blockedRemainingSeconds: block.remainingSeconds,
+        hasBrowser: Boolean(findChromiumExecutable()),
+        browserPath: findChromiumExecutable() || 'Nicht gefunden'
+    });
+});
+
+// Direkter QR-Code Bild-Endpunkt (PNG)
+app.get('/api/qr-image', (req, res) => {
+    if (!currentQrRaw) {
+        return res.status(404).send('Kein QR-Code aktiv.');
+    }
+    qrcode.toBuffer(currentQrRaw, { margin: 1, width: 320 }, (err, buffer) => {
+        if (err || !buffer) {
+            return res.status(500).send('Fehler beim Erzeugen des QR-Codes.');
+        }
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.send(buffer);
     });
 });
 
@@ -2801,14 +2897,14 @@ app.post('/api/shutdown', async (req, res) => {
 });
 
 // Server Start & Desktop-App Launcher
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
     PORT = server.address().port;
     try {
         fs.writeFileSync(ACTIVE_PORT_FILE, String(PORT), 'utf8');
     } catch (e) {}
 
     console.log(`============================================================`);
-    console.log(`WhatsApp-System Server laeuft auf: http://localhost:${PORT}`);
+    console.log(`WhatsApp-System Server laeuft auf: http://127.0.0.1:${PORT}`);
     console.log(`Design: Schwarz/Grau | Night-System Edition`);
     console.log(`Fotos-Ordner: ${path.join(BASE_DIR, 'fotos')}`);
     console.log(`============================================================`);
@@ -2833,7 +2929,7 @@ const server = app.listen(PORT, () => {
         'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
     ];
 
-    const appArgs = `--app=http://localhost:${PORT} --window-size=1240,840 --disable-features=Translate,OptimizationHints --disable-extensions --no-default-browser-check`;
+    const appArgs = `--app=http://127.0.0.1:${PORT} --window-size=1240,840 --disable-features=Translate,OptimizationHints --disable-extensions --no-default-browser-check`;
 
     let launched = false;
     for (const bPath of possibleBrowsers) {
@@ -2847,7 +2943,7 @@ const server = app.listen(PORT, () => {
 
     if (!launched) {
         console.log('Starte Standard-Browser...');
-        exec(`start http://localhost:${PORT}`);
+        exec(`start http://127.0.0.1:${PORT}`);
     }
 });
 
