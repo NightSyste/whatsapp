@@ -1152,25 +1152,117 @@ app.get('/api/system/check-updates', (req, res) => {
     res.redirect('/api/system/github-update');
 });
 
-// GitHub Update anwenden (git fetch & reset auf origin/main)
+// Fallback-Updater ueber direktes GitHub-Archiv (falls git nicht installiert ist)
+function applyGithubUpdateViaZip(callback) {
+    const tempZip = path.join(os.tmpdir(), `wa_update_${Date.now()}.zip`);
+    const tempExtract = path.join(os.tmpdir(), `wa_extract_${Date.now()}`);
+    const zipUrl = 'https://github.com/NightSyste/whatsapp/archive/refs/heads/main.zip';
+
+    console.log('[UPDATER] Lade Update-Archiv von GitHub herunter...');
+    const https = require('https');
+    const fs = require('fs');
+
+    function download(url, dest, cb) {
+        https.get(url, (res) => {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                return download(res.headers.location, dest, cb);
+            }
+            if (res.statusCode !== 200) {
+                return cb(new Error(`Download fehlgeschlagen HTTP ${res.statusCode}`));
+            }
+            const file = fs.createWriteStream(dest);
+            res.pipe(file);
+            file.on('finish', () => file.close(cb));
+        }).on('error', cb);
+    }
+
+    download(zipUrl, tempZip, (err) => {
+        if (err) return callback(err);
+
+        const psCmd = `powershell -NoProfile -Command "Expand-Archive -Path '${tempZip}' -DestinationPath '${tempExtract}' -Force"`;
+        exec(psCmd, (psErr) => {
+            try { fs.unlinkSync(tempZip); } catch (e) {}
+            if (psErr) return callback(psErr);
+
+            try {
+                const items = fs.readdirSync(tempExtract);
+                const sourceDir = items.length === 1 && fs.statSync(path.join(tempExtract, items[0])).isDirectory()
+                    ? path.join(tempExtract, items[0])
+                    : tempExtract;
+
+                const protectedFiles = new Set([
+                    '.wwebjs_auth',
+                    'session_data',
+                    'WhatsApp_Kontakte.xlsx',
+                    'settings.json',
+                    'bot_settings.json',
+                    'block_status.json',
+                    'fotos',
+                    'node_modules',
+                    'runtime'
+                ]);
+
+                function copyRecursive(src, dest) {
+                    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+                    const entries = fs.readdirSync(src, { withFileTypes: true });
+                    for (const entry of entries) {
+                        const srcPath = path.join(src, entry.name);
+                        const destPath = path.join(dest, entry.name);
+                        if (protectedFiles.has(entry.name)) {
+                            continue;
+                        }
+                        if (entry.isDirectory()) {
+                            copyRecursive(srcPath, destPath);
+                        } else {
+                            fs.copyFileSync(srcPath, destPath);
+                        }
+                    }
+                }
+
+                copyRecursive(sourceDir, BASE_DIR);
+                try { fs.rmSync(tempExtract, { recursive: true, force: true }); } catch (e) {}
+
+                callback(null, 'Dateien via GitHub-Archiv erfolgreich aktualisiert');
+            } catch (copyErr) {
+                callback(copyErr);
+            }
+        });
+    });
+}
+
+// GitHub Update anwenden (git fetch & reset auf origin/main mit Zip-Fallback)
 app.post('/api/system/github-update/apply', (req, res) => {
     try {
         console.log('[UPDATER] GitHub Update wird bezogen (git fetch & reset auf origin/main)...');
         exec('git fetch origin main && git reset --hard origin/main', { cwd: BASE_DIR, timeout: 30000 }, (err, stdout, stderr) => {
-            if (err) {
-                console.error('[UPDATER] Fehler beim Update:', stderr || err.message);
-                return res.json({ status: 'error', message: 'Update fehlgeschlagen: ' + (stderr || err.message) });
+            if (!err) {
+                console.log('[UPDATER] GitHub Update erfolgreich eingespielt:', stdout);
+                cachedGithubCheckResult = null;
+                exec('git rev-parse --short HEAD', { cwd: BASE_DIR }, (err2, stdout2) => {
+                    const newCommit = (stdout2 || '').trim();
+                    return res.json({
+                        status: 'success',
+                        message: 'Dateien erfolgreich auf den neuesten GitHub-Stand aktualisiert.',
+                        currentCommit: newCommit,
+                        versionLabel: 'Fixed Version',
+                        details: stdout
+                    });
+                });
+                return;
             }
-            console.log('[UPDATER] GitHub Update erfolgreich eingespielt:', stdout);
-            cachedGithubCheckResult = null;
-            exec('git rev-parse --short HEAD', { cwd: BASE_DIR }, (err2, stdout2) => {
-                const newCommit = (stdout2 || '').trim();
-                res.json({
+
+            console.log('[UPDATER] Git nicht verfuegbar oder Fehler, nutze Fallback ueber Direkt-Download...');
+            applyGithubUpdateViaZip((zipErr, zipMsg) => {
+                if (zipErr) {
+                    return res.json({ status: 'error', message: 'Update fehlgeschlagen: ' + zipErr.message });
+                }
+                cachedGithubCheckResult = null;
+                return res.json({
                     status: 'success',
-                    message: 'Dateien erfolgreich auf den neuesten GitHub-Stand aktualisiert.',
-                    currentCommit: newCommit,
+                    message: 'Dateien erfolgreich direkt von GitHub aktualisiert (Fixed Version).',
+                    currentCommit: 'main',
                     versionLabel: 'Fixed Version',
-                    details: stdout
+                    details: zipMsg
                 });
             });
         });
