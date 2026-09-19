@@ -1461,6 +1461,92 @@ app.post('/api/system/github-update/apply', async (req, res) => {
     }
 });
 
+// ============================================================
+// Automatischer Downloader-Watcher:
+// Erkennt Änderungen am Downloader auf GitHub sofort,
+// lädt die neue WhatsApp-Downloader.exe herunter, aktualisiert sie
+// und startet sie kurz, damit sie sich aktualisiert und wieder schließt.
+// ============================================================
+let lastKnownDownloaderSha = '';
+let isDownloaderUpdating = false;
+
+async function checkDownloaderGitHubUpdate() {
+    if (isDownloaderUpdating) return;
+    try {
+        const remoteDlSha = await getRemoteRepoSha('NightSyste/dowloader');
+        if (!remoteDlSha) return;
+
+        const recordedFile = path.join(BASE_DIR, '.current_downloader_commit');
+        if (!lastKnownDownloaderSha) {
+            if (fs.existsSync(recordedFile)) {
+                lastKnownDownloaderSha = fs.readFileSync(recordedFile, 'utf8').trim();
+            }
+            if (!lastKnownDownloaderSha) {
+                lastKnownDownloaderSha = remoteDlSha;
+                try { fs.writeFileSync(recordedFile, remoteDlSha, 'utf8'); } catch (e) {}
+                return;
+            }
+        }
+
+        if (lastKnownDownloaderSha && remoteDlSha !== lastKnownDownloaderSha) {
+            console.log(`[DOWNLOADER-UPDATER] GitHub-Aenderung im Downloader erkannt: ${remoteDlSha.substring(0, 7)} (vorher: ${lastKnownDownloaderSha.substring(0, 7)})`);
+            isDownloaderUpdating = true;
+
+            const desktopDir = path.join(process.env.USERPROFILE || '', 'Desktop');
+            const desktopDownloaderExe = path.join(desktopDir, 'WhatsApp-Downloader.exe');
+            const baseDownloaderExe = path.join(BASE_DIR, 'WhatsApp-Downloader.exe');
+            const downloaderUrl = 'https://raw.githubusercontent.com/NightSyste/dowloader/main/WhatsApp-Downloader.exe';
+            const tmpDownloader = path.join(os.tmpdir(), `WhatsApp-Downloader_new_${Date.now()}.exe`);
+
+            console.log('[DOWNLOADER-UPDATER] Lade neueste WhatsApp-Downloader.exe herunter...');
+            downloadFileHttps(downloaderUrl, tmpDownloader, (err) => {
+                if (!err && fs.existsSync(tmpDownloader)) {
+                    const stats = fs.statSync(tmpDownloader);
+                    if (stats.size > 10 * 1024 * 1024) {
+                        try {
+                            if (fs.existsSync(desktopDownloaderExe)) {
+                                fs.copyFileSync(tmpDownloader, desktopDownloaderExe);
+                                console.log('[DOWNLOADER-UPDATER] WhatsApp-Downloader.exe auf Desktop erfolgreich aktualisiert.');
+                            }
+                            fs.copyFileSync(tmpDownloader, baseDownloaderExe);
+                        } catch (copyErr) {
+                            console.warn('[DOWNLOADER-UPDATER] Fehler beim Kopieren:', copyErr.message);
+                        }
+                    }
+                    try { fs.unlinkSync(tmpDownloader); } catch (e) {}
+                }
+
+                lastKnownDownloaderSha = remoteDlSha;
+                try {
+                    fs.writeFileSync(recordedFile, remoteDlSha, 'utf8');
+                } catch (e) {}
+
+                // Downloader automatisch öffnen, damit er sich aktualisiert und wieder schließt
+                const exeToStart = fs.existsSync(desktopDownloaderExe) ? desktopDownloaderExe : (fs.existsSync(baseDownloaderExe) ? baseDownloaderExe : null);
+                if (exeToStart) {
+                    console.log(`[DOWNLOADER-UPDATER] Oeffne Downloader fuer automatische Aktualisierung: ${exeToStart}`);
+                    const { spawn } = require('child_process');
+                    const dlProc = spawn(exeToStart, ['--auto-update'], {
+                        detached: true,
+                        stdio: 'ignore'
+                    });
+                    dlProc.unref();
+                }
+
+                setTimeout(() => {
+                    isDownloaderUpdating = false;
+                }, 12000);
+            });
+        }
+    } catch (e) {
+        isDownloaderUpdating = false;
+    }
+}
+
+// Watcher alle 6 Sekunden ausfuehren
+setInterval(checkDownloaderGitHubUpdate, 6000);
+setTimeout(checkDownloaderGitHubUpdate, 2000);
+
 // Server & App Neustart-Endpunkt
 app.post('/api/system/restart', (req, res) => {
     res.json({ status: 'restarting' });
