@@ -19,3 +19,4 @@ npm start
 Die Anwendung öffnet sich standardmäßig unter http://localhost:3000.
 
 ja
+ lg Maxi
