@@ -2378,18 +2378,51 @@ let isCheckingUpdate = false;
 let isApplyingUpdate = false;
 let updateAvailableData = null;
 
+function showUpdateOverlay(data) {
+  const overlay = document.getElementById('githubUpdateOverlay');
+  const shaEl = document.getElementById('updateRemoteSha');
+  const appCont = document.querySelector('.app-container');
+  const updateBtn = document.getElementById('btnCheckUpdate');
+
+  if (shaEl && data) {
+    shaEl.textContent = data.remoteCommit || (data.remoteCommitFull ? data.remoteCommitFull.substring(0, 7) : 'latest');
+  }
+  if (updateBtn) {
+    updateBtn.classList.add('has-update');
+    updateBtn.textContent = t('btn_update_available', currentLanguage);
+  }
+  if (appCont) {
+    appCont.classList.add('app-blurred');
+  }
+  if (overlay) {
+    overlay.style.display = 'flex';
+  }
+}
+
+function hideUpdateOverlay() {
+  const overlay = document.getElementById('githubUpdateOverlay');
+  const appCont = document.querySelector('.app-container');
+  const updateBtn = document.getElementById('btnCheckUpdate');
+
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+  if (appCont) {
+    appCont.classList.remove('app-blurred');
+  }
+  if (updateBtn) {
+    updateBtn.classList.remove('has-update');
+    updateBtn.textContent = t('btn_update', currentLanguage);
+  }
+}
+
 async function checkForUpdatesAndReload(isManual = false) {
   if (isCheckingUpdate || isApplyingUpdate) return;
   const updateBtn = document.getElementById('btnCheckUpdate');
-  const overlay = document.getElementById('githubUpdateOverlay');
-  const shaEl = document.getElementById('updateRemoteSha');
 
   // Wenn bereits ein Update bekannt ist, Modal anzeigen
   if (updateAvailableData && updateAvailableData.hasUpdates) {
-    if (shaEl) {
-      shaEl.textContent = updateAvailableData.remoteCommit || (updateAvailableData.remoteCommitFull ? updateAvailableData.remoteCommitFull.substring(0, 7) : 'latest');
-    }
-    if (overlay) overlay.style.display = 'flex';
+    showUpdateOverlay(updateAvailableData);
     return;
   }
 
@@ -2405,23 +2438,12 @@ async function checkForUpdatesAndReload(isManual = false) {
 
     if (data.status === 'success' && data.hasUpdates) {
       updateAvailableData = data;
-      if (updateBtn) {
-        updateBtn.classList.add('has-update');
-        updateBtn.textContent = t('btn_update_available', currentLanguage);
-        updateBtn.disabled = false;
-      }
-      if (shaEl) {
-        shaEl.textContent = data.remoteCommit || (data.remoteCommitFull ? data.remoteCommitFull.substring(0, 7) : 'latest');
-      }
-      if (overlay) overlay.style.display = 'flex';
+      if (updateBtn) updateBtn.disabled = false;
+      showUpdateOverlay(data);
     } else {
       updateAvailableData = null;
-      if (updateBtn) {
-        updateBtn.classList.remove('has-update');
-        updateBtn.textContent = t('btn_update', currentLanguage);
-        updateBtn.disabled = false;
-      }
-      if (overlay) overlay.style.display = 'none';
+      hideUpdateOverlay();
+      if (updateBtn) updateBtn.disabled = false;
       if (isManual) {
         const commitInfo = data.localCommit ? ' [' + data.localCommit + ']' : '';
         showToast(t('toast_system_uptodate', currentLanguage) + commitInfo);
@@ -2434,7 +2456,7 @@ async function checkForUpdatesAndReload(isManual = false) {
       updateBtn.textContent = t('btn_update', currentLanguage);
     }
     if (isManual) {
-      showToast('Prüfung fehlgeschlagen: ' + e.message, true);
+      showToast('Update-Server verbindet sich... Bitte in wenigen Sekunden erneut prüfen.', true);
     }
   } finally {
     isCheckingUpdate = false;
@@ -2516,32 +2538,13 @@ function checkBackgroundFileUpdates() {
     fetch('/api/system/github-update')
       .then(res => res.json())
       .then(data => {
-        const updateBtn = document.getElementById('btnCheckUpdate');
-        const overlay = document.getElementById('githubUpdateOverlay');
-        const shaEl = document.getElementById('updateRemoteSha');
-
         if (data.status === 'success' && data.hasUpdates) {
           updateAvailableData = data;
-          if (updateBtn) {
-            updateBtn.classList.add('has-update');
-            updateBtn.textContent = t('btn_update_available', currentLanguage);
-          }
-          if (shaEl) {
-            shaEl.textContent = data.remoteCommit || (data.remoteCommitFull ? data.remoteCommitFull.substring(0, 7) : 'latest');
-          }
-          if (overlay && overlay.style.display !== 'flex') {
-            overlay.style.display = 'flex';
-          }
+          showUpdateOverlay(data);
         } else if (data.status === 'success' && !data.hasUpdates) {
           if (updateAvailableData && updateAvailableData.hasUpdates) {
             updateAvailableData = null;
-            if (updateBtn) {
-              updateBtn.classList.remove('has-update');
-              updateBtn.textContent = t('btn_update', currentLanguage);
-            }
-            if (overlay) {
-              overlay.style.display = 'none';
-            }
+            hideUpdateOverlay();
           }
         }
       })

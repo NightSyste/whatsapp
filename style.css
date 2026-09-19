@@ -310,6 +310,13 @@ select:focus {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
+  transition: filter 0.3s ease;
+}
+
+.app-container.app-blurred {
+  filter: blur(10px);
+  pointer-events: none;
+  user-select: none;
 }
 
 /* Header */
