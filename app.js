@@ -105,42 +105,40 @@ window.addEventListener('DOMContentLoaded', () => {
 // ----------------------------------------------------
 // 0a. Datei-Updates & Hot-Reload Steuerung
 // ----------------------------------------------------
-let appLoadedTimestamp = Date.now();
+let isApplyingUpdate = false;
 
 async function checkBackgroundFileUpdates() {
+  if (isApplyingUpdate) return;
   try {
-    let hasUpdates = false;
-    let modifiedNames = [];
+    const res = await fetch(`/api/system/github-update?_t=${Date.now()}`);
+    if (!res.ok) return;
+    const data = await res.json();
 
-    try {
-      const res = await fetch(`/api/system/check-updates?since=${appLoadedTimestamp}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.hasUpdates) {
-          hasUpdates = true;
-          modifiedNames = data.modifiedFiles || [];
-        }
-      } else {
-        throw new Error('Fallback to static head');
+    const overlay = document.getElementById('githubUpdateOverlay');
+    const remoteShaEl = document.getElementById('updateRemoteSha');
+    const btnHeader = document.getElementById('btnCheckUpdate');
+
+    if (data && data.hasUpdates) {
+      if (btnHeader) {
+        btnHeader.classList.add('update-available');
+        btnHeader.textContent = '[UPDATE VERFÜGBAR]';
+        btnHeader.style.background = '#25D366';
+        btnHeader.style.color = '#0c1219';
       }
-    } catch (apiErr) {
-      // Fallback fuer statische Dateien: Pruefe Last-Modified Header
-      const headRes = await fetch(`/app.js?_t=${Date.now()}`, { method: 'HEAD' });
-      const lastModHeader = headRes.headers.get('Last-Modified');
-      if (lastModHeader) {
-        const fileTime = new Date(lastModHeader).getTime();
-        if (fileTime > appLoadedTimestamp + 1000) {
-          hasUpdates = true;
-          modifiedNames = ['Dateien geändert'];
+
+      if (overlay && overlay.style.display !== 'flex') {
+        overlay.style.display = 'flex';
+        if (remoteShaEl) {
+          remoteShaEl.textContent = data.remoteCommit || 'Neuer Commit';
         }
       }
-    }
-
-    const btn = document.getElementById('btnCheckUpdate');
-    if (hasUpdates && btn) {
-      btn.classList.add('update-available');
-      btn.textContent = t('btn_update_available', currentLanguage) || '[UPDATE VERFÜGBAR]';
-      btn.title = modifiedNames.length ? `Geänderte Dateien: ${modifiedNames.join(', ')}` : 'Neue Updates verfügbar';
+    } else {
+      if (btnHeader) {
+        btnHeader.classList.remove('update-available');
+        btnHeader.textContent = '[UPDATE]';
+        btnHeader.style.background = '';
+        btnHeader.style.color = '';
+      }
     }
   } catch (e) {}
 }
@@ -148,16 +146,96 @@ async function checkBackgroundFileUpdates() {
 async function checkForUpdatesAndReload(isManual = false) {
   const btn = document.getElementById('btnCheckUpdate');
   if (btn) {
-    btn.textContent = t('btn_checking_update', currentLanguage) || '[PRÜFE...]';
+    btn.textContent = '[PRÜFE...]';
     btn.disabled = true;
   }
 
-  showToast(t('toast_updates_sync', currentLanguage) || 'System synchronisiert. Ansicht wird neu geladen...', false);
-  sessionStorage.setItem('active_tab_before_reload', currentActiveTabId || 'view-start');
+  try {
+    const res = await fetch(`/api/system/github-update?force=1&_t=${Date.now()}`);
+    const data = await res.json();
 
-  setTimeout(() => {
-    window.location.reload();
-  }, 350);
+    if (data && data.hasUpdates) {
+      const overlay = document.getElementById('githubUpdateOverlay');
+      const remoteShaEl = document.getElementById('updateRemoteSha');
+      if (remoteShaEl) {
+        remoteShaEl.textContent = data.remoteCommit || 'Neuer Commit';
+      }
+      if (overlay) overlay.style.display = 'flex';
+      showToast('Neue Version auf GitHub gefunden! Bitte jetzt installieren.');
+    } else {
+      showToast('Das WhatsApp-System ist bereits auf dem neuesten Stand.');
+    }
+  } catch (err) {
+    showToast('Fehler bei der Update-Prüfung: ' + err.message, true);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '[UPDATE]';
+    }
+  }
+}
+
+async function applyGitHubUpdate() {
+  if (isApplyingUpdate) return;
+  isApplyingUpdate = true;
+
+  const btn = document.getElementById('btnApplyUpdateModal');
+  const indicator = document.getElementById('updateInstallingIndicator');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Wird installiert...';
+  }
+  if (indicator) {
+    indicator.style.display = 'block';
+    indicator.textContent = 'Dateien und Executables werden von GitHub geladen...';
+  }
+
+  try {
+    const res = await fetch('/api/system/github-update/apply', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.status === 'success') {
+      if (indicator) {
+        indicator.textContent = 'Erfolgreich installiert! Starte System neu...';
+        indicator.style.color = '#25D366';
+      }
+      showToast('Update erfolgreich! Starte Anwendung neu...', false);
+
+      // Server-Neustart anfordern
+      try {
+        await fetch('/api/system/restart', { method: 'POST' });
+      } catch (e) {}
+
+      // Warte auf Neustart des Servers
+      await new Promise(r => setTimeout(r, 2000));
+      for (let i = 0; i < 30; i++) {
+        try {
+          const check = await fetch(`/api/ready?_t=${Date.now()}`);
+          if (check.ok) {
+            window.location.reload();
+            return;
+          }
+        } catch (e) {}
+        await new Promise(r => setTimeout(r, 500));
+      }
+      window.location.reload();
+    } else {
+      throw new Error(data.message || 'Unbekannter Update-Fehler');
+    }
+  } catch (err) {
+    isApplyingUpdate = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Erneut versuchen';
+    }
+    if (indicator) {
+      indicator.style.display = 'block';
+      indicator.style.color = '#ef4444';
+      indicator.textContent = 'Fehler: ' + err.message;
+    }
+    showToast('Update fehlgeschlagen: ' + err.message, true);
+  }
 }
 
 // ----------------------------------------------------
@@ -2384,187 +2462,6 @@ async function sendSupportMessage() {
       sendBtn.disabled = false;
       sendBtn.textContent = t('btn_send', currentLanguage);
     }
-  }
-}
-
-// ====================================================
-// GITHUB AUTO-UPDATER & SYSTEM DATEI-CHECK (Fixed Version)
-// ====================================================
-let isCheckingUpdate = false;
-let isApplyingUpdate = false;
-let updateAvailableData = null;
-
-function showUpdateOverlay(data) {
-  const overlay = document.getElementById('githubUpdateOverlay');
-  const shaEl = document.getElementById('updateRemoteSha');
-  const appCont = document.querySelector('.app-container');
-  const updateBtn = document.getElementById('btnCheckUpdate');
-
-  if (shaEl && data) {
-    shaEl.textContent = data.remoteCommit || (data.remoteCommitFull ? data.remoteCommitFull.substring(0, 7) : 'latest');
-  }
-  if (updateBtn) {
-    updateBtn.classList.add('has-update');
-    updateBtn.textContent = t('btn_update_available', currentLanguage);
-  }
-  if (appCont) {
-    appCont.classList.add('app-blurred');
-  }
-  if (overlay) {
-    overlay.style.display = 'flex';
-  }
-}
-
-function hideUpdateOverlay() {
-  const overlay = document.getElementById('githubUpdateOverlay');
-  const appCont = document.querySelector('.app-container');
-  const updateBtn = document.getElementById('btnCheckUpdate');
-
-  if (overlay) {
-    overlay.style.display = 'none';
-  }
-  if (appCont) {
-    appCont.classList.remove('app-blurred');
-  }
-  if (updateBtn) {
-    updateBtn.classList.remove('has-update');
-    updateBtn.textContent = t('btn_update', currentLanguage);
-  }
-}
-
-async function checkForUpdatesAndReload(isManual = false) {
-  if (isCheckingUpdate || isApplyingUpdate) return;
-  const updateBtn = document.getElementById('btnCheckUpdate');
-
-  // Wenn bereits ein Update bekannt ist, Modal anzeigen
-  if (updateAvailableData && updateAvailableData.hasUpdates) {
-    showUpdateOverlay(updateAvailableData);
-    return;
-  }
-
-  isCheckingUpdate = true;
-  if (updateBtn) {
-    updateBtn.disabled = true;
-    updateBtn.textContent = t('btn_checking_update', currentLanguage);
-  }
-
-  try {
-    const res = await fetch('/api/system/github-update?force=true');
-    const data = await res.json();
-
-    if (data.status === 'success' && data.hasUpdates) {
-      updateAvailableData = data;
-      if (updateBtn) updateBtn.disabled = false;
-      showUpdateOverlay(data);
-    } else {
-      updateAvailableData = null;
-      hideUpdateOverlay();
-      if (updateBtn) updateBtn.disabled = false;
-      if (isManual) {
-        const commitInfo = data.localCommit ? ' [' + data.localCommit + ']' : '';
-        showToast(t('toast_system_uptodate', currentLanguage) + commitInfo);
-      }
-    }
-  } catch (e) {
-    console.warn('Fehler bei Update-Pruefung:', e);
-    if (updateBtn) {
-      updateBtn.disabled = false;
-      updateBtn.textContent = t('btn_update', currentLanguage);
-    }
-    if (isManual) {
-      showToast('Update-Server verbindet sich... Bitte in wenigen Sekunden erneut prüfen.', true);
-    }
-  } finally {
-    isCheckingUpdate = false;
-  }
-}
-
-async function applyGitHubUpdate() {
-  if (isApplyingUpdate) return;
-  isApplyingUpdate = true;
-
-  const headerBtn = document.getElementById('btnCheckUpdate');
-  const modalBtn = document.getElementById('btnApplyUpdateModal');
-  const indicator = document.getElementById('updateInstallingIndicator');
-
-  if (headerBtn) {
-    headerBtn.disabled = true;
-    headerBtn.textContent = t('btn_checking_update', currentLanguage);
-  }
-  if (modalBtn) {
-    modalBtn.disabled = true;
-    modalBtn.textContent = t('update_modal_installing', currentLanguage);
-    modalBtn.style.opacity = '0.7';
-  }
-  if (indicator) {
-    indicator.style.display = 'block';
-  }
-
-  showToast(t('toast_updating', currentLanguage));
-
-  try {
-    const res = await fetch('/api/system/github-update/apply', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    const data = await res.json();
-
-    if (data.status === 'success') {
-      showToast(t('toast_update_success', currentLanguage));
-      sessionStorage.setItem('active_tab_before_reload', currentActiveTabId);
-      setTimeout(() => {
-        location.reload();
-      }, 700);
-    } else {
-      showToast(data.message || 'Update fehlgeschlagen.', true);
-      if (headerBtn) {
-        headerBtn.disabled = false;
-        headerBtn.textContent = t('btn_update_available', currentLanguage);
-      }
-      if (modalBtn) {
-        modalBtn.disabled = false;
-        modalBtn.textContent = t('update_modal_btn', currentLanguage);
-        modalBtn.style.opacity = '1';
-      }
-      if (indicator) {
-        indicator.style.display = 'none';
-      }
-      isApplyingUpdate = false;
-    }
-  } catch (e) {
-    showToast('Fehler beim Aktualisieren: ' + e.message, true);
-    if (headerBtn) {
-      headerBtn.disabled = false;
-      headerBtn.textContent = t('btn_update_available', currentLanguage);
-    }
-    if (modalBtn) {
-      modalBtn.disabled = false;
-      modalBtn.textContent = t('update_modal_btn', currentLanguage);
-      modalBtn.style.opacity = '1';
-    }
-    if (indicator) {
-      indicator.style.display = 'none';
-    }
-    isApplyingUpdate = false;
-  }
-}
-
-function checkBackgroundFileUpdates() {
-  if (!isCheckingUpdate && !isApplyingUpdate) {
-    fetch('/api/system/github-update')
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === 'success' && data.hasUpdates) {
-          updateAvailableData = data;
-          showUpdateOverlay(data);
-        } else if (data.status === 'success' && !data.hasUpdates) {
-          if (updateAvailableData && updateAvailableData.hasUpdates) {
-            updateAvailableData = null;
-            hideUpdateOverlay();
-          }
-        }
-      })
-      .catch(() => {});
   }
 }
 

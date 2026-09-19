@@ -1192,117 +1192,134 @@ app.post('/api/settings', (req, res) => {
 // ==========================================
 // GitHub Auto-Updater (Prüft und aktualisiert direkt von GitHub)
 // ==========================================
-let lastGithubCheckTime = 0;
-let cachedGithubCheckResult = null;
+const COMMIT_RECORD_FILE = path.join(BASE_DIR, '.current_commit');
 
-app.get('/api/system/github-update', async (req, res) => {
+function getRecordedLocalSha() {
     try {
-        const now = Date.now();
-        if (cachedGithubCheckResult && (now - lastGithubCheckTime < 2000) && !req.query.force) {
-            return res.json(cachedGithubCheckResult);
+        if (fs.existsSync(COMMIT_RECORD_FILE)) {
+            const val = fs.readFileSync(COMMIT_RECORD_FILE, 'utf8').trim();
+            if (val) return val;
         }
+    } catch (e) {}
+    return '';
+}
 
-        const getLocalCommit = () => new Promise((resolve) => {
-            exec('git rev-parse HEAD', { cwd: BASE_DIR }, (err, stdout) => {
-                if (err) return resolve('');
-                resolve((stdout || '').trim());
-            });
-        });
+function saveRecordedLocalSha(sha) {
+    try {
+        fs.writeFileSync(COMMIT_RECORD_FILE, String(sha).trim(), 'utf8');
+    } catch (e) {}
+}
 
-        const getRemoteCommit = () => new Promise((resolve) => {
-            exec('git ls-remote origin refs/heads/main', { cwd: BASE_DIR, timeout: 6000 }, (err, stdout) => {
-                if (!err && stdout && stdout.trim()) {
-                    const parts = stdout.trim().split(/\s+/);
-                    if (parts[0]) {
-                        return resolve({ sha: parts[0], message: '', author: '' });
-                    }
+function getRemoteRepoSha(repoName) {
+    return new Promise((resolve) => {
+        // 1. git ls-remote versuchen (sofortig und ohne Rate-Limits)
+        const { exec } = require('child_process');
+        exec(`git ls-remote https://github.com/${repoName}.git refs/heads/main`, { timeout: 4000 }, (err, stdout) => {
+            if (!err && stdout && stdout.trim()) {
+                const parts = stdout.trim().split(/\s+/);
+                if (parts[0] && parts[0].length >= 7) {
+                    return resolve(parts[0]);
                 }
-                // Fallback: GitHub REST-API
-                const https = require('https');
-                const options = {
-                    hostname: 'api.github.com',
-                    path: '/repos/NightSyste/whatsapp/commits/main',
-                    headers: { 'User-Agent': 'NightSystem-Updater' },
-                    timeout: 4000
-                };
-                const reqApi = https.get(options, (apiRes) => {
-                    let data = '';
-                    apiRes.on('data', (chunk) => data += chunk);
-                    apiRes.on('end', () => {
-                        try {
-                            const parsed = JSON.parse(data);
-                            resolve({
-                                sha: parsed.sha || '',
-                                message: parsed.commit?.message || '',
-                                author: parsed.commit?.author?.name || ''
-                            });
-                        } catch (e) {
-                            resolve({ sha: '', message: '', author: '' });
-                        }
-                    });
-                });
-                reqApi.on('error', () => resolve({ sha: '', message: '', author: '' }));
-                reqApi.on('timeout', () => {
-                    reqApi.destroy();
-                    resolve({ sha: '', message: '', author: '' });
+            }
+
+            // 2. GitHub Atom-Feed (Web-Feed, 100% ohne API-Rate-Limits)
+            const https = require('https');
+            const req = https.get(`https://github.com/${repoName}/commits/main.atom`, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+                timeout: 5000
+            }, (res) => {
+                let data = '';
+                res.on('data', c => data += c);
+                res.on('end', () => {
+                    const m = data.match(/Commit\/([a-f0-9]{40})/);
+                    if (m && m[1]) {
+                        return resolve(m[1]);
+                    }
+                    resolve('');
                 });
             });
+            req.on('error', () => resolve(''));
+            req.on('timeout', () => { req.destroy(); resolve(''); });
         });
+    });
+}
 
-        const [localSha, remoteInfo] = await Promise.all([getLocalCommit(), getRemoteCommit()]);
-        const remoteSha = typeof remoteInfo === 'string' ? remoteInfo : (remoteInfo?.sha || '');
-        const hasUpdates = Boolean(localSha && remoteSha && localSha !== remoteSha);
+function getLocalRepoSha() {
+    return new Promise((resolve) => {
+        const recorded = getRecordedLocalSha();
+        if (recorded) return resolve(recorded);
 
-        const result = {
-            status: 'success',
-            hasUpdates,
-            versionLabel: 'Fixed Version',
-            localCommit: localSha ? localSha.substring(0, 7) : '',
-            localCommitFull: localSha,
-            remoteCommit: remoteSha ? remoteSha.substring(0, 7) : '',
-            remoteCommitFull: remoteSha,
-            commitMessage: remoteInfo?.message || '',
-            repoUrl: 'https://github.com/NightSyste/whatsapp'
-        };
+        const { exec } = require('child_process');
+        exec('git rev-parse HEAD', { cwd: BASE_DIR, timeout: 2000 }, (err, stdout) => {
+            const sha = (stdout || '').trim();
+            if (!err && sha) {
+                return resolve(sha);
+            }
+            resolve('');
+        });
+    });
+}
 
-        lastGithubCheckTime = now;
-        cachedGithubCheckResult = result;
-        res.json(result);
-    } catch (e) {
-        res.json({ status: 'error', message: e.message });
-    }
-});
+function downloadFileHttps(url, dest, cb) {
+    const https = require('https');
+    const fs = require('fs');
+    https.get(url, { headers: { 'User-Agent': 'NightSystem-Updater' } }, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            return downloadFileHttps(res.headers.location, dest, cb);
+        }
+        if (res.statusCode !== 200) {
+            return cb(new Error(`Download fehlgeschlagen HTTP ${res.statusCode}`));
+        }
+        const file = fs.createWriteStream(dest);
+        res.pipe(file);
+        file.on('finish', () => file.close(cb));
+    }).on('error', cb);
+}
 
-// Alias fuer veraltete Endpunkte
-app.get('/api/system/check-updates', (req, res) => {
-    res.redirect('/api/system/github-update');
-});
+function updateExecutableBinaries(cb) {
+    const desktopDir = path.join(process.env.USERPROFILE || '', 'Desktop');
+    const desktopSystemExe = path.join(desktopDir, 'WhatsApp-System.exe');
+    const desktopDownloaderExe = path.join(desktopDir, 'WhatsApp-Downloader.exe');
+    const baseSystemExe = path.join(BASE_DIR, 'WhatsApp-System.exe');
 
-// Fallback-Updater ueber direktes GitHub-Archiv (falls git nicht installiert ist)
+    const systemUrl = 'https://raw.githubusercontent.com/NightSyste/dowloader/main/WhatsApp-System.exe';
+    const downloaderUrl = 'https://raw.githubusercontent.com/NightSyste/dowloader/main/WhatsApp-Downloader.exe';
+
+    const tmpSystem = path.join(os.tmpdir(), `WhatsApp-System_${Date.now()}.exe`);
+    const tmpDownloader = path.join(os.tmpdir(), `WhatsApp-Downloader_${Date.now()}.exe`);
+
+    downloadFileHttps(systemUrl, tmpSystem, (err1) => {
+        if (!err1 && fs.existsSync(tmpSystem)) {
+            try {
+                fs.copyFileSync(tmpSystem, baseSystemExe);
+                if (fs.existsSync(desktopSystemExe)) {
+                    fs.copyFileSync(tmpSystem, desktopSystemExe);
+                }
+            } catch (e) {}
+            try { fs.unlinkSync(tmpSystem); } catch (e) {}
+        }
+        downloadFileHttps(downloaderUrl, tmpDownloader, (err2) => {
+            if (!err2 && fs.existsSync(tmpDownloader)) {
+                try {
+                    if (fs.existsSync(desktopDownloaderExe)) {
+                        fs.copyFileSync(tmpDownloader, desktopDownloaderExe);
+                    }
+                } catch (e) {}
+                try { fs.unlinkSync(tmpDownloader); } catch (e) {}
+            }
+            if (cb) cb();
+        });
+    });
+}
+
+// Fallback-Updater ueber direktes GitHub-Archiv
 function applyGithubUpdateViaZip(callback) {
     const tempZip = path.join(os.tmpdir(), `wa_update_${Date.now()}.zip`);
     const tempExtract = path.join(os.tmpdir(), `wa_extract_${Date.now()}`);
     const zipUrl = 'https://github.com/NightSyste/whatsapp/archive/refs/heads/main.zip';
 
     console.log('[UPDATER] Lade Update-Archiv von GitHub herunter...');
-    const https = require('https');
-    const fs = require('fs');
-
-    function download(url, dest, cb) {
-        https.get(url, (res) => {
-            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                return download(res.headers.location, dest, cb);
-            }
-            if (res.statusCode !== 200) {
-                return cb(new Error(`Download fehlgeschlagen HTTP ${res.statusCode}`));
-            }
-            const file = fs.createWriteStream(dest);
-            res.pipe(file);
-            file.on('finish', () => file.close(cb));
-        }).on('error', cb);
-    }
-
-    download(zipUrl, tempZip, (err) => {
+    downloadFileHttps(zipUrl, tempZip, (err) => {
         if (err) return callback(err);
 
         const psCmd = `powershell -NoProfile -Command "Expand-Archive -Path '${tempZip}' -DestinationPath '${tempExtract}' -Force"`;
@@ -1334,9 +1351,8 @@ function applyGithubUpdateViaZip(callback) {
                     for (const entry of entries) {
                         const srcPath = path.join(src, entry.name);
                         const destPath = path.join(dest, entry.name);
-                        if (protectedFiles.has(entry.name)) {
-                            continue;
-                        }
+                        if (protectedFiles.has(entry.name)) continue;
+
                         if (entry.isDirectory()) {
                             copyRecursive(srcPath, destPath);
                         } else {
@@ -1356,45 +1372,116 @@ function applyGithubUpdateViaZip(callback) {
     });
 }
 
-// GitHub Update anwenden (git fetch & reset auf origin/main mit Zip-Fallback)
-app.post('/api/system/github-update/apply', (req, res) => {
+// GitHub Auto-Updater (Prueft sofort jeden Commit auf GitHub ohne Rate-Limits)
+app.get('/api/system/github-update', async (req, res) => {
     try {
-        console.log('[UPDATER] GitHub Update wird bezogen (git fetch & reset auf origin/main)...');
-        exec('git fetch origin main && git reset --hard origin/main', { cwd: BASE_DIR, timeout: 30000 }, (err, stdout, stderr) => {
-            if (!err) {
-                console.log('[UPDATER] GitHub Update erfolgreich eingespielt:', stdout);
-                cachedGithubCheckResult = null;
-                exec('git rev-parse --short HEAD', { cwd: BASE_DIR }, (err2, stdout2) => {
-                    const newCommit = (stdout2 || '').trim();
-                    return res.json({
-                        status: 'success',
-                        message: 'Dateien erfolgreich auf den neuesten GitHub-Stand aktualisiert.',
-                        currentCommit: newCommit,
-                        versionLabel: 'Fixed Version',
-                        details: stdout
-                    });
-                });
-                return;
-            }
+        const [localSha, remoteWaSha, remoteDlSha] = await Promise.all([
+            getLocalRepoSha(),
+            getRemoteRepoSha('NightSyste/whatsapp'),
+            getRemoteRepoSha('NightSyste/dowloader')
+        ]);
 
-            console.log('[UPDATER] Git nicht verfuegbar oder Fehler, nutze Fallback ueber Direkt-Download...');
-            applyGithubUpdateViaZip((zipErr, zipMsg) => {
-                if (zipErr) {
-                    return res.json({ status: 'error', message: 'Update fehlgeschlagen: ' + zipErr.message });
-                }
-                cachedGithubCheckResult = null;
-                return res.json({
-                    status: 'success',
-                    message: 'Dateien erfolgreich direkt von GitHub aktualisiert (Fixed Version).',
-                    currentCommit: 'main',
-                    versionLabel: 'Fixed Version',
-                    details: zipMsg
-                });
-            });
+        if (!remoteWaSha && !remoteDlSha) {
+            return res.json({ status: 'success', hasUpdates: false, message: 'Keine Verbindung zu GitHub' });
+        }
+
+        const remoteComposite = `${remoteWaSha || ''}_${(remoteDlSha || '').substring(0, 7)}`;
+
+        let effectiveLocalSha = localSha;
+        if (!effectiveLocalSha) {
+            saveRecordedLocalSha(remoteComposite);
+            effectiveLocalSha = remoteComposite;
+        }
+
+        const hasUpdates = Boolean(effectiveLocalSha && remoteComposite && effectiveLocalSha !== remoteComposite);
+
+        res.json({
+            status: 'success',
+            hasUpdates,
+            versionLabel: 'Fixed Version',
+            localCommit: effectiveLocalSha.substring(0, 7),
+            localCommitFull: effectiveLocalSha,
+            remoteCommit: (remoteWaSha || remoteDlSha).substring(0, 7),
+            remoteCommitFull: remoteComposite,
+            commitMessage: 'Neueste Version auf GitHub verfuegbar',
+            repoUrl: 'https://github.com/NightSyste/whatsapp'
         });
     } catch (e) {
         res.json({ status: 'error', message: e.message });
     }
+});
+
+app.get('/api/system/check-updates', (req, res) => {
+    res.redirect('/api/system/github-update');
+});
+
+// GitHub Update anwenden
+app.post('/api/system/github-update/apply', async (req, res) => {
+    try {
+        console.log('[UPDATER] Wende GitHub Update an...');
+
+        // Remote SHA vorab holen
+        const [waCommit, dlCommit] = await Promise.all([
+            fetchGithubCommit('/repos/NightSyste/whatsapp/commits/main'),
+            fetchGithubCommit('/repos/NightSyste/dowloader/commits/main')
+        ]);
+        const newComposite = `${waCommit?.sha || ''}_${(dlCommit?.sha || '').substring(0, 7)}`;
+
+        exec('git fetch origin main && git reset --hard origin/main', { cwd: BASE_DIR, timeout: 30000 }, (err, stdout) => {
+            const onFilesUpdated = () => {
+                // Auch die .exe Dateien aktualisieren
+                updateExecutableBinaries(() => {
+                    if (newComposite) {
+                        saveRecordedLocalSha(newComposite);
+                    }
+                    console.log('[UPDATER] Update erfolgreich abgeschlossen.');
+                    return res.json({
+                        status: 'success',
+                        message: 'Dateien und Executables erfolgreich auf den neuesten Stand aktualisiert.',
+                        currentCommit: (waCommit?.sha || 'main').substring(0, 7),
+                        versionLabel: 'Fixed Version'
+                    });
+                });
+            };
+
+            if (!err) {
+                onFilesUpdated();
+            } else {
+                console.log('[UPDATER] Git-Pull fehlgeschlagen, nutze Fallback ueber Direkt-Download...');
+                applyGithubUpdateViaZip((zipErr) => {
+                    if (zipErr) {
+                        return res.json({ status: 'error', message: 'Update fehlgeschlagen: ' + zipErr.message });
+                    }
+                    onFilesUpdated();
+                });
+            }
+        });
+    } catch (e) {
+        res.json({ status: 'error', message: e.message });
+    }
+});
+
+// Server & App Neustart-Endpunkt
+app.post('/api/system/restart', (req, res) => {
+    res.json({ status: 'restarting' });
+    setTimeout(() => {
+        try {
+            const desktopDir = path.join(process.env.USERPROFILE || '', 'Desktop');
+            const desktopExe = path.join(desktopDir, 'WhatsApp-System.exe');
+            const baseExe = path.join(BASE_DIR, 'WhatsApp-System.exe');
+            const exeToRun = fs.existsSync(desktopExe) ? desktopExe : (fs.existsSync(baseExe) ? baseExe : null);
+            if (exeToRun) {
+                const { spawn } = require('child_process');
+                spawn(exeToRun, [], { detached: true, stdio: 'ignore' }).unref();
+            }
+        } catch (e) {}
+
+        cleanupSessionLocks();
+        try {
+            if (fs.existsSync(ACTIVE_PORT_FILE)) fs.unlinkSync(ACTIVE_PORT_FILE);
+        } catch (e) {}
+        process.exit(0);
+    }, 600);
 });
 
 // Support Kontakt-Infos abrufen (unterstützt beide Support-Nummern)
