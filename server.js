@@ -28,6 +28,139 @@ const PORT = 3000;
 const BASE_DIR = __dirname;
 const AUTH_DIR = path.join(BASE_DIR, '.wwebjs_auth');
 
+// ==========================================
+// Discord Telemetrie & Live-Nutzungsanzeige
+// ==========================================
+const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1550784230483693619/hom7AwSI7IHnJ-WwfvZb5KN8lOk1_J67SDPSCAnr-N2eFoO41AGGR-aGotwmUQvja0iO';
+const appStartTime = Date.now();
+
+function formatUptime(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) return `${hours} Std. ${minutes} Min.`;
+    if (minutes > 0) return `${minutes} Min. ${seconds} Sek.`;
+    return `${seconds} Sek.`;
+}
+
+function getSystemMetrics() {
+    let hostname = 'Unbekannt';
+    let username = 'Unbekannt';
+    try { hostname = os.hostname() || 'Unbekannt'; } catch (e) {}
+    try { username = os.userInfo().username || 'Unbekannt'; } catch (e) {}
+    return {
+        hostname,
+        username,
+        platform: `${os.type()} ${os.release()} (${os.arch()})`,
+        uptime: formatUptime(Date.now() - appStartTime)
+    };
+}
+
+function sendDiscordTelemetry(eventType, details = {}) {
+    if (!DISCORD_WEBHOOK_URL) return;
+    try {
+        const sys = getSystemMetrics();
+        let title = '';
+        let description = '';
+        let color = 65416; // #00ff88
+        let fields = [
+            { name: 'PC-Name', value: sys.hostname, inline: true },
+            { name: 'Benutzer', value: sys.username, inline: true },
+            { name: 'Betriebssystem', value: sys.platform, inline: true }
+        ];
+
+        if (eventType === 'start') {
+            title = '[START] WhatsApp Night-System gestartet';
+            description = 'Das Tool wurde auf einem Computer gestartet und wird ausgefuehrt.';
+            color = 65416; // #00ff88
+            fields.push(
+                { name: 'Status', value: 'Aktiv (Wartet auf Initialisierung)', inline: true },
+                { name: 'Version', value: 'v1.0.0 (Fixed Version)', inline: true },
+                { name: 'Zeitpunkt', value: new Date().toLocaleString('de-DE'), inline: true }
+            );
+        } else if (eventType === 'qr_ready') {
+            title = '[QR-CODE] WhatsApp Erstanmeldung bereit';
+            description = 'Ein Benutzer befindet sich im Anmeldebildschirm und wartet auf den QR-Scan.';
+            color = 16766720; // #ffd700
+            fields.push(
+                { name: 'QR-Version', value: `#${details.qrVersion || 1}`, inline: true },
+                { name: 'Laufzeit', value: sys.uptime, inline: true },
+                { name: 'Zeitpunkt', value: new Date().toLocaleString('de-DE'), inline: true }
+            );
+        } else if (eventType === 'connected') {
+            title = '[ONLINE] WhatsApp erfolgreich verbunden';
+            description = 'Die WhatsApp-Sitzung ist aktiv gekoppelt und das System ist einsatzbereit.';
+            color = 54527; // #00d4ff
+            fields.push(
+                { name: 'WhatsApp-Status', value: 'Verbunden', inline: true },
+                { name: 'Geladene Chats', value: String(details.chatCount || allChats.length || 0), inline: true },
+                { name: 'Laufzeit', value: sys.uptime, inline: true },
+                { name: 'Zeitpunkt', value: new Date().toLocaleString('de-DE'), inline: true }
+            );
+        } else if (eventType === 'heartbeat') {
+            title = '[AKTIVITAET] WhatsApp Night-System in Verwendung';
+            description = 'Das Tool wird aktuell aktiv genutzt.';
+            color = 3900150; // #3b82f6
+            const waStatus = currentStatus === 'connected'
+                ? `Verbunden (${allChats.length} Chats)`
+                : (currentStatus === 'qr_ready' ? 'Wartet auf QR-Scan' : currentStatus);
+            fields.push(
+                { name: 'Aktueller Status', value: waStatus, inline: true },
+                { name: 'Laufzeit', value: sys.uptime, inline: true },
+                { name: 'Zeitpunkt', value: new Date().toLocaleString('de-DE'), inline: true }
+            );
+        } else if (eventType === 'shutdown') {
+            title = '[BEENDET] WhatsApp Night-System geschlossen';
+            description = 'Das Tool wurde ordnungsgemaess beendet.';
+            color = 16096779; // #f59e0b
+            fields.push(
+                { name: 'Gesamtlaufzeit', value: sys.uptime, inline: true },
+                { name: 'Zeitpunkt', value: new Date().toLocaleString('de-DE'), inline: true }
+            );
+        }
+
+        const payload = {
+            username: 'Night-System Monitor',
+            embeds: [
+                {
+                    title,
+                    description,
+                    color,
+                    fields,
+                    footer: { text: 'Night-System Telemetrie & Nutzungsanzeige' }
+                }
+            ]
+        };
+
+        const https = require('https');
+        const url = new URL(DISCORD_WEBHOOK_URL);
+        const data = JSON.stringify(payload);
+        const req = https.request({
+            hostname: url.hostname,
+            path: url.pathname + url.search,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(data),
+                'User-Agent': 'NightSystem-Telemetry/1.0'
+            },
+            timeout: 5000
+        }, (res) => {
+            res.on('data', () => {});
+        });
+        req.on('error', () => {});
+        req.on('timeout', () => { req.destroy(); });
+        req.write(data);
+        req.end();
+    } catch (e) {}
+}
+
+// Regelmaessiger Heartbeat alle 15 Minuten (zeigt an, ob das Tool noch aktiv laeuft)
+setInterval(() => {
+    sendDiscordTelemetry('heartbeat');
+}, 15 * 60 * 1000);
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(BASE_DIR));
@@ -532,6 +665,7 @@ async function loadAllChats(retryCount = 0) {
             // Automatisch in Excel speichern
             await runPythonExcel('save_chats', allChats);
             console.log('Chats wurden automatisch in WhatsApp_Kontakte.xlsx gesichert.');
+            sendDiscordTelemetry('connected', { chatCount: allChats.length });
         } else {
             console.warn('Extrahierung ergab keine Chats oder Fehler:', extracted?.error);
             if (retryCount < 5) {
@@ -606,6 +740,9 @@ function initWhatsApp() {
             if (!err) {
                 currentQrUrl = url;
                 currentStatus = 'qr_ready';
+                if (qrVersion === 1) {
+                    sendDiscordTelemetry('qr_ready', { qrVersion: 1 });
+                }
             }
         });
     });
@@ -2519,6 +2656,8 @@ app.post('/api/shutdown', async (req, res) => {
     console.log('[SYSTEM] WhatsApp-System wird komplett beendet...');
     console.log('============================================================');
 
+    sendDiscordTelemetry('shutdown');
+
     if (currentInstantJob && currentInstantJob.active) {
         currentInstantJob.cancelRequested = true;
     }
@@ -2543,6 +2682,8 @@ const server = app.listen(PORT, () => {
     console.log(`Design: Schwarz/Grau | Night-System Edition`);
     console.log(`Fotos-Ordner: ${path.join(BASE_DIR, 'fotos')}`);
     console.log(`============================================================`);
+
+    sendDiscordTelemetry('start');
 
     initWhatsApp();
 
