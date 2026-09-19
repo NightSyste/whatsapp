@@ -1284,404 +1284,17 @@ app.post('/api/settings', (req, res) => {
     res.json({ status: 'success', settings: updated });
 });
 
-// ==========================================
-// GitHub Auto-Updater (Prüft und aktualisiert direkt von GitHub)
-// ==========================================
-const COMMIT_RECORD_FILE = path.join(BASE_DIR, '.current_commit');
-
-function getRecordedLocalSha() {
-    try {
-        if (fs.existsSync(COMMIT_RECORD_FILE)) {
-            const val = fs.readFileSync(COMMIT_RECORD_FILE, 'utf8').trim();
-            if (val) return val;
-        }
-    } catch (e) {}
-    return '';
-}
-
-function saveRecordedLocalSha(sha) {
-    try {
-        fs.writeFileSync(COMMIT_RECORD_FILE, String(sha).trim(), 'utf8');
-    } catch (e) {}
-}
-
-function getRemoteRepoSha(repoName) {
-    return new Promise((resolve) => {
-        // 1. git ls-remote versuchen (sofortig und ohne Rate-Limits)
-        const { exec } = require('child_process');
-        exec(`git ls-remote https://github.com/${repoName}.git refs/heads/main`, { timeout: 4000 }, (err, stdout) => {
-            if (!err && stdout && stdout.trim()) {
-                const parts = stdout.trim().split(/\s+/);
-                if (parts[0] && parts[0].length >= 7) {
-                    return resolve(parts[0]);
-                }
-            }
-
-            // 2. GitHub Atom-Feed (Web-Feed, 100% ohne API-Rate-Limits)
-            const https = require('https');
-            const req = https.get(`https://github.com/${repoName}/commits/main.atom`, {
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-                timeout: 5000
-            }, (res) => {
-                let data = '';
-                res.on('data', c => data += c);
-                res.on('end', () => {
-                    const m = data.match(/Commit\/([a-f0-9]{40})/);
-                    if (m && m[1]) {
-                        return resolve(m[1]);
-                    }
-                    resolve('');
-                });
-            });
-            req.on('error', () => resolve(''));
-            req.on('timeout', () => { req.destroy(); resolve(''); });
-        });
-    });
-}
-
-function getLocalRepoSha() {
-    return new Promise((resolve) => {
-        const recorded = getRecordedLocalSha();
-        if (recorded) return resolve(recorded);
-
-        const { exec } = require('child_process');
-        exec('git rev-parse HEAD', { cwd: BASE_DIR, timeout: 2000 }, (err, stdout) => {
-            const sha = (stdout || '').trim();
-            if (!err && sha) {
-                return resolve(sha);
-            }
-            resolve('');
-        });
-    });
-}
-
-function downloadFileHttps(url, dest, cb) {
-    const https = require('https');
-    const fs = require('fs');
-    https.get(url, { headers: { 'User-Agent': 'NightSystem-Updater' } }, (res) => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-            return downloadFileHttps(res.headers.location, dest, cb);
-        }
-        if (res.statusCode !== 200) {
-            return cb(new Error(`Download fehlgeschlagen HTTP ${res.statusCode}`));
-        }
-        const file = fs.createWriteStream(dest);
-        res.pipe(file);
-        file.on('finish', () => file.close(cb));
-    }).on('error', cb);
-}
-
-function updateExecutableBinaries(cb) {
-    const desktopDir = path.join(process.env.USERPROFILE || '', 'Desktop');
-    const desktopSystemExe = path.join(desktopDir, 'WhatsApp-System.exe');
-    const desktopDownloaderExe = path.join(desktopDir, 'WhatsApp-Downloader.exe');
-    const baseSystemExe = path.join(BASE_DIR, 'WhatsApp-System.exe');
-
-    const systemUrl = 'https://raw.githubusercontent.com/NightSyste/dowloader/main/WhatsApp-System.exe';
-    const downloaderUrl = 'https://raw.githubusercontent.com/NightSyste/dowloader/main/WhatsApp-Downloader.exe';
-
-    const tmpSystem = path.join(os.tmpdir(), `WhatsApp-System_${Date.now()}.exe`);
-    const tmpDownloader = path.join(os.tmpdir(), `WhatsApp-Downloader_${Date.now()}.exe`);
-
-    downloadFileHttps(systemUrl, tmpSystem, (err1) => {
-        if (!err1 && fs.existsSync(tmpSystem)) {
-            try {
-                fs.copyFileSync(tmpSystem, baseSystemExe);
-                if (fs.existsSync(desktopSystemExe)) {
-                    fs.copyFileSync(tmpSystem, desktopSystemExe);
-                }
-            } catch (e) {}
-            try { fs.unlinkSync(tmpSystem); } catch (e) {}
-        }
-        downloadFileHttps(downloaderUrl, tmpDownloader, (err2) => {
-            if (!err2 && fs.existsSync(tmpDownloader)) {
-                try {
-                    if (fs.existsSync(desktopDownloaderExe)) {
-                        fs.copyFileSync(tmpDownloader, desktopDownloaderExe);
-                    }
-                } catch (e) {}
-                try { fs.unlinkSync(tmpDownloader); } catch (e) {}
-            }
-            if (cb) cb();
-        });
-    });
-}
-
-// Fallback-Updater ueber direktes GitHub-Archiv
-function applyGithubUpdateViaZip(callback) {
-    const tempZip = path.join(os.tmpdir(), `wa_update_${Date.now()}.zip`);
-    const tempExtract = path.join(os.tmpdir(), `wa_extract_${Date.now()}`);
-    const zipUrl = 'https://github.com/NightSyste/whatsapp/archive/refs/heads/main.zip';
-
-    console.log('[UPDATER] Lade Update-Archiv von GitHub herunter...');
-    downloadFileHttps(zipUrl, tempZip, (err) => {
-        if (err) return callback(err);
-
-        const psCmd = `powershell -NoProfile -Command "Expand-Archive -Path '${tempZip}' -DestinationPath '${tempExtract}' -Force"`;
-        exec(psCmd, (psErr) => {
-            try { fs.unlinkSync(tempZip); } catch (e) {}
-            if (psErr) return callback(psErr);
-
-            try {
-                const items = fs.readdirSync(tempExtract);
-                const sourceDir = items.length === 1 && fs.statSync(path.join(tempExtract, items[0])).isDirectory()
-                    ? path.join(tempExtract, items[0])
-                    : tempExtract;
-
-                const protectedFiles = new Set([
-                    '.wwebjs_auth',
-                    'session_data',
-                    'WhatsApp_Kontakte.xlsx',
-                    'settings.json',
-                    'bot_settings.json',
-                    'block_status.json',
-                    'fotos',
-                    'node_modules',
-                    'runtime'
-                ]);
-
-                function copyRecursive(src, dest) {
-                    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
-                    const entries = fs.readdirSync(src, { withFileTypes: true });
-                    for (const entry of entries) {
-                        const srcPath = path.join(src, entry.name);
-                        const destPath = path.join(dest, entry.name);
-                        if (protectedFiles.has(entry.name)) continue;
-
-                        if (entry.isDirectory()) {
-                            copyRecursive(srcPath, destPath);
-                        } else {
-                            fs.copyFileSync(srcPath, destPath);
-                        }
-                    }
-                }
-
-                copyRecursive(sourceDir, BASE_DIR);
-                try { fs.rmSync(tempExtract, { recursive: true, force: true }); } catch (e) {}
-
-                callback(null, 'Dateien via GitHub-Archiv erfolgreich aktualisiert');
-            } catch (copyErr) {
-                callback(copyErr);
-            }
-        });
-    });
-}
-
-// GitHub Auto-Updater (Prueft sofort jeden Commit auf GitHub ohne Rate-Limits)
-app.get('/api/system/github-update', async (req, res) => {
-    try {
-        const [localSha, remoteWaSha, remoteDlSha] = await Promise.all([
-            getLocalRepoSha(),
-            getRemoteRepoSha('NightSyste/whatsapp'),
-            getRemoteRepoSha('NightSyste/dowloader')
-        ]);
-
-        if (!remoteWaSha && !remoteDlSha) {
-            return res.json({ status: 'success', hasUpdates: false, message: 'Keine Verbindung zu GitHub' });
-        }
-
-        const remoteComposite = `${remoteWaSha || ''}_${(remoteDlSha || '').substring(0, 7)}`;
-
-        let effectiveLocalSha = (localSha || '').trim();
-        if (!effectiveLocalSha) {
-            saveRecordedLocalSha(remoteComposite);
-            effectiveLocalSha = remoteComposite;
-        }
-
-        // Normalisierung: Falls lokal nur der 40-Zeichen WhatsApp-SHA ohne Suffix gespeichert war,
-        // und dieser mit dem remoteWaSha uebereinstimmt, ist die Installation bereits aktuell
-        if (effectiveLocalSha === remoteWaSha || (remoteWaSha && effectiveLocalSha.startsWith(remoteWaSha))) {
-            effectiveLocalSha = remoteComposite;
-            saveRecordedLocalSha(remoteComposite);
-        }
-
-        const hasUpdates = Boolean(effectiveLocalSha && remoteComposite && effectiveLocalSha !== remoteComposite);
-
-        res.json({
-            status: 'success',
-            hasUpdates,
-            versionLabel: 'Fixed Version',
-            localCommit: effectiveLocalSha.substring(0, 7),
-            localCommitFull: effectiveLocalSha,
-            remoteCommit: (remoteWaSha || remoteDlSha).substring(0, 7),
-            remoteCommitFull: remoteComposite,
-            commitMessage: 'Neueste Version auf GitHub verfuegbar',
-            repoUrl: 'https://github.com/NightSyste/whatsapp'
-        });
-    } catch (e) {
-        res.json({ status: 'error', message: e.message });
-    }
-});
-
-app.get('/api/system/check-updates', (req, res) => {
-    res.redirect('/api/system/github-update');
-});
-
-// NightSystem Downloader fuer vollstaendige Aktualisierung starten
-app.post(['/api/system/start-downloader-update', '/api/system/github-update/apply'], async (req, res) => {
-    try {
-        console.log('[UPDATER] Starte NightSystem Downloader fuer Aktualisierung...');
-        const desktopDir = path.join(process.env.USERPROFILE || '', 'Desktop');
-        const desktopDownloaderExe = path.join(desktopDir, 'WhatsApp-Downloader.exe');
-        const baseDownloaderExe = path.join(BASE_DIR, 'WhatsApp-Downloader.exe');
-
-        // Ziel-Commit vorab speichern, um Update-Schleifen nach dem Neustart auszuschliessen
-        try {
-            const [remoteWaSha, remoteDlSha] = await Promise.all([
-                getRemoteRepoSha('NightSyste/whatsapp'),
-                getRemoteRepoSha('NightSyste/dowloader')
-            ]);
-            if (remoteWaSha) {
-                const targetComposite = `${remoteWaSha}_${(remoteDlSha || '').substring(0, 7)}`;
-                saveRecordedLocalSha(targetComposite);
-            }
-        } catch (e) {}
-
-        let exeToStart = fs.existsSync(desktopDownloaderExe) ? desktopDownloaderExe : (fs.existsSync(baseDownloaderExe) ? baseDownloaderExe : null);
-
-        if (!exeToStart) {
-            console.log('[UPDATER] Downloader nicht lokal vorhanden, lade von Server herunter...');
-            const downloaderUrl = 'https://raw.githubusercontent.com/NightSyste/dowloader/main/WhatsApp-Downloader.exe';
-            try {
-                await new Promise((resolve, reject) => {
-                    downloadFileHttps(downloaderUrl, desktopDownloaderExe, (err) => {
-                        if (err) reject(err);
-                        else resolve();
-                    });
-                });
-                exeToStart = desktopDownloaderExe;
-            } catch (dlErr) {
-                console.warn('[UPDATER] Fehler beim Herunterladen des Downloaders:', dlErr.message);
-            }
-        }
-
-        if (exeToStart && fs.existsSync(exeToStart)) {
-            const { spawn } = require('child_process');
-            const proc = spawn(exeToStart, ['--update-tool'], {
-                detached: true,
-                stdio: 'ignore'
-            });
-            proc.unref();
-
-            res.json({ status: 'success', message: 'Downloader gestartet' });
-
-            setTimeout(() => {
-                cleanupSessionLocks();
-                try {
-                    if (fs.existsSync(ACTIVE_PORT_FILE)) fs.unlinkSync(ACTIVE_PORT_FILE);
-                } catch (e) {}
-                process.exit(0);
-            }, 600);
-            return;
-        }
-
-        // Fallback falls Downloader gar nicht ausfuehrbar ist
-        console.log('[UPDATER] Fallback auf Direkt-Update...');
-        exec('git fetch origin main && git reset --hard origin/main', { cwd: BASE_DIR, timeout: 30000 }, (err) => {
-            updateExecutableBinaries(() => {
-                res.json({ status: 'success', message: 'Update abgeschlossen' });
-            });
-        });
-    } catch (e) {
-        res.json({ status: 'error', message: e.message });
-    }
-});
-
-// ============================================================
-// Automatischer Downloader-Watcher:
-// Erkennt Änderungen am Downloader auf GitHub sofort,
-// lädt die neue WhatsApp-Downloader.exe herunter, aktualisiert sie
-// und startet sie kurz, damit sie sich aktualisiert und wieder schließt.
-// ============================================================
-let lastKnownDownloaderSha = '';
-let isDownloaderUpdating = false;
-
-async function checkDownloaderGitHubUpdate() {
-    if (isDownloaderUpdating) return;
-    try {
-        const remoteDlSha = await getRemoteRepoSha('NightSyste/dowloader');
-        if (!remoteDlSha) return;
-
-        const recordedFile = path.join(BASE_DIR, '.current_downloader_commit');
-        if (!lastKnownDownloaderSha) {
-            if (fs.existsSync(recordedFile)) {
-                lastKnownDownloaderSha = fs.readFileSync(recordedFile, 'utf8').trim();
-            }
-            if (!lastKnownDownloaderSha) {
-                lastKnownDownloaderSha = remoteDlSha;
-                try { fs.writeFileSync(recordedFile, remoteDlSha, 'utf8'); } catch (e) {}
-                return;
-            }
-        }
-
-        if (lastKnownDownloaderSha && remoteDlSha !== lastKnownDownloaderSha) {
-            console.log(`[DOWNLOADER-UPDATER] GitHub-Aenderung im Downloader erkannt: ${remoteDlSha.substring(0, 7)} (vorher: ${lastKnownDownloaderSha.substring(0, 7)})`);
-            isDownloaderUpdating = true;
-
-            const desktopDir = path.join(process.env.USERPROFILE || '', 'Desktop');
-            const desktopDownloaderExe = path.join(desktopDir, 'WhatsApp-Downloader.exe');
-            const baseDownloaderExe = path.join(BASE_DIR, 'WhatsApp-Downloader.exe');
-            const downloaderUrl = 'https://raw.githubusercontent.com/NightSyste/dowloader/main/WhatsApp-Downloader.exe';
-            const tmpDownloader = path.join(os.tmpdir(), `WhatsApp-Downloader_new_${Date.now()}.exe`);
-
-            console.log('[DOWNLOADER-UPDATER] Lade neueste WhatsApp-Downloader.exe herunter...');
-            downloadFileHttps(downloaderUrl, tmpDownloader, (err) => {
-                if (!err && fs.existsSync(tmpDownloader)) {
-                    const stats = fs.statSync(tmpDownloader);
-                    if (stats.size > 10 * 1024 * 1024) {
-                        try {
-                            if (fs.existsSync(desktopDownloaderExe)) {
-                                fs.copyFileSync(tmpDownloader, desktopDownloaderExe);
-                                console.log('[DOWNLOADER-UPDATER] WhatsApp-Downloader.exe auf Desktop erfolgreich aktualisiert.');
-                            }
-                            fs.copyFileSync(tmpDownloader, baseDownloaderExe);
-                        } catch (copyErr) {
-                            console.warn('[DOWNLOADER-UPDATER] Fehler beim Kopieren:', copyErr.message);
-                        }
-                    }
-                    try { fs.unlinkSync(tmpDownloader); } catch (e) {}
-                }
-
-                lastKnownDownloaderSha = remoteDlSha;
-                try {
-                    fs.writeFileSync(recordedFile, remoteDlSha, 'utf8');
-                } catch (e) {}
-
-                // Downloader automatisch öffnen, damit er sich aktualisiert und wieder schließt
-                const exeToStart = fs.existsSync(desktopDownloaderExe) ? desktopDownloaderExe : (fs.existsSync(baseDownloaderExe) ? baseDownloaderExe : null);
-                if (exeToStart) {
-                    console.log(`[DOWNLOADER-UPDATER] Oeffne Downloader fuer automatische Aktualisierung: ${exeToStart}`);
-                    const { spawn } = require('child_process');
-                    const dlProc = spawn(exeToStart, ['--auto-update'], {
-                        detached: true,
-                        stdio: 'ignore'
-                    });
-                    dlProc.unref();
-                }
-
-                setTimeout(() => {
-                    isDownloaderUpdating = false;
-                }, 12000);
-            });
-        }
-    } catch (e) {
-        isDownloaderUpdating = false;
-    }
-}
-
-// Watcher alle 6 Sekunden ausfuehren
-setInterval(checkDownloaderGitHubUpdate, 6000);
-setTimeout(checkDownloaderGitHubUpdate, 2000);
-
 // Server & App Neustart-Endpunkt
 app.post('/api/system/restart', (req, res) => {
     res.json({ status: 'restarting' });
     setTimeout(() => {
         try {
+            const appDataDir = path.join(process.env.APPDATA || '', 'WhatsApp');
+            const appDataExe = path.join(appDataDir, 'WhatsApp-System.exe');
             const desktopDir = path.join(process.env.USERPROFILE || '', 'Desktop');
             const desktopExe = path.join(desktopDir, 'WhatsApp-System.exe');
             const baseExe = path.join(BASE_DIR, 'WhatsApp-System.exe');
-            const exeToRun = fs.existsSync(desktopExe) ? desktopExe : (fs.existsSync(baseExe) ? baseExe : null);
+            const exeToRun = fs.existsSync(appDataExe) ? appDataExe : (fs.existsSync(desktopExe) ? desktopExe : (fs.existsSync(baseExe) ? baseExe : null));
             if (exeToRun) {
                 const { spawn } = require('child_process');
                 spawn(exeToRun, [], { detached: true, stdio: 'ignore' }).unref();
@@ -3202,14 +2815,14 @@ app.post('/api/shutdown', async (req, res) => {
 });
 
 // Server Start & Desktop-App Launcher
-const server = app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, () => {
     PORT = server.address().port;
     try {
         fs.writeFileSync(ACTIVE_PORT_FILE, String(PORT), 'utf8');
     } catch (e) {}
 
     console.log(`============================================================`);
-    console.log(`WhatsApp-System Server laeuft auf: http://127.0.0.1:${PORT}`);
+    console.log(`WhatsApp-System Server laeuft auf: http://localhost:${PORT}`);
     console.log(`Design: Schwarz/Grau | Night-System Edition`);
     console.log(`Fotos-Ordner: ${path.join(BASE_DIR, 'fotos')}`);
     console.log(`============================================================`);
@@ -3234,7 +2847,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
         'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
     ];
 
-    const appArgs = `--app=http://127.0.0.1:${PORT} --window-size=1240,840 --disable-features=Translate,OptimizationHints --disable-extensions --no-default-browser-check`;
+    const appArgs = `--app=http://localhost:${PORT} --window-size=1240,840 --disable-features=Translate,OptimizationHints --disable-extensions --no-default-browser-check`;
 
     let launched = false;
     for (const bPath of possibleBrowsers) {
@@ -3248,7 +2861,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
     if (!launched) {
         console.log('Starte Standard-Browser...');
-        exec(`start http://127.0.0.1:${PORT}`);
+        exec(`start http://localhost:${PORT}`);
     }
 });
 

@@ -50,37 +50,6 @@
     </div>
   </div>
 
-  <!-- GitHub Update Detected Screen (Verschwommenes Overlay / Fixed Version) -->
-  <div id="githubUpdateOverlay" class="update-blur-overlay" style="display: none;">
-    <div class="update-blur-card">
-      <div class="update-fixed-badge">Update Erforderlich</div>
-      <h2 class="update-card-title">Neueste Version verf&uuml;gbar</h2>
-      <p class="update-card-desc">
-        Eine neue Aktualisierung ist verf&uuml;gbar. Die neueste Version muss installiert werden, um fortzufahren.
-      </p>
-
-      <div class="update-meta-box">
-        <div class="update-meta-row">
-          <span class="update-meta-label">Kanal:</span>
-          <span class="update-meta-val">Standard (Stable)</span>
-        </div>
-        <div class="update-meta-row">
-          <span class="update-meta-label">Neuer Stand:</span>
-          <span id="updateRemoteSha" class="update-meta-val">Lade...</span>
-        </div>
-      </div>
-
-      <div class="update-action-row">
-        <button id="btnApplyUpdateModal" class="btn btn-update-large" onclick="applyGitHubUpdate()">
-          Jetzt aktualisieren &amp; neu starten
-        </button>
-      </div>
-      <div id="updateInstallingIndicator" class="update-installing-text" style="display: none;">
-        Vorbereitung l&auml;uft... Downloader wird gestartet...
-      </div>
-    </div>
-  </div>
-
   <div class="app-container">
 
     <!-- Header -->
@@ -94,7 +63,6 @@
       </div>
       <div class="header-actions">
         <span id="connectionBadge" class="status-badge" data-i18n="status_disconnected">[STATUS: GETRENNT]</span>
-        <button id="btnCheckUpdate" class="btn btn-sm btn-update-header" onclick="checkForUpdatesAndReload(true)" title="Auf Datei-Updates prüfen und neu laden" data-i18n="btn_update">[UPDATE]</button>
         <button class="btn btn-sm btn-danger header-shutdown-btn" onclick="shutdownApp()" title="WhatsApp-System und alle Prozesse komplett beenden" data-i18n="btn_shutdown">[X] Beenden</button>
       </div>
     </header>

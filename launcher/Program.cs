@@ -2,7 +2,9 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,15 +12,29 @@ namespace WhatsAppLauncher;
 
 class Program
 {
-    private static readonly string MutexId = "NightSystem_WhatsApp_Launcher_Mutex_v1";
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
+
+    private static void ShowErrorMessage(string title, string message)
+    {
+        try
+        {
+            MessageBox(IntPtr.Zero, message, title, 0x00000010 /* MB_ICONERROR */ | 0x00000000 /* MB_OK */);
+        }
+        catch { }
+    }
 
     static async Task Main(string[] args)
     {
         string installDir = ResolveInstallDirectory();
+        string targetExe = Path.Combine(installDir, "WhatsApp-System.exe");
+        string currentExe = Environment.ProcessPath ?? "";
 
-        // 1. Single Instance Protection
-        using var mutex = new Mutex(true, MutexId, out bool isNewInstance);
-        if (!isNewInstance)
+        // 1. Single Instance Protection ueber aktive Prozesspruefung
+        int currentPid = Environment.ProcessId;
+        var runningInstance = Process.GetProcessesByName("WhatsApp-System")
+            .FirstOrDefault(p => p.Id != currentPid);
+        if (runningInstance != null)
         {
             OpenExistingInstance(installDir);
             return;
@@ -26,37 +42,54 @@ class Program
 
         try
         {
-            string desktopDir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-            if (string.IsNullOrWhiteSpace(desktopDir))
-            {
-                desktopDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Desktop");
-            }
-            string desktopExe = Path.Combine(desktopDir, "WhatsApp-System.exe");
-            string currentExe = Environment.ProcessPath ?? "";
+            Directory.CreateDirectory(installDir);
 
-            // 2. Desktop-Platzierung: Falls die .exe von woanders gestartet wird (z.B. Downloads), auf Desktop kopieren
-            if (!string.IsNullOrEmpty(currentExe) && !string.Equals(currentExe, desktopExe, StringComparison.OrdinalIgnoreCase))
+            // 2. Selbstverteilung: Falls von woanders gestartet (z.B. Downloads, USB, Ordner)
+            // Alles kommt bei %AppData% rein und erstellt eine Verknuepfung auf dem Desktop
+            if (!string.IsNullOrEmpty(currentExe))
             {
-                try
+                if (!string.Equals(currentExe, targetExe, StringComparison.OrdinalIgnoreCase))
                 {
-                    File.Copy(currentExe, desktopExe, true);
+                    try
+                    {
+                        File.Copy(currentExe, targetExe, true);
+                    }
+                    catch { }
+
+                    string? sourceDir = Path.GetDirectoryName(currentExe);
+                    if (!string.IsNullOrEmpty(sourceDir) && Directory.Exists(sourceDir))
+                    {
+                        if (File.Exists(Path.Combine(sourceDir, "server.js")))
+                        {
+                            try { CopyDirectory(sourceDir, installDir); } catch { }
+                        }
+                    }
                 }
-                catch { }
             }
 
-            // 3. Sicherstellen, dass die App-Dateien in installDir vorhanden sind
+            // 3. Desktop-Verknuepfung erstellen / sicherstellen
+            EnsureDesktopShortcut(targetExe, installDir);
+
+            // 4. Sicherstellen, dass die App-Dateien in installDir vorhanden sind
             if (!File.Exists(Path.Combine(installDir, "server.js")))
             {
                 await InstallOrDownloadApp(installDir);
             }
 
-            // 4. Alte Sperren und Ports aufraeumen
+            // 5. Alte Sperren und Ports aufraeumen
             CleanupLocksAndProcesses(installDir);
 
-            // 5. Node.js Laufzeitumgebung ermitteln oder nachladen
-            string nodePath = await EnsureNodeExecutable(installDir);
+            // 6. Node.js Laufzeitumgebung und Module garantieren
+            string nodePath = await EnsureNodeExecutableAndDependencies(installDir);
 
-            // 6. Node.js Server starten mit random Port und ohne automatisches Browser-Popup
+            // 7. Node.js Server starten mit Logging und dynamischem Port
+            string serverLogFile = Path.Combine(installDir, "server.log");
+            try
+            {
+                File.AppendAllText(serverLogFile, $"\r\n=== WhatsApp-System Start: {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===\r\n");
+            }
+            catch { }
+
             var nodePsi = new ProcessStartInfo
             {
                 FileName = nodePath,
@@ -64,20 +97,45 @@ class Program
                 WorkingDirectory = installDir,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden
+                WindowStyle = ProcessWindowStyle.Hidden,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
             nodePsi.EnvironmentVariables["LAUNCHER_MANAGED"] = "1";
 
-            Process? nodeProc = Process.Start(nodePsi);
+            Process? nodeProc = new Process { StartInfo = nodePsi };
+            nodeProc.OutputDataReceived += (s, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    try { File.AppendAllText(serverLogFile, $"[NODE] {e.Data}\r\n"); } catch { }
+                }
+            };
+            nodeProc.ErrorDataReceived += (s, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    try { File.AppendAllText(serverLogFile, $"[NODE-ERR] {e.Data}\r\n"); } catch { }
+                }
+            };
 
-            // 7. Warten bis Server ansprechbar ist und Port ermitteln
+            nodeProc.Start();
+            nodeProc.BeginOutputReadLine();
+            nodeProc.BeginErrorReadLine();
+
+            // 8. Warten bis Server ansprechbar ist und Port ermitteln
             string activePortFile = Path.Combine(installDir, ".active_port");
             int activePort = 0;
 
-            using (var waitHttp = new HttpClient { Timeout = TimeSpan.FromMilliseconds(500) })
+            using (var waitHttp = new HttpClient { Timeout = TimeSpan.FromMilliseconds(600) })
             {
-                for (int i = 0; i < 60; i++)
+                for (int i = 0; i < 80; i++)
                 {
+                    if (nodeProc.HasExited)
+                    {
+                        break;
+                    }
+
                     if (activePort == 0 && File.Exists(activePortFile))
                     {
                         try
@@ -95,33 +153,58 @@ class Program
                     {
                         try
                         {
-                            var res = await waitHttp.GetAsync($"http://127.0.0.1:{activePort}/api/ready");
+                            var res = await waitHttp.GetAsync($"http://localhost:{activePort}/api/ready");
                             if (res.IsSuccessStatusCode) break;
                         }
-                        catch { }
+                        catch
+                        {
+                            try
+                            {
+                                var res2 = await waitHttp.GetAsync($"http://127.0.0.1:{activePort}/api/ready");
+                                if (res2.IsSuccessStatusCode) break;
+                            }
+                            catch { }
+                        }
                     }
                     await Task.Delay(500);
                 }
             }
 
-            // 8. Desktop-App-Fenster oeffnen
+            // 9. Desktop-App-Fenster oeffnen oder Fehler melden
             if (activePort > 0)
             {
-                LaunchAppWindow($"http://127.0.0.1:{activePort}");
+                LaunchAppWindow($"http://localhost:{activePort}");
             }
             else
             {
-                LaunchAppWindow("http://127.0.0.1:3000");
+                string errMsg = "WhatsApp-System konnte nicht gestartet werden.\r\n\r\n";
+                if (File.Exists(serverLogFile))
+                {
+                    try
+                    {
+                        var lines = File.ReadAllLines(serverLogFile);
+                        var nonNull = lines.Where(l => !string.IsNullOrWhiteSpace(l)).TakeLast(8);
+                        errMsg += "Fehlerprotokoll:\r\n" + string.Join("\r\n", nonNull);
+                    }
+                    catch { }
+                }
+                ShowErrorMessage("NightSystem WhatsApp - Startfehler", errMsg);
             }
 
-            // 9. Launcher haelt den Prozess am Leben bis der Server beendet wird
-            if (nodeProc != null)
+            // 10. Launcher haelt den Prozess am Leben bis der Server beendet wird
+            if (nodeProc != null && !nodeProc.HasExited)
             {
                 await nodeProc.WaitForExitAsync();
             }
         }
         catch (Exception ex)
         {
+            try
+            {
+                string crashLog = Path.Combine(installDir, "launcher_crash.log");
+                File.WriteAllText(crashLog, $"[{DateTime.Now}] Launcher Exception:\r\n{ex}");
+            }
+            catch { }
             Debug.WriteLine(ex);
         }
     }
@@ -159,6 +242,48 @@ class Program
         return targetDir;
     }
 
+    private static void EnsureDesktopShortcut(string targetExePath, string installDir)
+    {
+        try
+        {
+            string desktopDir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            if (string.IsNullOrWhiteSpace(desktopDir))
+            {
+                desktopDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Desktop");
+            }
+
+            string shortcutPath = Path.Combine(desktopDir, "WhatsApp-System.lnk");
+
+            Type? shellType = Type.GetTypeFromProgID("WScript.Shell");
+            if (shellType != null)
+            {
+                dynamic shell = Activator.CreateInstance(shellType)!;
+                dynamic shortcut = shell.CreateShortcut(shortcutPath);
+                shortcut.TargetPath = targetExePath;
+                shortcut.WorkingDirectory = installDir;
+                string iconPath = Path.Combine(installDir, "icon.ico");
+                if (!File.Exists(iconPath))
+                {
+                    iconPath = targetExePath;
+                }
+                shortcut.IconLocation = $"{iconPath},0";
+                shortcut.Description = "WhatsApp-System";
+                shortcut.Save();
+            }
+
+            // Alte Downloader-Dateien auf Desktop aufraeumen
+            string oldDownloaderExe = Path.Combine(desktopDir, "WhatsApp-Downloader.exe");
+            if (File.Exists(oldDownloaderExe))
+            {
+                try { File.Delete(oldDownloaderExe); } catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine("Fehler beim Erstellen der Desktop-Verknuepfung: " + ex.Message);
+        }
+    }
+
     private static void OpenExistingInstance(string installDir)
     {
         try
@@ -169,47 +294,64 @@ class Program
                 string content = File.ReadAllText(activePortFile).Trim();
                 if (int.TryParse(content, out int port) && port > 0)
                 {
-                    LaunchAppWindow($"http://127.0.0.1:{port}");
-                    return;
+                    LaunchAppWindow($"http://localhost:{port}");
                 }
             }
-            LaunchAppWindow("http://127.0.0.1:3000");
         }
         catch { }
     }
 
-    private static async Task<string> EnsureNodeExecutable(string installDir)
+    private static async Task<string> EnsureNodeExecutableAndDependencies(string installDir)
     {
-        // 1. Integrierte Runtime in AppData pruefen
         string runtimeNode = Path.Combine(installDir, "runtime", "node.exe");
-        if (File.Exists(runtimeNode)) return runtimeNode;
-
-        // 2. Lokales Ausfuehrungsverzeichnis pruefen
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
         string localRuntimeNode = Path.Combine(baseDir, "runtime", "node.exe");
+
+        bool hasModules = Directory.Exists(Path.Combine(installDir, "node_modules", "express")) &&
+                          Directory.Exists(Path.Combine(installDir, "node_modules", "whatsapp-web.js"));
+
+        // Falls Runtime oder Module fehlen: Komplettes Runtime-Paket nachladen
+        if (!File.Exists(runtimeNode) || !hasModules)
+        {
+            string localPack = Path.Combine(baseDir, "runtime_pack.zip");
+            string desktopDir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            string desktopPack = Path.Combine(desktopDir, "WhatsApp", "runtime_pack.zip");
+
+            if (File.Exists(localPack))
+            {
+                try { ZipFile.ExtractToDirectory(localPack, installDir, overwriteFiles: true); } catch { }
+            }
+            else if (File.Exists(desktopPack))
+            {
+                try { ZipFile.ExtractToDirectory(desktopPack, installDir, overwriteFiles: true); } catch { }
+            }
+            else
+            {
+                try
+                {
+                    string runtimePackUrl = "https://github.com/NightSyste/whatsapp/raw/main/runtime_pack.zip";
+                    string tempZip = Path.Combine(Path.GetTempPath(), "night_runtime_pack_launcher.zip");
+
+                    using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd("NightSystem-Launcher/1.0");
+                    var bytes = await client.GetByteArrayAsync(runtimePackUrl);
+                    await File.WriteAllBytesAsync(tempZip, bytes);
+
+                    ZipFile.ExtractToDirectory(tempZip, installDir, overwriteFiles: true);
+                    try { File.Delete(tempZip); } catch { }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Fehler beim Herunterladen des Runtime-Pakets: " + ex.Message);
+                }
+            }
+        }
+
+        if (File.Exists(runtimeNode)) return runtimeNode;
         if (File.Exists(localRuntimeNode)) return localRuntimeNode;
 
-        // 3. Systemweite Installationen pruefen
         string systemNode = FindSystemNodeExecutable();
         if (!string.IsNullOrEmpty(systemNode)) return systemNode;
-
-        // 4. Runtime-Paket nachladen falls weder Node noch die Runtime existieren
-        try
-        {
-            string runtimePackUrl = "https://raw.githubusercontent.com/NightSyste/dowloader/main/runtime_pack.zip";
-            string tempZip = Path.Combine(Path.GetTempPath(), "night_runtime_pack_launcher.zip");
-
-            using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("NightSystem-Launcher/1.0");
-            var bytes = await client.GetByteArrayAsync(runtimePackUrl);
-            await File.WriteAllBytesAsync(tempZip, bytes);
-
-            ZipFile.ExtractToDirectory(tempZip, installDir, overwriteFiles: true);
-            try { File.Delete(tempZip); } catch { }
-
-            if (File.Exists(runtimeNode)) return runtimeNode;
-        }
-        catch { }
 
         return "node";
     }
@@ -301,7 +443,8 @@ class Program
                 folderName.Equals("downloader", StringComparison.OrdinalIgnoreCase) ||
                 folderName.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
                 folderName.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
-                folderName.Equals("dist", StringComparison.OrdinalIgnoreCase))
+                folderName.Equals("dist", StringComparison.OrdinalIgnoreCase) ||
+                folderName.Equals(".git", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -370,9 +513,9 @@ class Program
                     {
                         string title = proc.MainWindowTitle;
                         if (!string.IsNullOrEmpty(title) &&
-                            (title.Contains("Night-System", StringComparison.OrdinalIgnoreCase) ||
-                             title.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
-                             title.Contains("localhost", StringComparison.OrdinalIgnoreCase)))
+                            (title.Contains("WhatsApp-System", StringComparison.OrdinalIgnoreCase) ||
+                             title.Contains("Night-System", StringComparison.OrdinalIgnoreCase) ||
+                             title.Contains("NightSystem", StringComparison.OrdinalIgnoreCase)))
                         {
                             proc.Kill();
                             proc.WaitForExit(500);
