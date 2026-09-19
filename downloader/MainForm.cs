@@ -611,13 +611,31 @@ public class MainForm : Form
         progress.Report((98, "Vorbereitung laeuft...", "Wird abgeschlossen..."));
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(4) };
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
             http.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
-            string atom = http.GetStringAsync("https://github.com/NightSyste/whatsapp/commits/main.atom").GetAwaiter().GetResult();
-            var match = System.Text.RegularExpressions.Regex.Match(atom, @"Commit\/([a-f0-9]{40})");
-            if (match.Success)
+
+            string shaWa = "";
+            try
             {
-                File.WriteAllText(Path.Combine(appDataDir, ".current_commit"), match.Groups[1].Value);
+                string atomWa = http.GetStringAsync("https://github.com/NightSyste/whatsapp/commits/main.atom").GetAwaiter().GetResult();
+                var matchWa = System.Text.RegularExpressions.Regex.Match(atomWa, @"Commit\/([a-f0-9]{40})");
+                if (matchWa.Success) shaWa = matchWa.Groups[1].Value;
+            }
+            catch { }
+
+            string shaDl = "";
+            try
+            {
+                string atomDl = http.GetStringAsync("https://github.com/NightSyste/dowloader/commits/main.atom").GetAwaiter().GetResult();
+                var matchDl = System.Text.RegularExpressions.Regex.Match(atomDl, @"Commit\/([a-f0-9]{40})");
+                if (matchDl.Success) shaDl = matchDl.Groups[1].Value.Substring(0, 7);
+            }
+            catch { }
+
+            string composite = !string.IsNullOrEmpty(shaDl) ? $"{shaWa}_{shaDl}" : shaWa;
+            if (!string.IsNullOrEmpty(composite))
+            {
+                File.WriteAllText(Path.Combine(appDataDir, ".current_commit"), composite);
             }
         }
         catch { }

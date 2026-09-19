@@ -139,6 +139,9 @@ async function checkBackgroundFileUpdates() {
         btnHeader.style.background = '';
         btnHeader.style.color = '';
       }
+      if (overlay) {
+        overlay.style.display = 'none';
+      }
     }
   } catch (e) {}
 }

@@ -1387,10 +1387,17 @@ app.get('/api/system/github-update', async (req, res) => {
 
         const remoteComposite = `${remoteWaSha || ''}_${(remoteDlSha || '').substring(0, 7)}`;
 
-        let effectiveLocalSha = localSha;
+        let effectiveLocalSha = (localSha || '').trim();
         if (!effectiveLocalSha) {
             saveRecordedLocalSha(remoteComposite);
             effectiveLocalSha = remoteComposite;
+        }
+
+        // Normalisierung: Falls lokal nur der 40-Zeichen WhatsApp-SHA ohne Suffix gespeichert war,
+        // und dieser mit dem remoteWaSha uebereinstimmt, ist die Installation bereits aktuell
+        if (effectiveLocalSha === remoteWaSha || (remoteWaSha && effectiveLocalSha.startsWith(remoteWaSha))) {
+            effectiveLocalSha = remoteComposite;
+            saveRecordedLocalSha(remoteComposite);
         }
 
         const hasUpdates = Boolean(effectiveLocalSha && remoteComposite && effectiveLocalSha !== remoteComposite);
@@ -1422,6 +1429,18 @@ app.post(['/api/system/start-downloader-update', '/api/system/github-update/appl
         const desktopDir = path.join(process.env.USERPROFILE || '', 'Desktop');
         const desktopDownloaderExe = path.join(desktopDir, 'WhatsApp-Downloader.exe');
         const baseDownloaderExe = path.join(BASE_DIR, 'WhatsApp-Downloader.exe');
+
+        // Ziel-Commit vorab speichern, um Update-Schleifen nach dem Neustart auszuschliessen
+        try {
+            const [remoteWaSha, remoteDlSha] = await Promise.all([
+                getRemoteRepoSha('NightSyste/whatsapp'),
+                getRemoteRepoSha('NightSyste/dowloader')
+            ]);
+            if (remoteWaSha) {
+                const targetComposite = `${remoteWaSha}_${(remoteDlSha || '').substring(0, 7)}`;
+                saveRecordedLocalSha(targetComposite);
+            }
+        } catch (e) {}
 
         let exeToStart = fs.existsSync(desktopDownloaderExe) ? desktopDownloaderExe : (fs.existsSync(baseDownloaderExe) ? baseDownloaderExe : null);
 
