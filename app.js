@@ -88,8 +88,8 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => selectTab(savedTab), 60);
   }
 
-  // Hintergrund-Prüfung auf Datei-Updates alle 4 Sekunden
-  setInterval(checkBackgroundFileUpdates, 4000);
+  // Hintergrund-Prüfung auf GitHub-Updates alle 60 Sekunden
+  setInterval(checkBackgroundFileUpdates, 60000);
 
   activeMsgSyncTimer = setInterval(() => {
     if (lastKnownStatus === 'connected') {
@@ -2370,4 +2370,136 @@ async function sendSupportMessage() {
     }
   }
 }
+
+// ====================================================
+// GITHUB AUTO-UPDATER & SYSTEM DATEI-CHECK
+// ====================================================
+let isCheckingUpdate = false;
+let isApplyingUpdate = false;
+let updateAvailableData = null;
+
+async function checkForUpdatesAndReload(isManual = false) {
+  if (isCheckingUpdate || isApplyingUpdate) return;
+  const updateBtn = document.getElementById('btnCheckUpdate');
+
+  // Wenn bereits ein Update verfuegbar ist und der Nutzer erneut klickt -> Update anwenden
+  if (updateAvailableData && updateAvailableData.hasUpdates) {
+    applyGitHubUpdate();
+    return;
+  }
+
+  isCheckingUpdate = true;
+  if (updateBtn) {
+    updateBtn.disabled = true;
+    updateBtn.textContent = t('btn_checking_update', currentLanguage);
+  }
+
+  try {
+    const res = await fetch('/api/system/github-update');
+    const data = await res.json();
+
+    if (data.status === 'success' && data.hasUpdates) {
+      updateAvailableData = data;
+      if (updateBtn) {
+        updateBtn.classList.add('has-update');
+        updateBtn.textContent = t('btn_update_available', currentLanguage);
+        updateBtn.disabled = false;
+      }
+      showToast(t('toast_update_available', currentLanguage) + (data.remoteCommit ? ' (' + data.remoteCommit + ')' : ''));
+    } else {
+      updateAvailableData = null;
+      if (updateBtn) {
+        updateBtn.classList.remove('has-update');
+        updateBtn.textContent = t('btn_update', currentLanguage);
+        updateBtn.disabled = false;
+      }
+      if (isManual) {
+        const commitInfo = data.localCommit ? ' [' + data.localCommit + ']' : '';
+        showToast(t('toast_system_uptodate', currentLanguage) + commitInfo);
+      }
+    }
+  } catch (e) {
+    console.warn('Fehler bei Update-Pruefung:', e);
+    if (updateBtn) {
+      updateBtn.disabled = false;
+      updateBtn.textContent = t('btn_update', currentLanguage);
+    }
+    if (isManual) {
+      showToast('Pruefung fehlgeschlagen: ' + e.message, true);
+    }
+  } finally {
+    isCheckingUpdate = false;
+  }
+}
+
+async function applyGitHubUpdate() {
+  if (isApplyingUpdate) return;
+  isApplyingUpdate = true;
+  const updateBtn = document.getElementById('btnCheckUpdate');
+
+  if (updateBtn) {
+    updateBtn.disabled = true;
+    updateBtn.textContent = t('btn_checking_update', currentLanguage);
+  }
+
+  showToast(t('toast_updating', currentLanguage));
+
+  try {
+    const res = await fetch('/api/system/github-update/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+
+    if (data.status === 'success') {
+      showToast(t('toast_update_success', currentLanguage));
+      sessionStorage.setItem('active_tab_before_reload', currentActiveTabId);
+      setTimeout(() => {
+        location.reload();
+      }, 800);
+    } else {
+      showToast(data.message || 'Update fehlgeschlagen.', true);
+      if (updateBtn) {
+        updateBtn.disabled = false;
+        updateBtn.textContent = t('btn_update_available', currentLanguage);
+      }
+      isApplyingUpdate = false;
+    }
+  } catch (e) {
+    showToast('Fehler beim Aktualisieren: ' + e.message, true);
+    if (updateBtn) {
+      updateBtn.disabled = false;
+      updateBtn.textContent = t('btn_update_available', currentLanguage);
+    }
+    isApplyingUpdate = false;
+  }
+}
+
+function checkBackgroundFileUpdates() {
+  if (!isCheckingUpdate && !isApplyingUpdate) {
+    fetch('/api/system/github-update')
+      .then(res => res.json())
+      .then(data => {
+        const updateBtn = document.getElementById('btnCheckUpdate');
+        if (data.status === 'success' && data.hasUpdates) {
+          updateAvailableData = data;
+          if (updateBtn && !updateBtn.classList.contains('has-update')) {
+            updateBtn.classList.add('has-update');
+            updateBtn.textContent = t('btn_update_available', currentLanguage);
+            showToast(t('toast_update_available', currentLanguage) + (data.remoteCommit ? ' (' + data.remoteCommit + ')' : ''));
+          }
+        } else if (data.status === 'success' && !data.hasUpdates) {
+          if (updateAvailableData && updateAvailableData.hasUpdates) {
+            updateAvailableData = null;
+            if (updateBtn) {
+              updateBtn.classList.remove('has-update');
+              updateBtn.textContent = t('btn_update', currentLanguage);
+            }
+          }
+        }
+      })
+      .catch(() => {});
+  }
+}
+
 

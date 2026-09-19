@@ -259,6 +259,39 @@ header {
   border-color: #555555;
 }
 
+.btn-update-header {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background-color: #202020;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-medium);
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-update-header:hover {
+  background-color: #2a2a2a;
+  color: #ffffff;
+  border-color: #555555;
+}
+
+.btn-update-header.has-update {
+  background-color: #14281a;
+  color: #00e676;
+  border-color: #00e676;
+  box-shadow: 0 0 10px rgba(0, 230, 118, 0.25);
+  font-weight: 700;
+}
+
+.btn-update-header.has-update:hover {
+  background-color: #1c3824;
+  color: #69f0ae;
+  border-color: #69f0ae;
+}
+
 /* Navigation Tabs */
 .tab-nav {
   height: 40px;

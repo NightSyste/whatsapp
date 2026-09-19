@@ -173,7 +173,10 @@ const TRANSLATIONS = {
     "btn_update_available": "[UPDATE VERFÜGBAR]",
     "btn_checking_update": "[PRÜFE...]",
     "toast_updates_found": "Datei-Updates gefunden! Ansicht wird aktualisiert...",
-    "toast_updates_sync": "System synchronisiert. Ansicht wird neu geladen..."
+    "toast_updates_sync": "System synchronisiert. Ansicht wird neu geladen...",
+    "toast_system_uptodate": "Das System ist auf dem neuesten Stand.",
+    "toast_updating": "Update wird von GitHub heruntergeladen...",
+    "toast_update_success": "Update erfolgreich installiert. Ansicht wird aktualisiert..."
   },
   "en": {
     "app_title": "WhatsApp-System",
@@ -345,7 +348,10 @@ const TRANSLATIONS = {
     "btn_update_available": "[UPDATE AVAILABLE]",
     "btn_checking_update": "[CHECKING...]",
     "toast_updates_found": "File updates found! Updating view...",
-    "toast_updates_sync": "System synchronized. Reloading view..."
+    "toast_updates_sync": "System synchronized. Reloading view...",
+    "toast_system_uptodate": "The system is up to date.",
+    "toast_updating": "Downloading update from GitHub...",
+    "toast_update_success": "Update successfully installed. Updating view..."
   },
   "ru": {
     "app_title": "WhatsApp-System",
@@ -517,7 +523,10 @@ const TRANSLATIONS = {
     "btn_update_available": "[ЕСТЬ ОБНОВЛЕНИЕ]",
     "btn_checking_update": "[ПРОВЕРКА...]",
     "toast_updates_found": "Найдены обновления файлов! Интерфейс обновляется...",
-    "toast_updates_sync": "Система синхронизирована. Перезагрузка..."
+    "toast_updates_sync": "Система синхронизирована. Перезагрузка...",
+    "toast_system_uptodate": "Система обновлена до последней версии.",
+    "toast_updating": "Загрузка обновления с GitHub...",
+    "toast_update_success": "Обновление успешно установлено! Интерфейс обновляется..."
   },
   "sq": {
     "app_title": "WhatsApp-System",
@@ -689,7 +698,10 @@ const TRANSLATIONS = {
     "btn_update_available": "[PËRDITËSIM DISPONUESHËM]",
     "btn_checking_update": "[KONTROLL...]",
     "toast_updates_found": "U gjetën përditësime të skedarëve! Ndërfaqja po përditësohet...",
-    "toast_updates_sync": "Sistemi u sinkronizua. Po ringarkohet pamja..."
+    "toast_updates_sync": "Sistemi u sinkronizua. Po ringarkohet pamja...",
+    "toast_system_uptodate": "Sistemi është i përditësuar në versionin më të fundit.",
+    "toast_updating": "Po shkarkohet përditësimi nga GitHub...",
+    "toast_update_success": "Përditësimi u instalua me sukses! Ndërfaqja po përditësohet..."
   }
 };
 

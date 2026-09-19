@@ -959,6 +959,100 @@ app.get('/api/system/check-updates', (req, res) => {
     }
 });
 
+// GitHub Update Check (vergleicht lokalen Git-Commit mit GitHub Remote)
+app.get('/api/system/github-update', async (req, res) => {
+    try {
+        const getLocalCommit = () => new Promise((resolve) => {
+            exec('git rev-parse HEAD', { cwd: BASE_DIR }, (err, stdout) => {
+                if (err) return resolve('');
+                resolve((stdout || '').trim());
+            });
+        });
+
+        const getRemoteCommit = () => new Promise((resolve) => {
+            exec('git ls-remote origin refs/heads/main', { cwd: BASE_DIR, timeout: 8000 }, (err, stdout) => {
+                if (!err && stdout && stdout.trim()) {
+                    const parts = stdout.trim().split(/\s+/);
+                    if (parts[0]) {
+                        return resolve({ sha: parts[0], message: '', author: '' });
+                    }
+                }
+                // Fallback: GitHub API
+                const https = require('https');
+                const options = {
+                    hostname: 'api.github.com',
+                    path: '/repos/NightSyste/whatsapp/commits/main',
+                    headers: { 'User-Agent': 'NightSystem-Updater' },
+                    timeout: 5000
+                };
+                const reqApi = https.get(options, (apiRes) => {
+                    let data = '';
+                    apiRes.on('data', (chunk) => data += chunk);
+                    apiRes.on('end', () => {
+                        try {
+                            const parsed = JSON.parse(data);
+                            resolve({
+                                sha: parsed.sha || '',
+                                message: parsed.commit?.message || '',
+                                author: parsed.commit?.author?.name || ''
+                            });
+                        } catch (e) {
+                            resolve({ sha: '', message: '', author: '' });
+                        }
+                    });
+                });
+                reqApi.on('error', () => resolve({ sha: '', message: '', author: '' }));
+                reqApi.on('timeout', () => {
+                    reqApi.destroy();
+                    resolve({ sha: '', message: '', author: '' });
+                });
+            });
+        });
+
+        const [localSha, remoteInfo] = await Promise.all([getLocalCommit(), getRemoteCommit()]);
+        const remoteSha = typeof remoteInfo === 'string' ? remoteInfo : (remoteInfo?.sha || '');
+        const hasUpdates = Boolean(localSha && remoteSha && localSha !== remoteSha);
+
+        res.json({
+            status: 'success',
+            hasUpdates,
+            localCommit: localSha ? localSha.substring(0, 7) : '',
+            localCommitFull: localSha,
+            remoteCommit: remoteSha ? remoteSha.substring(0, 7) : '',
+            remoteCommitFull: remoteSha,
+            commitMessage: remoteInfo?.message || '',
+            repoUrl: 'https://github.com/NightSyste/whatsapp'
+        });
+    } catch (e) {
+        res.json({ status: 'error', message: e.message });
+    }
+});
+
+// GitHub Update anwenden (git fetch & reset auf origin/main)
+app.post('/api/system/github-update/apply', (req, res) => {
+    try {
+        console.log('[UPDATER] GitHub Update wird bezogen...');
+        exec('git fetch origin main && git reset --hard origin/main', { cwd: BASE_DIR, timeout: 30000 }, (err, stdout, stderr) => {
+            if (err) {
+                console.error('[UPDATER] Fehler beim Update:', stderr || err.message);
+                return res.json({ status: 'error', message: 'Update fehlgeschlagen: ' + (stderr || err.message) });
+            }
+            console.log('[UPDATER] GitHub Update erfolgreich eingespielt:', stdout);
+            exec('git rev-parse --short HEAD', { cwd: BASE_DIR }, (err2, stdout2) => {
+                const newCommit = (stdout2 || '').trim();
+                res.json({
+                    status: 'success',
+                    message: 'Update erfolgreich installiert.',
+                    currentCommit: newCommit,
+                    details: stdout
+                });
+            });
+        });
+    } catch (e) {
+        res.json({ status: 'error', message: e.message });
+    }
+});
+
 // Support Kontakt-Infos abrufen (unterstützt beide Support-Nummern)
 app.get('/api/support/info', (req, res) => {
     const config = getSupportConfig();
