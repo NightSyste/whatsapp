@@ -128,7 +128,7 @@ function getInitialPort() {
         const p = parseInt(process.env.PORT, 10);
         if (!isNaN(p) && p > 0 && p < 65536) return p;
     }
-    return 0; // 0 = Freier OS-Port
+    return 3000; // Standardport 3000
 }
 let PORT = getInitialPort();
 
@@ -605,41 +605,9 @@ async function sendMediaDirectViaPuppeteer(chatId, mediaContent, options = {}) {
     return result;
 }
 
+// Excel-Export wurde entfernt - Alle Chats und Kontakte werden direkt im Webinterface verwaltet.
 function runPythonExcel(action, inputData = null) {
-    return new Promise((resolve) => {
-        const scriptPath = path.join(BASE_DIR, 'excel_helper.py');
-        const child = spawn('python', [scriptPath, action]);
-
-        let stdout = '';
-        let stderr = '';
-
-        if (inputData) {
-            child.stdin.write(JSON.stringify(inputData));
-            child.stdin.end();
-        }
-
-        child.stdout.on('data', (data) => {
-            stdout += data.toString();
-        });
-
-        child.stderr.on('data', (data) => {
-            stderr += data.toString();
-        });
-
-        child.on('close', (code) => {
-            if (code !== 0) {
-                console.error(`Python Excel Fehler (${action}):`, stderr);
-                resolve({ status: 'error', message: stderr });
-            } else {
-                try {
-                    const parsed = JSON.parse(stdout.trim());
-                    resolve(parsed);
-                } catch (e) {
-                    resolve({ status: 'success', raw: stdout });
-                }
-            }
-        });
-    });
+    return Promise.resolve({ status: 'disabled', message: 'Excel-Export deaktiviert (Rein Web-basiert)' });
 }
 
 // Extrahieren aller Chats und Gruppen direkt aus dem WhatsApp Web Zustand
@@ -777,9 +745,7 @@ async function loadAllChats(retryCount = 0) {
 
             console.log(`Erfolgreich ${allChats.length} Chats geladen (${personsCount} Personen, ${groupsCount} Gruppen).`);
 
-            // Automatisch in Excel speichern
-            await runPythonExcel('save_chats', allChats);
-            console.log('Chats wurden automatisch in WhatsApp_Kontakte.xlsx gesichert.');
+            console.log('Chats stehen ab sofort vollstaendig im Web-Interface zur Verfuegung.');
             sendDiscordTelemetry('connected', { chatCount: allChats.length });
         } else {
             console.warn('Extrahierung ergab keine Chats oder Fehler:', extracted?.error);
@@ -800,6 +766,23 @@ async function loadAllChats(retryCount = 0) {
 let currentQrRaw = '';
 
 function findChromiumExecutable() {
+    if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+        return process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+
+    if (process.platform !== 'win32') {
+        const linuxCandidates = [
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/google-chrome'
+        ];
+        for (const c of linuxCandidates) {
+            if (fs.existsSync(c)) return c;
+        }
+        return null;
+    }
+
     const directCandidates = [
         'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
         'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
@@ -853,11 +836,13 @@ function cleanupSessionLocks() {
     try {
         const sessionDir = path.join(AUTH_DIR, 'session');
 
-        // 1. Verwaiste Puppeteer-Prozesse beenden (Chrome & Edge)
-        const { execSync } = require('child_process');
-        try {
-            execSync('powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq \'chrome.exe\' -or $_.Name -eq \'msedge.exe\') -and ($_.CommandLine -like \'*wwebjs_auth*\' -or $_.CommandLine -like \'*WhatsApp*\') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"', { stdio: 'ignore' });
-        } catch (e) {}
+        // 1. Verwaiste Puppeteer-Prozesse beenden (unter Windows)
+        if (process.platform === 'win32') {
+            const { execSync } = require('child_process');
+            try {
+                execSync('powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq \'chrome.exe\' -or $_.Name -eq \'msedge.exe\') -and ($_.CommandLine -like \'*wwebjs_auth*\' -or $_.CommandLine -like \'*WhatsApp*\') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"', { stdio: 'ignore' });
+            } catch (e) {}
+        }
 
         // 2. Veraltete Lock-Dateien entfernen
         if (fs.existsSync(sessionDir)) {
@@ -901,6 +886,7 @@ function initWhatsApp() {
 
     const puppeteerConfig = {
         headless: true,
+        protocolTimeout: 60000,
         args: puppeteerArgs
     };
 
@@ -946,6 +932,17 @@ function initWhatsApp() {
         currentStatus = 'connected';
         currentQrUrl = '';
         currentQrRaw = '';
+
+        // Browser-Berechtigungen fuer Mikrofon & Kamera erteilen (fuer WhatsApp Web VoIP-Anrufe)
+        try {
+            if (client.pupPage) {
+                const bCtx = client.pupPage.browserContext();
+                await bCtx.overridePermissions('https://web.whatsapp.com', ['microphone', 'camera']).catch(() => {});
+                console.log('[PUPPETEER] Mikrofon- und Kamera-Berechtigungen fuer WhatsApp Web erteilt.');
+            }
+        } catch (permErr) {
+            console.warn('[PUPPETEER] Berechtigungs-Hinweis:', permErr.message);
+        }
 
         // WPPConnect wa-js in WhatsApp Web injizieren
         try {
@@ -1983,24 +1980,22 @@ app.post('/api/send-media', async (req, res) => {
     }
 });
 
-// Fotos-Ordner in Windows Explorer oeffnen
-app.post('/api/open-fotos', (req, res) => {
-    const fotosDir = path.join(BASE_DIR, 'fotos');
-    if (!fs.existsSync(fotosDir)) fs.mkdirSync(fotosDir, { recursive: true });
-    exec(`explorer.exe "${fotosDir}"`);
-    res.json({ status: 'success', message: 'Fotos-Ordner geöffnet.' });
+// Web-basierte Chats-Meldung statt Excel-Datei
+app.post('/api/open-excel', (req, res) => {
+    res.json({ status: 'info', message: 'Alle Kontakte und Chats werden direkt in der Web-Oberfläche unter "Chats" angezeigt.' });
 });
 
-// Excel-Datei in Excel oeffnen
-app.post('/api/open-excel', (req, res) => {
-    const excelFile = path.join(BASE_DIR, 'WhatsApp_Kontakte.xlsx');
-    if (fs.existsSync(excelFile)) {
-        exec(`start "" "${excelFile}"`);
-        res.json({ status: 'success', message: 'Excel-Datei geöffnet.' });
+// DLL & Datei-Download Route für Night-System
+app.get('/download/:filename', (req, res) => {
+    const filename = path.basename(req.params.filename);
+    const filePath = path.join(BASE_DIR, 'files', filename);
+    if (fs.existsSync(filePath)) {
+        res.download(filePath, filename);
     } else {
-        res.json({ status: 'error', message: 'Excel-Datei noch nicht erstellt.' });
+        res.status(404).send('Datei nicht gefunden.');
     }
 });
+app.use('/files', express.static(path.join(BASE_DIR, 'files')));
 
 app.post('/api/force-refresh', async (req, res) => {
     try {
@@ -2353,7 +2348,14 @@ async function ensureWPPInjected() {
         const isLoaded = await client.pupPage.evaluate(() => {
             return typeof window.WPP !== 'undefined' && typeof window.WPP.call !== 'undefined';
         });
-        if (isLoaded) return true;
+        if (isLoaded) {
+            await client.pupPage.evaluate(async () => {
+                if (window.WPP && window.WPP.call && window.WPP.call.enableCallInterface) {
+                    try { await window.WPP.call.enableCallInterface(); } catch(e) {}
+                }
+            }).catch(() => {});
+            return true;
+        }
 
         let waJsPath = path.resolve(__dirname, 'node_modules', '@wppconnect', 'wa-js', 'dist', 'wppconnect-wa.js');
         if (!fs.existsSync(waJsPath)) {
@@ -2472,6 +2474,14 @@ async function executeSingleCall(targetId, ringDurationMs, contactName = '') {
     let callStarted = false;
     let callMethod = '';
 
+    // 0. Berechtigungen fuer Mikrofon & Kamera sicherstellen (kritisch fuer VoIP)
+    try {
+        if (client && client.pupPage) {
+            const bCtx = client.pupPage.browserContext();
+            await bCtx.overridePermissions('https://web.whatsapp.com', ['microphone', 'camera']).catch(() => {});
+        }
+    } catch(e) {}
+
     // ========================================================
     // METHODE 1: WPP.call.offer (VoIP Stack)
     // ========================================================
@@ -2482,8 +2492,14 @@ async function executeSingleCall(targetId, ringDurationMs, contactName = '') {
                     if (window.WPP.call.enableCallInterface) {
                         try { await window.WPP.call.enableCallInterface(); } catch(e) {}
                     }
-                    const call = await window.WPP.call.offer(toId, { isVideo: false });
-                    return { success: true, callId: call ? call.id : null };
+                    // WICHTIG: Nicht auf das vollstaendige Beenden des Anrufs warten (Deadlock-Schutz)!
+                    // offer() initiiert den Anruf; wir warten maximal 1200ms auf einen fruehen Validierungsfehler
+                    const offerPromise = window.WPP.call.offer(toId, { isVideo: false });
+                    const earlyResult = await Promise.race([
+                        offerPromise.then(c => ({ success: true, callId: c ? c.id : null })),
+                        new Promise(res => setTimeout(() => res({ success: true, callId: null }), 1200))
+                    ]);
+                    return earlyResult;
                 }
             } catch (e) {
                 return { error: e.message || String(e) };
@@ -2537,13 +2553,13 @@ async function executeSingleCall(targetId, ringDurationMs, contactName = '') {
                     await client.pupPage.keyboard.press('KeyA').catch(() => {});
                     await client.pupPage.keyboard.up('Control').catch(() => {});
                     await client.pupPage.keyboard.press('Backspace').catch(() => {});
-                    await searchEl.type(query, { delay: 30 }).catch(() => {});
-                    await new Promise(r => setTimeout(r, 800));
-                    await client.pupPage.keyboard.press('Enter').catch(() => {});
+                    await searchEl.type(query, { delay: 25 }).catch(() => {});
                     await new Promise(r => setTimeout(r, 600));
+                    await client.pupPage.keyboard.press('Enter').catch(() => {});
+                    await new Promise(r => setTimeout(r, 400));
                 }
             } else {
-                await new Promise(r => setTimeout(r, 800));
+                await new Promise(r => setTimeout(r, 400));
             }
 
             // 2. Audio-Call Button im Header anklicken
@@ -2564,7 +2580,7 @@ async function executeSingleCall(targetId, ringDurationMs, contactName = '') {
         throw new Error('Anruf konnte nicht initiiert werden (VoIP-Schnittstelle und Benutzeroberfläche nicht erreichbar).');
     }
 
-    // Klingeln lassen (1 bis 15 Sekunden)
+    // Klingeln lassen (1 bis 4 Sekunden)
     await new Promise(resolve => setTimeout(resolve, ringDurationMs));
 
     // ========================================================
@@ -2596,8 +2612,8 @@ async function executeSingleCall(targetId, ringDurationMs, contactName = '') {
         console.warn('[CALL] Hinweis beim Auflegen:', endErr.message);
     }
 
-    // 2.5 Sekunden Cooldown für den nächsten Durchgang (Holdings)
-    await new Promise(resolve => setTimeout(resolve, 2500));
+    // 1.2 Sekunden Cooldown für den nächsten Durchgang
+    await new Promise(resolve => setTimeout(resolve, 1200));
 
     return true;
 }
@@ -2851,8 +2867,8 @@ const server = app.listen(PORT, () => {
 
     initWhatsApp();
 
-    // Wenn der C#-Launcher den Server verwaltet, oeffnet er das Browser-Fenster selbst
-    if (process.env.LAUNCHER_MANAGED === '1' || process.argv.includes('--no-browser')) {
+    // Auf Linux / Cloud (Render) oder wenn headless gewünscht, kein Desktop-Fenster öffnen
+    if (process.platform !== 'win32' || process.env.LAUNCHER_MANAGED === '1' || process.argv.includes('--no-browser') || process.env.NODE_ENV === 'production') {
         return;
     }
 
@@ -2877,7 +2893,7 @@ const server = app.listen(PORT, () => {
         }
     }
 
-    if (!launched) {
+    if (!launched && process.platform === 'win32') {
         console.log('Starte Standard-Browser...');
         exec(`start http://localhost:${PORT}`);
     }

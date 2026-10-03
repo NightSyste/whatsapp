@@ -1078,13 +1078,8 @@ async function openFotosFolder() {
 }
 
 async function openExcelFile() {
-  try {
-    const res = await fetch('/api/open-excel', { method: 'POST' });
-    const data = await res.json();
-    showToast(data.message || 'Excel-Datei geöffnet.');
-  } catch (err) {
-    showToast('Fehler beim Öffnen der Excel-Datei: ' + err, true);
-  }
+  selectTab('view-chats');
+  showToast('Alle Kontakte & Chats werden direkt hier im Web angezeigt.');
 }
 
 // ----------------------------------------------------
