@@ -92,12 +92,27 @@ const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcodeTerminal = require('qrcode-terminal');
 const qrcode = require('qrcode');
 
+const recentSystemLogs = [];
+function logSystemEvent(type, message, details = null) {
+    const entry = {
+        timestamp: new Date().toISOString(),
+        time: new Date().toLocaleTimeString('de-DE'),
+        type: type || 'info',
+        message: String(message || ''),
+        details: details ? String(details) : null
+    };
+    recentSystemLogs.push(entry);
+    if (recentSystemLogs.length > 80) recentSystemLogs.shift();
+}
+
 process.on('uncaughtException', (err) => {
     console.warn('[SYSTEM] Abgefangener Prozessfehler (uncaughtException):', err.message || err);
+    logSystemEvent('error', 'Prozessfehler: ' + (err.message || err));
 });
 
 process.on('unhandledRejection', (reason) => {
     console.warn('[SYSTEM] Abgefangenes Promise-Problem (unhandledRejection):', reason?.message || reason);
+    logSystemEvent('warn', 'Promise-Problem: ' + (reason?.message || reason));
 });
 
 process.on('beforeExit', (code) => {
@@ -1322,6 +1337,146 @@ app.post('/api/system/restart', (req, res) => {
         } catch (e) {}
         process.exit(0);
     }, 600);
+});
+
+// ==========================================
+// System-Dateien & Live-Updates API
+// ==========================================
+
+const MANAGED_FILES = {
+    'support_config.json': {
+        name: 'support_config.json',
+        title: 'Support-Konfiguration',
+        description: 'Rufnummern und Chat-Zuweisung für Entwickler- und Nutzersupport',
+        category: 'Support'
+    },
+    'bot_settings.json': {
+        name: 'bot_settings.json',
+        title: 'Bot-Einstellungen',
+        description: 'Auto-Responder, Bot-Texte, Trigger und Reaktionszeiten',
+        category: 'Bot'
+    },
+    'settings.json': {
+        name: 'settings.json',
+        title: 'Systemeinstellungen',
+        description: 'Sprache, Synchronisationsintervall und Anwendungsoptionen',
+        category: 'System'
+    },
+    'block_status.json': {
+        name: 'block_status.json',
+        title: 'Blockierungsstatus',
+        description: 'Aktive Blockierungen und Zeitlimits für Kontakte',
+        category: 'Sicherheit'
+    }
+};
+
+app.get('/api/system/files', (req, res) => {
+    const list = Object.keys(MANAGED_FILES).map(k => {
+        const item = MANAGED_FILES[k];
+        const fp = path.join(BASE_DIR, k);
+        const exists = fs.existsSync(fp);
+        let size = 0;
+        let lastModified = null;
+        if (exists) {
+            try {
+                const s = fs.statSync(fp);
+                size = s.size;
+                lastModified = s.mtime;
+            } catch (e) {}
+        }
+        return {
+            id: k,
+            name: item.name,
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            exists,
+            size,
+            lastModified
+        };
+    });
+    res.json({ status: 'success', files: list });
+});
+
+app.get('/api/system/file-content', (req, res) => {
+    const fileName = req.query.file;
+    if (!fileName || !MANAGED_FILES[fileName]) {
+        return res.status(400).json({ status: 'error', error: 'Ungültige Datei' });
+    }
+    const fp = path.join(BASE_DIR, fileName);
+    if (!fs.existsSync(fp)) {
+        return res.json({ status: 'success', file: fileName, content: '{}' });
+    }
+    try {
+        const content = fs.readFileSync(fp, 'utf8');
+        res.json({ status: 'success', file: fileName, content });
+    } catch (e) {
+        logSystemEvent('error', `Fehler beim Lesen von ${fileName}: ${e.message}`);
+        res.status(500).json({ status: 'error', error: e.message });
+    }
+});
+
+app.post('/api/system/file-save', (req, res) => {
+    const { file: fileName, content } = req.body || {};
+    if (!fileName || !MANAGED_FILES[fileName]) {
+        return res.status(400).json({ status: 'error', error: 'Ungültige Datei' });
+    }
+    if (typeof content !== 'string') {
+        return res.status(400).json({ status: 'error', error: 'Inhalt muss als Text übertragen werden' });
+    }
+
+    try {
+        JSON.parse(content);
+    } catch (parseErr) {
+        logSystemEvent('error', `Syntaxfehler in ${fileName}: ${parseErr.message}`);
+        return res.status(400).json({ status: 'error', error: 'Ungültiges JSON-Format: ' + parseErr.message });
+    }
+
+    const fp = path.join(BASE_DIR, fileName);
+    try {
+        fs.writeFileSync(fp, content, 'utf8');
+        logSystemEvent('success', `${fileName} erfolgreich gespeichert und live angewendet!`);
+        res.json({ status: 'success', message: `${fileName} wurde erfolgreich gespeichert und ist sofort aktiv!` });
+    } catch (e) {
+        logSystemEvent('error', `Fehler beim Schreiben von ${fileName}: ${e.message}`);
+        res.status(500).json({ status: 'error', error: e.message });
+    }
+});
+
+app.get('/api/system/git-status', (req, res) => {
+    const { exec } = require('child_process');
+    exec('git log -1 --format="%h - %s (%cd)" --date=short', { cwd: BASE_DIR }, (err, stdout) => {
+        const commit = !err && stdout ? stdout.trim() : 'Unbekannt';
+        res.json({
+            status: 'success',
+            commit,
+            repo: 'https://github.com/NightSyste/whatsapp',
+            isCloud: Boolean(process.env.RENDER || process.env.PORT || process.platform !== 'win32'),
+            platform: process.platform,
+            nodeVersion: process.version,
+            uptimeSec: Math.floor(process.uptime())
+        });
+    });
+});
+
+app.post('/api/system/update-pull', (req, res) => {
+    const { exec } = require('child_process');
+    logSystemEvent('info', 'Starte Synchronisation mit GitHub (git pull origin main)...');
+    exec('git pull origin main', { cwd: BASE_DIR }, (err, stdout, stderr) => {
+        if (err) {
+            const msg = (stderr || err.message || '').trim();
+            logSystemEvent('error', `GitHub-Update fehlgeschlagen: ${msg}`);
+            return res.status(500).json({ status: 'error', error: msg });
+        }
+        const output = (stdout || '').trim();
+        logSystemEvent('success', `GitHub-Update erfolgreich angewendet: ${output}`);
+        try { ensureWwebjsPatched(); } catch (e) {}
+        res.json({ status: 'success', output });
+    });
+});
+
+app.get('/api/system/logs', (req, res) => {
+    res.json({ status: 'success', logs: recentSystemLogs });
 });
 
 // Support Kontakt-Infos abrufen (unterstützt beide Support-Nummern)

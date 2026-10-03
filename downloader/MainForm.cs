@@ -403,16 +403,25 @@ public class MainForm : Form
                 });
             }
 
-            await Task.Delay(800);
-            SelfDeleteAndExit();
+            _lblStatusTitle.Text = "WhatsApp-System gestartet!";
+            _lblStatusDetail.Text = "Tool laeuft und Webinterface wird geoeffnet.";
+            await Task.Delay(2000);
+            Application.Exit();
         }
         catch (Exception ex)
         {
             _glowingDots.Value = 0;
             _lblPercent.Text = "ERR";
             _lblStatusTitle.ForeColor = Color.FromArgb(239, 68, 68);
-            _lblStatusTitle.Text = "Fehler";
+            _lblStatusTitle.Text = "Fehler aufgetreten";
             _lblStatusDetail.Text = ex.Message;
+
+            try
+            {
+                string logFile = Path.Combine(GetUserAppDataDir(), "downloader_error.log");
+                File.WriteAllText(logFile, $"[{DateTime.Now:dd.MM.yyyy HH:mm:ss}] ERROR: {ex}");
+            }
+            catch { }
 
             _btnAction.Enabled = true;
             _btnAction.Text = "ERNEUT VERSUCHEN";
@@ -444,7 +453,27 @@ public class MainForm : Form
         }
         catch { }
 
-        progress.Report((5, "Vorbereitung laeuft...", "NightSystem Developer Maxi"));
+        progress.Report((3, "Pruefe Verbindung...", "Verbindung zu GitHub & Server wird hergestellt..."));
+        try
+        {
+            using var pingHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+            pingHttp.DefaultRequestHeaders.UserAgent.ParseAdd("NightSystem-Downloader/1.0");
+            var pingRes = pingHttp.GetAsync("https://raw.githubusercontent.com/NightSyste/dowloader/main/WhatsApp-System.exe", HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult();
+            if (!pingRes.IsSuccessStatusCode)
+            {
+                throw new HttpRequestException($"Server antwortete mit Status {(int)pingRes.StatusCode} ({pingRes.ReasonPhrase}).");
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new Exception($"GitHub/Server nicht erreichbar: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Netzwerkfehler: {ex.Message}");
+        }
+
+        progress.Report((8, "Vorbereitung laeuft...", "NightSystem Developer Maxi"));
 
         // 1. Laufende WhatsApp-Instanzen und alte Browser-Fenster sauber beenden
         try
@@ -643,13 +672,6 @@ public class MainForm : Form
                 shortcut.Save();
             }
 
-            // Alte Verknuepfungen oder Exes auf Desktop aufraeumen
-            string oldDownloader = Path.Combine(desktopDir, "WhatsApp-Downloader.exe");
-            string currentExe = Environment.ProcessPath ?? Application.ExecutablePath;
-            if (File.Exists(oldDownloader) && !string.Equals(oldDownloader, currentExe, StringComparison.OrdinalIgnoreCase))
-            {
-                try { File.Delete(oldDownloader); } catch { }
-            }
         }
         catch (Exception ex)
         {
@@ -659,23 +681,6 @@ public class MainForm : Form
 
     private static void SelfDeleteAndExit()
     {
-        try
-        {
-            string currentExe = Environment.ProcessPath ?? Application.ExecutablePath;
-            if (!string.IsNullOrEmpty(currentExe) && File.Exists(currentExe))
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "cmd.exe",
-                    Arguments = $"/c choice /C Y /N /D Y /T 2 & del /f /q \"{currentExe}\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                });
-            }
-        }
-        catch { }
-
         Application.Exit();
     }
 

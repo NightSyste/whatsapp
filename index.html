@@ -63,16 +63,18 @@
       </div>
       <div class="header-actions">
         <span id="connectionBadge" class="status-badge" data-i18n="status_disconnected">[STATUS: GETRENNT]</span>
+        <span id="systemHealthBadge" class="status-badge status-connected" style="cursor: pointer;" onclick="selectTab('view-files')" title="Klicken für Systemprotokoll &amp; Dateien">[SYSTEM: OK]</span>
         <button class="btn btn-sm btn-danger header-shutdown-btn" onclick="shutdownApp()" title="WhatsApp-System und alle Prozesse komplett beenden" data-i18n="btn_shutdown">[X] Beenden</button>
       </div>
     </header>
 
-    <!-- Navigation: Start, Chats, Bot, Click Instant, Support, Settings -->
+    <!-- Navigation: Start, Chats, Bot, Click Instant, Dateien & Updates, Support, Settings -->
     <nav class="tab-nav">
       <button id="navStartBtn" class="tab-link active" onclick="selectTab('view-start')" data-i18n="tab_start">Start</button>
       <button id="navChatsBtn" class="tab-link" onclick="selectTab('view-chats')" data-i18n="tab_chats">Chats</button>
       <button id="navBotBtn" class="tab-link" onclick="selectTab('view-bot')" data-i18n="tab_bot">Bot</button>
       <button id="navInstantBtn" class="tab-link" style="display: none;" onclick="selectTab('view-instant')" data-i18n="tab_instant">Click Instant</button>
+      <button id="navFilesBtn" class="tab-link" onclick="selectTab('view-files')" data-i18n="tab_files">Dateien &amp; Updates</button>
       <button id="navSupportBtn" class="tab-link" onclick="selectTab('view-support')" data-i18n="tab_support">Support</button>
       <button id="navSettingsBtn" class="tab-link" onclick="selectTab('view-settings')" data-i18n="tab_settings">Settings</button>
     </nav>
@@ -577,6 +579,154 @@
             <button id="supportAttachBtn" class="btn btn-sm" onclick="document.getElementById('supportImageFileInput').click()" title="Bild anhängen" data-i18n-title="btn_attach" data-i18n="btn_attach">Bild</button>
             <input type="text" id="supportMessageInput" class="chat-input-box" placeholder="Schreibe eine Nachricht an den Support..." data-i18n-placeholder="support_input_placeholder" onkeydown="onSupportMessageInputKey(event)">
             <button id="supportSendBtn" class="btn btn-primary" onclick="sendSupportMessage()" data-i18n="btn_send">Senden</button>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- TAB 5: Dateien & Live-Updates (In-Browser Dateiverwaltung & GitHub Sync) -->
+      <section id="view-files" class="tab-view">
+        <div class="files-view-layout">
+          
+          <!-- Obere Reihe: Server & GitHub Status Kacheln -->
+          <div class="files-status-grid">
+            
+            <!-- Server / Cloud Status -->
+            <div class="panel file-status-card">
+              <div class="panel-header">
+                <div class="panel-title">Server &amp; Cloud Status</div>
+                <span id="cloudServerBadge" class="status-badge status-connected">AKTIV</span>
+              </div>
+              <div class="file-card-details">
+                <div class="detail-row">
+                  <span class="detail-k">Plattform:</span>
+                  <span id="serverPlatformText" class="detail-v">Windows / Cloud-Ready</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-k">Laufzeit-Uptime:</span>
+                  <span id="serverUptimeText" class="detail-v">0 Min</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-k">Render Deployment:</span>
+                  <span class="detail-v text-accent">Docker &amp; Blueprint aktiv</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- GitHub Synchronisation & Live Updates -->
+            <div class="panel file-status-card">
+              <div class="panel-header">
+                <div class="panel-title">GitHub &amp; Auto-Update</div>
+                <span id="gitStatusBadge" class="status-badge">SYNCHRONISIERT</span>
+              </div>
+              <div class="file-card-details">
+                <div class="detail-row">
+                  <span class="detail-k">Repository:</span>
+                  <span class="detail-v"><a href="https://github.com/NightSyste/whatsapp" target="_blank" class="git-link">NightSyste/whatsapp</a></span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-k">Letzter Commit:</span>
+                  <span id="gitCommitText" class="detail-v font-mono">Lädt...</span>
+                </div>
+              </div>
+              <div class="file-card-actions">
+                <button id="btnGitPull" class="btn btn-primary btn-sm" onclick="triggerGitUpdate()">
+                  <span class="btn-icon">↻</span> Von GitHub aktualisieren
+                </button>
+              </div>
+            </div>
+
+            <!-- Downloader & Desktop Tool -->
+            <div class="panel file-status-card">
+              <div class="panel-header">
+                <div class="panel-title">Downloader-Datei</div>
+                <span class="status-badge status-connected">DESKTOP BEREIT</span>
+              </div>
+              <div class="file-card-details">
+                <div class="detail-row">
+                  <span class="detail-k">Desktop-Datei:</span>
+                  <span class="detail-v">WhatsApp-Downloader.exe</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-k">Version:</span>
+                  <span class="detail-v text-accent">v1.0.0 (Self-Contained x64)</span>
+                </div>
+              </div>
+              <div class="file-card-actions">
+                <a href="https://raw.githubusercontent.com/NightSyste/dowloader/main/WhatsApp-Downloader.exe" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none; display:inline-flex; align-items:center;">
+                  <span class="btn-icon">⬇</span> Downloader herunterladen
+                </a>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Mittlerer Bereich: Dateien-Editor -->
+          <div class="panel file-editor-panel">
+            <div class="panel-header file-editor-header">
+              <div>
+                <div class="panel-title">Dateien-Editor (Live-Konfiguration)</div>
+                <div class="panel-desc">Bearbeiten Sie Konfigurationen direkt im Browser. Änderungen schlagen sofort ohne Neustart an!</div>
+              </div>
+              <div class="file-selector-tabs" id="fileSelectorTabs">
+                <!-- Dynamisch generierte Dateitabs -->
+              </div>
+            </div>
+
+            <div class="file-meta-bar">
+              <div class="meta-item">
+                <span class="meta-k">Aktive Datei:</span>
+                <span id="activeFileName" class="meta-v font-mono">support_config.json</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-k">Kategorie:</span>
+                <span id="activeFileCategory" class="meta-v">Support</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-k">Größe:</span>
+                <span id="activeFileSize" class="meta-v">0 Bytes</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-k">JSON-Syntax:</span>
+                <span id="fileSyntaxBadge" class="status-badge status-connected">GÜLTIG</span>
+              </div>
+            </div>
+
+            <div class="editor-container">
+              <textarea id="fileEditorTextarea" class="code-editor" spellcheck="false" placeholder="Lade Dateiinhalt..."></textarea>
+            </div>
+
+            <div class="editor-actions-bar">
+              <button class="btn btn-primary" id="btnSaveFile" onclick="saveActiveFileContent()">
+                <span class="btn-icon">💾</span> Änderungen speichern &amp; Live anwenden
+              </button>
+              <button class="btn btn-secondary" onclick="reloadActiveFileContent()">
+                <span class="btn-icon">↺</span> Neu laden
+              </button>
+              <span id="editorStatusText" class="editor-status-text">Alle Änderungen werden sofort wirksam.</span>
+            </div>
+          </div>
+
+          <!-- Unterer Bereich: Live Server-Logs & Fehleranzeige -->
+          <div class="panel logs-panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">System-Ereignisse &amp; Fehlermeldungen</div>
+                <div class="panel-desc">Echtzeit-Telemetrie und Fehlerausgaben des Servers und WhatsApp-Clients.</div>
+              </div>
+              <div class="btn-group">
+                <button class="btn btn-sm btn-secondary" onclick="fetchSystemLogs()">↻ Aktualisieren</button>
+                <button class="btn btn-sm" onclick="clearLocalLogsDisplay()">Leeren</button>
+              </div>
+            </div>
+
+            <div id="systemLogsFeed" class="logs-feed">
+              <div class="log-entry log-info">
+                <span class="log-time">[00:00:00]</span>
+                <span class="log-tag tag-info">INFO</span>
+                <span class="log-msg">Warte auf Systemprotokoll...</span>
+              </div>
+            </div>
           </div>
 
         </div>

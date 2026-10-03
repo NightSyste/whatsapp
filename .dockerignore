@@ -1,0 +1,13 @@
+.git
+.gitignore
+.wwebjs_auth
+.wwebjs_cache
+session_data
+qr_temp
+*.exe
+*.zip
+*.bat
+downloader
+launcher
+fotos
+WhatsApp_Kontakte.xlsx

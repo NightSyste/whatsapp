@@ -315,6 +315,7 @@ function selectTab(viewId) {
   else if (viewId === 'view-chats') activeBtn = document.getElementById('navChatsBtn');
   else if (viewId === 'view-bot') activeBtn = document.getElementById('navBotBtn');
   else if (viewId === 'view-instant') activeBtn = document.getElementById('navInstantBtn');
+  else if (viewId === 'view-files') activeBtn = document.getElementById('navFilesBtn');
   else if (viewId === 'view-support') activeBtn = document.getElementById('navSupportBtn');
   else if (viewId === 'view-settings') activeBtn = document.getElementById('navSettingsBtn');
 
@@ -333,6 +334,10 @@ function selectTab(viewId) {
     } else {
       renderInstantDropdowns();
     }
+  }
+
+  if (viewId === 'view-files') {
+    initFilesView();
   }
 
   if (viewId === 'view-support') {
@@ -1054,17 +1059,29 @@ function setStatus(msg) {
 }
 
 let toastTimer = null;
-function showToast(msg, isError = false) {
+function showToast(msg, type = 'info') {
   const toast = document.getElementById('toast');
+  if (!toast) return;
   toast.textContent = msg;
-  toast.style.borderColor = isError ? 'var(--btn-danger-border)' : 'var(--border-strong)';
-  toast.style.color = isError ? '#ff8888' : '#ffffff';
+  toast.classList.remove('toast-success', 'toast-error', 'toast-info');
+
+  const isErr = (type === true || type === 'error');
+  const isSuccess = (type === 'success');
+
+  if (isErr) {
+    toast.classList.add('toast-error');
+  } else if (isSuccess) {
+    toast.classList.add('toast-success');
+  } else {
+    toast.classList.add('toast-info');
+  }
+
   toast.classList.add('visible');
 
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     toast.classList.remove('visible');
-  }, 3000);
+  }, 3500);
 }
 
 async function openFotosFolder() {
@@ -2320,5 +2337,306 @@ async function sendSupportMessage() {
     }
   }
 }
+
+// ==========================================================================
+// DATEIEN-VERWALTUNG, GITHUB-UPDATES & TELEMETRIE
+// ==========================================================================
+let managedFilesList = [];
+let activeFileId = 'support_config.json';
+
+async function initFilesView() {
+  await Promise.all([
+    loadManagedFilesList(),
+    fetchGitAndServerStatus(),
+    fetchSystemLogs()
+  ]);
+  if (activeFileId) {
+    loadActiveFileContent(activeFileId);
+  }
+}
+
+async function loadManagedFilesList() {
+  try {
+    const res = await fetch('/api/system/files');
+    const data = await res.json();
+    if (data.status === 'success' && Array.isArray(data.files)) {
+      managedFilesList = data.files;
+      renderFileSelectorTabs();
+    }
+  } catch (err) {
+    console.warn('[FILES] Fehler beim Laden der Dateiliste:', err);
+  }
+}
+
+function renderFileSelectorTabs() {
+  const container = document.getElementById('fileSelectorTabs');
+  if (!container) return;
+  container.innerHTML = '';
+
+  managedFilesList.forEach(f => {
+    const btn = document.createElement('button');
+    btn.className = 'file-tab-btn' + (f.id === activeFileId ? ' active' : '');
+    btn.textContent = f.name;
+    btn.title = f.description || f.title;
+    btn.onclick = () => selectActiveFile(f.id);
+    container.appendChild(btn);
+  });
+}
+
+function selectActiveFile(fileId) {
+  activeFileId = fileId;
+  renderFileSelectorTabs();
+  loadActiveFileContent(fileId);
+}
+
+async function loadActiveFileContent(fileId) {
+  const textarea = document.getElementById('fileEditorTextarea');
+  const nameEl = document.getElementById('activeFileName');
+  const catEl = document.getElementById('activeFileCategory');
+  const sizeEl = document.getElementById('activeFileSize');
+  const syntaxBadge = document.getElementById('fileSyntaxBadge');
+  const statusText = document.getElementById('editorStatusText');
+
+  const fileMeta = managedFilesList.find(f => f.id === fileId) || { name: fileId, category: 'Allgemein', size: 0 };
+  if (nameEl) nameEl.textContent = fileMeta.name;
+  if (catEl) catEl.textContent = fileMeta.category || 'Konfiguration';
+  if (sizeEl) sizeEl.textContent = `${fileMeta.size || 0} Bytes`;
+  if (statusText) statusText.textContent = 'Datei wird geladen...';
+
+  try {
+    const res = await fetch(`/api/system/file-content?file=${encodeURIComponent(fileId)}`);
+    const data = await res.json();
+    if (data.status === 'success') {
+      if (textarea) textarea.value = data.content || '';
+      validateEditorSyntax();
+      if (statusText) statusText.textContent = 'Bereit. Änderungen werden sofort nach Speichern wirksam.';
+    } else {
+      showToast(data.error || 'Fehler beim Laden', 'error');
+    }
+  } catch (err) {
+    showToast('Netzwerkfehler: ' + err.message, 'error');
+  }
+}
+
+function reloadActiveFileContent() {
+  if (activeFileId) {
+    loadActiveFileContent(activeFileId);
+    showToast('Datei neu geladen', 'info');
+  }
+}
+
+function validateEditorSyntax() {
+  const textarea = document.getElementById('fileEditorTextarea');
+  const syntaxBadge = document.getElementById('fileSyntaxBadge');
+  if (!textarea || !syntaxBadge) return true;
+
+  try {
+    JSON.parse(textarea.value);
+    syntaxBadge.textContent = 'GÜLTIG';
+    syntaxBadge.className = 'status-badge status-connected';
+    return true;
+  } catch (e) {
+    syntaxBadge.textContent = 'SYNTAXFEHLER';
+    syntaxBadge.className = 'status-badge status-disconnected';
+    return false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const textarea = document.getElementById('fileEditorTextarea');
+  if (textarea) {
+    textarea.addEventListener('input', () => {
+      validateEditorSyntax();
+    });
+  }
+});
+
+async function saveActiveFileContent() {
+  const textarea = document.getElementById('fileEditorTextarea');
+  const saveBtn = document.getElementById('btnSaveFile');
+  const statusText = document.getElementById('editorStatusText');
+  if (!textarea || !activeFileId) return;
+
+  const content = textarea.value;
+  if (!validateEditorSyntax()) {
+    showToast('Fehler: Die Datei enthält ungültiges JSON. Bitte korrigieren!', 'error');
+    return;
+  }
+
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="btn-icon">⏳</span> Speichere &amp; Wende an...';
+  }
+
+  try {
+    const res = await fetch('/api/system/file-save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: activeFileId, content })
+    });
+    const data = await res.json();
+
+    if (data.status === 'success') {
+      showToast(`${activeFileId} gespeichert & sofort aktiv!`, 'success');
+      if (statusText) statusText.textContent = `Erfolgreich gespeichert (${new Date().toLocaleTimeString('de-DE')}) - Sofort aktiv!`;
+      await loadManagedFilesList();
+      fetchSystemLogs();
+    } else {
+      showToast(data.error || 'Fehler beim Speichern', 'error');
+      if (statusText) statusText.textContent = `Fehler: ${data.error}`;
+    }
+  } catch (err) {
+    showToast('Netzwerkfehler: ' + err.message, 'error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<span class="btn-icon">💾</span> Änderungen speichern &amp; Live anwenden';
+    }
+  }
+}
+
+async function fetchGitAndServerStatus() {
+  try {
+    const res = await fetch('/api/system/git-status');
+    const data = await res.json();
+    if (data.status === 'success') {
+      const commitEl = document.getElementById('gitCommitText');
+      const platformEl = document.getElementById('serverPlatformText');
+      const uptimeEl = document.getElementById('serverUptimeText');
+      const cloudBadge = document.getElementById('cloudServerBadge');
+
+      if (commitEl) commitEl.textContent = data.commit || 'Aktuell';
+      if (platformEl) platformEl.textContent = data.isCloud ? `Render Cloud (${data.platform})` : `Lokal (${data.platform})`;
+      if (uptimeEl) {
+        const mins = Math.floor((data.uptimeSec || 0) / 60);
+        uptimeEl.textContent = mins === 0 ? 'Gerade gestartet' : `${mins} Minuten`;
+      }
+      if (cloudBadge) {
+        cloudBadge.textContent = data.isCloud ? 'RENDER CLOUD' : 'LOKAL AKTIV';
+      }
+    }
+  } catch (err) {
+    console.warn('[GIT] Fehler beim Laden des Git-Status:', err);
+  }
+}
+
+async function triggerGitUpdate() {
+  const btn = document.getElementById('btnGitPull');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-icon">⏳</span> Aktualisiere von GitHub...';
+  }
+
+  showToast('Hole neueste Version von GitHub...', 'info');
+
+  try {
+    const res = await fetch('/api/system/update-pull', { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'success') {
+      showToast('GitHub Live-Update erfolgreich angewendet!', 'success');
+      await Promise.all([
+        fetchGitAndServerStatus(),
+        loadManagedFilesList(),
+        fetchSystemLogs()
+      ]);
+    } else {
+      showToast('Update fehlgeschlagen: ' + (data.error || 'Unbekannter Fehler'), 'error');
+    }
+  } catch (err) {
+    showToast('Netzwerkfehler beim Update: ' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="btn-icon">↻</span> Von GitHub aktualisieren';
+    }
+  }
+}
+
+async function fetchSystemLogs() {
+  try {
+    const res = await fetch('/api/system/logs');
+    const data = await res.json();
+    if (data.status === 'success' && Array.isArray(data.logs)) {
+      renderSystemLogs(data.logs);
+    }
+  } catch (err) {
+    console.warn('[LOGS] Fehler beim Abrufen der Logs:', err);
+  }
+}
+
+function renderSystemLogs(logs) {
+  const feed = document.getElementById('systemLogsFeed');
+  const healthBadge = document.getElementById('systemHealthBadge');
+  if (!feed) return;
+
+  if (logs.length === 0) {
+    feed.innerHTML = `
+      <div class="log-entry log-info">
+        <span class="log-time">[${new Date().toLocaleTimeString('de-DE')}]</span>
+        <span class="log-tag tag-info">SYSTEM</span>
+        <span class="log-msg">Alle Systeme laufen einwandfrei und fehlerfrei.</span>
+      </div>`;
+    if (healthBadge) {
+      healthBadge.textContent = '[SYSTEM: OK]';
+      healthBadge.className = 'status-badge status-connected';
+    }
+    return;
+  }
+
+  let errorCount = 0;
+  feed.innerHTML = '';
+  [...logs].reverse().forEach(entry => {
+    if (entry.type === 'error') errorCount++;
+
+    const div = document.createElement('div');
+    div.className = `log-entry log-${entry.type}`;
+
+    let tagClass = 'tag-info';
+    let tagText = 'INFO';
+    if (entry.type === 'success') { tagClass = 'tag-success'; tagText = 'ERFOLG'; }
+    else if (entry.type === 'warn') { tagClass = 'tag-warn'; tagText = 'WARN'; }
+    else if (entry.type === 'error') { tagClass = 'tag-error'; tagText = 'FEHLER'; }
+
+    div.innerHTML = `
+      <span class="log-time">[${entry.time || '00:00:00'}]</span>
+      <span class="log-tag ${tagClass}">${tagText}</span>
+      <span class="log-msg">${escapeHtml(entry.message)}</span>
+    `;
+    feed.appendChild(div);
+  });
+
+  if (healthBadge) {
+    if (errorCount > 0) {
+      healthBadge.textContent = `[WARNUNG: ${errorCount} FEHLER]`;
+      healthBadge.className = 'status-badge status-disconnected';
+    } else {
+      healthBadge.textContent = '[SYSTEM: OK]';
+      healthBadge.className = 'status-badge status-connected';
+    }
+  }
+}
+
+function clearLocalLogsDisplay() {
+  const feed = document.getElementById('systemLogsFeed');
+  if (feed) {
+    feed.innerHTML = '<div class="log-entry log-info"><span class="log-msg">Ansicht geleert.</span></div>';
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+setInterval(() => {
+  if (currentActiveTabId === 'view-files') {
+    fetchSystemLogs();
+    fetchGitAndServerStatus();
+  }
+}, 8000);
 
 

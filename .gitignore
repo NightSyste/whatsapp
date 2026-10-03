@@ -11,6 +11,7 @@ fotos/
 *.jpg.tmp
 
 # Lokale Runtime-Zustaende und Einstellungen
+.active_port
 block_status.json
 settings.json
 bot_settings.json
@@ -29,4 +30,5 @@ bin/
 obj/
 *.pdb
 *.exe
+*.zip
 
