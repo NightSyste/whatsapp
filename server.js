@@ -1075,6 +1075,37 @@ setInterval(async () => {
 // ==========================================
 const SUPPORT_CONFIG_FILE = path.join(BASE_DIR, 'support_config.json');
 const BLOCK_STATUS_FILE = path.join(BASE_DIR, 'block_status.json');
+const ADMIN_STATE_FILE = path.join(BASE_DIR, 'admin_state.json');
+
+function getAdminState() {
+    try {
+        if (fs.existsSync(ADMIN_STATE_FILE)) {
+            return JSON.parse(fs.readFileSync(ADMIN_STATE_FILE, 'utf8'));
+        }
+    } catch (e) {}
+    return {
+        globalLock: false,
+        lockReason: 'Wartungsarbeiten durch den Administrator. Bitte später erneut versuchen.',
+        announcement: '',
+        announcementType: 'info',
+        updateRevision: 1,
+        lastUpdateTimestamp: Date.now(),
+        lastUpdatedFile: '',
+        clients: {}
+    };
+}
+
+function saveAdminState(state) {
+    try {
+        fs.writeFileSync(ADMIN_STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Fehler beim Speichern von admin_state.json:', e);
+    }
+}
+
+function isSystemGloballyLocked() {
+    return Boolean(getAdminState().globalLock);
+}
 
 function getSupportConfig() {
     try {
@@ -1117,17 +1148,31 @@ function saveBlockStatus(status) {
 }
 
 function isToolBlocked() {
+    // 1. Zuerst Globalen Lock vom Admin pruefen
+    const admin = getAdminState();
+    if (admin.globalLock) {
+        return {
+            blocked: true,
+            isGlobalLock: true,
+            remainingMs: 86400000,
+            remainingSeconds: 86400,
+            reason: admin.lockReason || 'Tool ist derzeit vom Administrator gesperrt.'
+        };
+    }
+
+    // 2. Lokalen 24h Spam-Schutz pruefen
     const status = getBlockStatus();
     if (status.blocked && status.blockedUntil > Date.now()) {
         const remainingMs = status.blockedUntil - Date.now();
         return {
             blocked: true,
+            isGlobalLock: false,
             remainingMs: remainingMs,
             remainingSeconds: Math.round(remainingMs / 1000),
             reason: status.reason || 'Spam-Schutz aktiviert.'
         };
     }
-    return { blocked: false, remainingMs: 0, remainingSeconds: 0, reason: '' };
+    return { blocked: false, isGlobalLock: false, remainingMs: 0, remainingSeconds: 0, reason: '' };
 }
 
 function blockTool(reason = 'Spam-Schutz ausgelöst.') {
@@ -1234,6 +1279,7 @@ app.get('/api/status', (req, res) => {
         qrAgeSeconds: Math.floor((Date.now() - lastQrTimestamp) / 1000),
         chatCount: allChats.length,
         isBlocked: block.blocked,
+        isGlobalLock: Boolean(block.isGlobalLock),
         blockedReason: block.reason,
         blockedRemainingSeconds: block.remainingSeconds,
         hasBrowser: Boolean(findChromiumExecutable()),
@@ -1339,41 +1385,239 @@ app.post('/api/system/restart', (req, res) => {
     }, 600);
 });
 
-// ==========================================
-// System-Dateien & Live-Updates API
-// ==========================================
 
+
+// ==========================================
+// Dateien API & Vollständige Tool-Dateiverwaltung
+// ==========================================
 const MANAGED_FILES = {
+    // 1. Konfiguration & Daten
     'support_config.json': {
         name: 'support_config.json',
         title: 'Support-Konfiguration',
         description: 'Rufnummern und Chat-Zuweisung für Entwickler- und Nutzersupport',
-        category: 'Support'
+        category: 'Konfiguration',
+        type: 'json'
     },
     'bot_settings.json': {
         name: 'bot_settings.json',
         title: 'Bot-Einstellungen',
         description: 'Auto-Responder, Bot-Texte, Trigger und Reaktionszeiten',
-        category: 'Bot'
+        category: 'Konfiguration',
+        type: 'json'
     },
     'settings.json': {
         name: 'settings.json',
         title: 'Systemeinstellungen',
         description: 'Sprache, Synchronisationsintervall und Anwendungsoptionen',
-        category: 'System'
+        category: 'Konfiguration',
+        type: 'json'
     },
     'block_status.json': {
         name: 'block_status.json',
         title: 'Blockierungsstatus',
         description: 'Aktive Blockierungen und Zeitlimits für Kontakte',
-        category: 'Sicherheit'
+        category: 'Konfiguration',
+        type: 'json'
+    },
+    // 2. Frontend / UI
+    'index.html': {
+        name: 'index.html',
+        title: 'Web-Dashboard UI',
+        description: 'Hauptstruktur und HTML-Layout des Tools',
+        category: 'Frontend',
+        type: 'html'
+    },
+    'style.css': {
+        name: 'style.css',
+        title: 'Design & Themes',
+        description: 'CSS-Stylesheets & NightSystem Farbschema',
+        category: 'Frontend',
+        type: 'css'
+    },
+    'app.js': {
+        name: 'app.js',
+        title: 'Frontend Applikationslogik',
+        description: 'Client JavaScript, WebSocket & Dashboard Logik',
+        category: 'Frontend',
+        type: 'javascript'
+    },
+    'translations.js': {
+        name: 'translations.js',
+        title: 'Mehrsprachigkeit',
+        description: 'Wörterbuch für Deutsch, English, Русский, Shqip',
+        category: 'Frontend',
+        type: 'javascript'
+    },
+    // 3. Backend & Cloud Deployment
+    'server.js': {
+        name: 'server.js',
+        title: 'Express Server & API',
+        description: 'Server API, WhatsApp Web Client & Routing',
+        category: 'Backend',
+        type: 'javascript'
+    },
+    'package.json': {
+        name: 'package.json',
+        title: 'Node Paketdefinition',
+        description: 'Node.js Abhängigkeiten & Skripte',
+        category: 'Backend',
+        type: 'json'
+    },
+    'Dockerfile': {
+        name: 'Dockerfile',
+        title: 'Render Dockerfile',
+        description: 'Cloud Container Bauplan mit Chromium & Node.js',
+        category: 'Deployment',
+        type: 'dockerfile'
+    },
+    'render.yaml': {
+        name: 'render.yaml',
+        title: 'Render Blueprint',
+        description: 'Render Cloud Deployment Spezifikation',
+        category: 'Deployment',
+        type: 'yaml'
+    },
+    // 4. Downloader
+    'downloader/MainForm.cs': {
+        name: 'MainForm.cs',
+        title: 'Downloader GUI (C#)',
+        description: 'Quellcode des Windows Downloaders',
+        category: 'Downloader',
+        type: 'csharp'
+    },
+    'downloader/WhatsAppDownloader.csproj': {
+        name: 'WhatsAppDownloader.csproj',
+        title: 'Downloader Projektdatei',
+        description: '.NET 8 Projektkonfiguration',
+        category: 'Downloader',
+        type: 'xml'
     }
 };
 
+// Admin Overview
+app.get('/api/admin/overview', (req, res) => {
+    const state = getAdminState();
+    const now = Date.now();
+    
+    const activeClientsList = Object.entries(state.clients || {})
+        .map(([id, c]) => ({
+            id,
+            os: c.os || 'Windows',
+            version: c.version || '1.0.0',
+            ip: c.ip || 'Lokal',
+            lastSeenAgo: Math.max(0, Math.floor((now - (c.lastSeen || now)) / 1000)),
+            isOnline: (now - (c.lastSeen || 0)) < 60000
+        }))
+        .filter(c => c.isOnline);
+
+    res.json({
+        status: 'success',
+        globalLock: state.globalLock,
+        lockReason: state.lockReason,
+        announcement: state.announcement,
+        announcementType: state.announcementType,
+        updateRevision: state.updateRevision,
+        lastUpdateTimestamp: state.lastUpdateTimestamp,
+        lastUpdatedFile: state.lastUpdatedFile,
+        activeClients: activeClientsList,
+        clientCount: activeClientsList.length,
+        uptime: Math.floor(process.uptime()),
+        platform: process.platform,
+        isCloud: Boolean(process.env.RENDER || process.env.PORT || process.platform !== 'win32')
+    });
+});
+
+// Admin Toggle Global Lock
+app.post('/api/admin/toggle-lock', (req, res) => {
+    const { locked, reason } = req.body || {};
+    const state = getAdminState();
+    state.globalLock = Boolean(locked);
+    if (reason && typeof reason === 'string') {
+        state.lockReason = reason.trim();
+    }
+    state.updateRevision = (state.updateRevision || 1) + 1;
+    state.lastUpdateTimestamp = Date.now();
+    saveAdminState(state);
+
+    const logMsg = state.globalLock 
+        ? `Tool GLOBAL GESPERRT. Grund: "${state.lockReason}"`
+        : 'Tool GLOBAL FREIGEGEBEN (Entsperrt).';
+    logSystemEvent(state.globalLock ? 'warn' : 'success', logMsg);
+
+    res.json({
+        status: 'success',
+        globalLock: state.globalLock,
+        lockReason: state.lockReason,
+        message: logMsg
+    });
+});
+
+// Admin Set Announcement
+app.post('/api/admin/set-announcement', (req, res) => {
+    const { text, type } = req.body || {};
+    const state = getAdminState();
+    state.announcement = String(text || '').trim();
+    state.announcementType = ['info', 'warning', 'error'].includes(type) ? type : 'info';
+    state.updateRevision = (state.updateRevision || 1) + 1;
+    state.lastUpdateTimestamp = Date.now();
+    saveAdminState(state);
+
+    logSystemEvent('info', state.announcement ? `Neue Ankündigung veröffentlicht: "${state.announcement}"` : 'Ankündigung entfernt.');
+
+    res.json({
+        status: 'success',
+        announcement: state.announcement,
+        announcementType: state.announcementType
+    });
+});
+
+// Client Heartbeat
+app.post('/api/client/heartbeat', (req, res) => {
+    const { clientId, os, version } = req.body || {};
+    const cId = String(clientId || req.ip || 'client_' + Math.random().toString(36).substring(2, 8));
+    const state = getAdminState();
+
+    if (!state.clients) state.clients = {};
+    state.clients[cId] = {
+        os: String(os || req.headers['user-agent'] || 'Windows').substring(0, 80),
+        version: String(version || '1.0.0').substring(0, 20),
+        lastSeen: Date.now(),
+        ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''
+    };
+
+    saveAdminState(state);
+
+    res.json({
+        status: 'success',
+        locked: state.globalLock,
+        lockReason: state.lockReason,
+        announcement: state.announcement,
+        announcementType: state.announcementType,
+        updateRevision: state.updateRevision,
+        lastUpdatedFile: state.lastUpdatedFile
+    });
+});
+
+// Client Status (Quick Check)
+app.get('/api/client/status', (req, res) => {
+    const state = getAdminState();
+    res.json({
+        status: 'success',
+        locked: state.globalLock,
+        lockReason: state.lockReason,
+        announcement: state.announcement,
+        announcementType: state.announcementType,
+        updateRevision: state.updateRevision,
+        lastUpdatedFile: state.lastUpdatedFile
+    });
+});
+
+// Dateien API Endpoints
 app.get('/api/system/files', (req, res) => {
     const list = Object.keys(MANAGED_FILES).map(k => {
         const item = MANAGED_FILES[k];
-        const fp = path.join(BASE_DIR, k);
+        const fp = path.join(BASE_DIR, k.replace(/\//g, path.sep));
         const exists = fs.existsSync(fp);
         let size = 0;
         let lastModified = null;
@@ -1390,6 +1634,7 @@ app.get('/api/system/files', (req, res) => {
             title: item.title,
             description: item.description,
             category: item.category,
+            type: item.type,
             exists,
             size,
             lastModified
@@ -1403,13 +1648,13 @@ app.get('/api/system/file-content', (req, res) => {
     if (!fileName || !MANAGED_FILES[fileName]) {
         return res.status(400).json({ status: 'error', error: 'Ungültige Datei' });
     }
-    const fp = path.join(BASE_DIR, fileName);
+    const fp = path.join(BASE_DIR, fileName.replace(/\//g, path.sep));
     if (!fs.existsSync(fp)) {
-        return res.json({ status: 'success', file: fileName, content: '{}' });
+        return res.json({ status: 'success', file: fileName, content: '' });
     }
     try {
         const content = fs.readFileSync(fp, 'utf8');
-        res.json({ status: 'success', file: fileName, content });
+        res.json({ status: 'success', file: fileName, content, type: MANAGED_FILES[fileName].type });
     } catch (e) {
         logSystemEvent('error', `Fehler beim Lesen von ${fileName}: ${e.message}`);
         res.status(500).json({ status: 'error', error: e.message });
@@ -1425,18 +1670,36 @@ app.post('/api/system/file-save', (req, res) => {
         return res.status(400).json({ status: 'error', error: 'Inhalt muss als Text übertragen werden' });
     }
 
-    try {
-        JSON.parse(content);
-    } catch (parseErr) {
-        logSystemEvent('error', `Syntaxfehler in ${fileName}: ${parseErr.message}`);
-        return res.status(400).json({ status: 'error', error: 'Ungültiges JSON-Format: ' + parseErr.message });
+    const fileMeta = MANAGED_FILES[fileName];
+
+    // JSON Validierung nur bei JSON-Dateien
+    if (fileMeta.type === 'json') {
+        try {
+            JSON.parse(content);
+        } catch (parseErr) {
+            logSystemEvent('error', `Syntaxfehler in ${fileName}: ${parseErr.message}`);
+            return res.status(400).json({ status: 'error', error: 'Ungültiges JSON-Format: ' + parseErr.message });
+        }
     }
 
-    const fp = path.join(BASE_DIR, fileName);
+    const fp = path.join(BASE_DIR, fileName.replace(/\//g, path.sep));
     try {
         fs.writeFileSync(fp, content, 'utf8');
-        logSystemEvent('success', `${fileName} erfolgreich gespeichert und live angewendet!`);
-        res.json({ status: 'success', message: `${fileName} wurde erfolgreich gespeichert und ist sofort aktiv!` });
+        
+        // Admin-State Update-Revision erhöhen
+        const adminState = getAdminState();
+        adminState.updateRevision = (adminState.updateRevision || 1) + 1;
+        adminState.lastUpdateTimestamp = Date.now();
+        adminState.lastUpdatedFile = fileName;
+        saveAdminState(adminState);
+
+        logSystemEvent('success', `${fileName} gespeichert & Update Revision #${adminState.updateRevision} ausgelöst!`);
+
+        res.json({
+            status: 'success',
+            message: `${fileName} wurde erfolgreich gespeichert und als Update #${adminState.updateRevision} direkt an alle Clients übertragen!`,
+            revision: adminState.updateRevision
+        });
     } catch (e) {
         logSystemEvent('error', `Fehler beim Schreiben von ${fileName}: ${e.message}`);
         res.status(500).json({ status: 'error', error: e.message });

@@ -15,6 +15,7 @@ fotos/
 block_status.json
 settings.json
 bot_settings.json
+admin_state.json
 server.log
 *.log
 

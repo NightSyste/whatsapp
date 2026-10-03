@@ -14,7 +14,7 @@ let activeMsgSyncTimer = null;
 let lastKnownStatus = '';
 let lastKnownQr = '';
 let currentMessagesMap = new Map(); // id -> msgObj zur Erkennung neuer Nachrichten
-let currentActiveTabId = 'view-start';
+let currentActiveTabId = 'view-dashboard';
 
 // Bot & Click Instant Status
 let isBotActive = false;
@@ -87,6 +87,12 @@ window.addEventListener('DOMContentLoaded', () => {
     sessionStorage.removeItem('active_tab_before_reload');
     setTimeout(() => selectTab(savedTab), 60);
   }
+
+  initDashboardView();
+  sendClientHeartbeat();
+  setInterval(sendClientHeartbeat, 15000);
+  pollGlobalStatus();
+  setInterval(pollGlobalStatus, 4000);
 
   activeMsgSyncTimer = setInterval(() => {
     if (lastKnownStatus === 'connected') {
@@ -311,7 +317,8 @@ function selectTab(viewId) {
   document.querySelectorAll('.tab-view').forEach(view => view.classList.remove('active'));
 
   let activeBtn = null;
-  if (viewId === 'view-start') activeBtn = document.getElementById('navStartBtn');
+  if (viewId === 'view-dashboard') activeBtn = document.getElementById('navDashboardBtn');
+  else if (viewId === 'view-start') activeBtn = document.getElementById('navStartBtn');
   else if (viewId === 'view-chats') activeBtn = document.getElementById('navChatsBtn');
   else if (viewId === 'view-bot') activeBtn = document.getElementById('navBotBtn');
   else if (viewId === 'view-instant') activeBtn = document.getElementById('navInstantBtn');
@@ -323,6 +330,10 @@ function selectTab(viewId) {
 
   const activeView = document.getElementById(viewId);
   if (activeView) activeView.classList.add('active');
+
+  if (viewId === 'view-dashboard') {
+    initDashboardView();
+  }
 
   if (viewId === 'view-chats' && allChatsList.length === 0) {
     loadChats();
@@ -358,11 +369,20 @@ async function pollStatus(manual = false) {
     const res = await fetch('/api/status');
     const data = await res.json();
 
-    // 24h Sperre pruefen
+    // 24h Sperre & Globale Admin-Sperre pruefen
     if (data.isBlocked) {
-      showBlockOverlay(data.blockedReason, data.blockedRemainingSeconds);
-    } else if (isAppBlocked) {
-      hideBlockOverlay();
+      if (data.isGlobalLock) {
+        showGlobalLockOverlay(data.blockedReason);
+        hideBlockOverlay();
+      } else {
+        showBlockOverlay(data.blockedReason, data.blockedRemainingSeconds);
+        hideGlobalLockOverlay();
+      }
+    } else {
+      if (isAppBlocked) {
+        hideBlockOverlay();
+      }
+      hideGlobalLockOverlay();
     }
 
     const imgEl = document.getElementById('qrDisplayImg');
@@ -2430,16 +2450,36 @@ function validateEditorSyntax() {
   const syntaxBadge = document.getElementById('fileSyntaxBadge');
   if (!textarea || !syntaxBadge) return true;
 
-  try {
-    JSON.parse(textarea.value);
-    syntaxBadge.textContent = 'GÜLTIG';
-    syntaxBadge.className = 'status-badge status-connected';
-    return true;
-  } catch (e) {
-    syntaxBadge.textContent = 'SYNTAXFEHLER';
-    syntaxBadge.className = 'status-badge status-disconnected';
-    return false;
+  const fname = (activeFileId || '').toLowerCase();
+  if (fname.endsWith('.json')) {
+    try {
+      JSON.parse(textarea.value);
+      syntaxBadge.textContent = 'JSON GÜLTIG';
+      syntaxBadge.className = 'status-badge status-connected';
+      return true;
+    } catch (e) {
+      syntaxBadge.textContent = 'JSON SYNTAXFEHLER';
+      syntaxBadge.className = 'status-badge status-disconnected';
+      return false;
+    }
   }
+
+  if (fname.endsWith('.js')) {
+    try {
+      new Function(textarea.value);
+      syntaxBadge.textContent = 'JS GÜLTIG';
+      syntaxBadge.className = 'status-badge status-connected';
+      return true;
+    } catch (e) {
+      syntaxBadge.textContent = 'JS SYNTAXFEHLER';
+      syntaxBadge.className = 'status-badge status-disconnected';
+      return false;
+    }
+  }
+
+  syntaxBadge.textContent = 'DATEI BEREIT';
+  syntaxBadge.className = 'status-badge status-connected';
+  return true;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -2459,7 +2499,7 @@ async function saveActiveFileContent() {
 
   const content = textarea.value;
   if (!validateEditorSyntax()) {
-    showToast('Fehler: Die Datei enthält ungültiges JSON. Bitte korrigieren!', 'error');
+    showToast('Fehler: Die Datei enthält Syntaxfehler. Bitte korrigieren!', 'error');
     return;
   }
 
@@ -2638,5 +2678,321 @@ setInterval(() => {
     fetchGitAndServerStatus();
   }
 }, 8000);
+
+// ====================================================
+// TAB 0: Dashboard (Admin Control Center & Telemetrie)
+// ====================================================
+
+let currentGlobalLockState = false;
+let lastSeenUpdateRevision = 0;
+
+async function initDashboardView() {
+  await fetchAdminOverview();
+}
+
+async function fetchAdminOverview() {
+  try {
+    const res = await fetch('/api/admin/overview');
+    const data = await res.json();
+    if (data.status !== 'success') return;
+
+    currentGlobalLockState = Boolean(data.globalLock);
+
+    // 1. Lock Switch Status Badge & Dot
+    const lockBadge = document.getElementById('adminLockStateBadge');
+    const lockDot = document.getElementById('lockIndicatorDot');
+    const lockTitle = document.getElementById('lockStateTitle');
+    const lockSub = document.getElementById('lockStateSub');
+    const toggleBtn = document.getElementById('btnToggleGlobalLock');
+    const reasonInput = document.getElementById('adminLockReasonInput');
+
+    if (currentGlobalLockState) {
+      if (lockBadge) {
+        lockBadge.textContent = 'TOOL GESPERRT';
+        lockBadge.className = 'status-badge status-disconnected';
+      }
+      if (lockDot) {
+        lockDot.className = 'lock-indicator-dot locked';
+      }
+      if (lockTitle) lockTitle.textContent = 'Tool ist aktuell GESPERRT';
+      if (lockSub) lockSub.textContent = `Sperrgrund: "${data.lockReason || 'Kein Grund angegeben'}"`;
+      if (toggleBtn) {
+        toggleBtn.className = 'btn btn-success btn-lock-toggle';
+        toggleBtn.innerHTML = '<span class="btn-icon">🔓</span> Tool für alle ENTSPERREN';
+      }
+    } else {
+      if (lockBadge) {
+        lockBadge.textContent = 'TOOL FREIGEGEBEN';
+        lockBadge.className = 'status-badge status-connected';
+      }
+      if (lockDot) {
+        lockDot.className = 'lock-indicator-dot unlocked';
+      }
+      if (lockTitle) lockTitle.textContent = 'Tool ist aktuell freigegeben';
+      if (lockSub) lockSub.textContent = 'Alle Funktionen stehen normalen Nutzern zur Verfügung.';
+      if (toggleBtn) {
+        toggleBtn.className = 'btn btn-danger btn-lock-toggle';
+        toggleBtn.innerHTML = '<span class="btn-icon">🔒</span> Tool jetzt für alle SPERREN';
+      }
+    }
+
+    if (reasonInput && data.lockReason && !reasonInput.matches(':focus')) {
+      reasonInput.value = data.lockReason;
+    }
+
+    // 2. Announcement Form & Status
+    const annBadge = document.getElementById('announcementStatusBadge');
+    const annInput = document.getElementById('announcementTextInput');
+    const hasAnnouncement = Boolean(data.announcement && data.announcement.trim());
+
+    if (annBadge) {
+      annBadge.textContent = hasAnnouncement ? 'AKTIV' : 'INAKTIV';
+      annBadge.className = hasAnnouncement ? 'status-badge status-connected' : 'status-badge';
+    }
+    if (annInput && !annInput.matches(':focus')) {
+      annInput.value = data.announcement || '';
+    }
+    if (data.announcementType) {
+      const radio = document.querySelector(`input[name="announcementTypeRadio"][value="${data.announcementType}"]`);
+      if (radio) radio.checked = true;
+    }
+
+    // 3. Active Clients Table
+    const countBadge = document.getElementById('activeClientsCountBadge');
+    if (countBadge) {
+      const cnt = (data.activeClients || []).length;
+      countBadge.textContent = `${cnt} Online`;
+    }
+    renderClientsTable(data.activeClients || []);
+
+  } catch (err) {
+    console.warn('[ADMIN] Fehler beim Laden des Admin-Overviews:', err);
+  }
+}
+
+async function toggleGlobalToolLock() {
+  const targetState = !currentGlobalLockState;
+  const reasonInput = document.getElementById('adminLockReasonInput');
+  const reason = reasonInput ? reasonInput.value : '';
+
+  try {
+    const res = await fetch('/api/admin/toggle-lock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locked: targetState, reason })
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      showToast(targetState ? 'Tool wurde weltweit gesperrt!' : 'Tool wurde freigegeben!', targetState ? 'error' : 'success');
+      await fetchAdminOverview();
+      pollGlobalStatus();
+    } else {
+      showToast(data.error || 'Fehler beim Umschalten der Sperre', 'error');
+    }
+  } catch (err) {
+    showToast('Netzwerkfehler: ' + err.message, 'error');
+  }
+}
+
+async function publishAnnouncement() {
+  const input = document.getElementById('announcementTextInput');
+  const text = input ? input.value.trim() : '';
+  const radio = document.querySelector('input[name="announcementTypeRadio"]:checked');
+  const type = radio ? radio.value : 'info';
+
+  if (!text) {
+    showToast('Bitte geben Sie einen Ankündigungstext ein!', 'warning');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/set-announcement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, type })
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      showToast('Ankündigung erfolgreich gesendet!', 'success');
+      await fetchAdminOverview();
+      pollGlobalStatus();
+    } else {
+      showToast(data.error || 'Fehler beim Senden', 'error');
+    }
+  } catch (err) {
+    showToast('Netzwerkfehler: ' + err.message, 'error');
+  }
+}
+
+async function clearAnnouncement() {
+  try {
+    const res = await fetch('/api/admin/set-announcement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: '', type: 'info' })
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      const input = document.getElementById('announcementTextInput');
+      if (input) input.value = '';
+      showToast('Ankündigung gelöscht', 'info');
+      await fetchAdminOverview();
+      pollGlobalStatus();
+    }
+  } catch (err) {
+    showToast('Netzwerkfehler: ' + err.message, 'error');
+  }
+}
+
+function renderClientsTable(clients) {
+  const tbody = document.getElementById('clientsTableBody');
+  if (!tbody) return;
+
+  if (!clients || clients.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Warte auf verbundene Clients... (Sobald eine Instanz das Tool öffnet, erscheint sie hier)</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = clients.map(c => {
+    const ago = c.lastSeenAgo <= 5 ? 'Gerade eben' : `vor ${c.lastSeenAgo}s`;
+    return `
+      <tr>
+        <td>
+          <span class="client-status-pill online">
+            <span class="status-dot-pulse"></span> Online
+          </span>
+        </td>
+        <td><code>${escapeHtml(c.id)}</code></td>
+        <td><strong>${escapeHtml(c.os)}</strong></td>
+        <td><span class="badge-version">v${escapeHtml(c.version)}</span></td>
+        <td style="color: var(--text-secondary);">${ago}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ====================================================
+// Globale Sperre & Banner Overlay Handler
+// ====================================================
+
+function showGlobalLockOverlay(reason) {
+  const overlay = document.getElementById('globalLockOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  const reasonEl = document.getElementById('globalLockReasonDisplay');
+  if (reasonEl) reasonEl.textContent = reason || 'Das Tool wurde vom Administrator vorübergehend gesperrt.';
+  const timeEl = document.getElementById('globalLockTimeText');
+  if (timeEl) timeEl.textContent = 'Gesperrt durch Administrator. Alle Funktionen angehalten.';
+}
+
+function hideGlobalLockOverlay() {
+  const overlay = document.getElementById('globalLockOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function adminAccessFromLock() {
+  hideGlobalLockOverlay();
+  selectTab('view-dashboard');
+  showToast('Admin-Dashboard geöffnet. Klicken Sie auf "Tool für alle ENTSPERREN", um die Sperre aufzuheben.', 'info');
+}
+
+async function pollGlobalStatus(manual = false) {
+  try {
+    const res = await fetch('/api/client/status');
+    const data = await res.json();
+    if (data.status === 'success') {
+      handleGlobalStatusUpdate(data);
+      if (manual) {
+        showToast('Systemstatus aktualisiert', 'info');
+      }
+    }
+  } catch (err) {
+    if (manual) {
+      showToast('Statusprüfung fehlgeschlagen', 'error');
+    }
+  }
+}
+
+function handleGlobalStatusUpdate(data) {
+  // 1. Sperre prüfen
+  if (data.locked) {
+    showGlobalLockOverlay(data.lockReason);
+  } else {
+    hideGlobalLockOverlay();
+  }
+
+  // 2. Globale Ankündigung
+  const banner = document.getElementById('globalAnnouncementBanner');
+  const bannerText = document.getElementById('announcementText');
+  const bannerBadge = document.getElementById('announcementBadge');
+
+  if (data.announcement && data.announcement.trim()) {
+    if (banner) banner.style.display = 'block';
+    if (bannerText) bannerText.textContent = data.announcement;
+    if (bannerBadge) {
+      bannerBadge.className = 'announcement-tag tag-' + (data.announcementType || 'info');
+      const badgeLabels = { info: '[HINWEIS]', warning: '[WARNUNG]', error: '[DRINGEND]' };
+      bannerBadge.textContent = badgeLabels[data.announcementType] || '[HINWEIS]';
+    }
+  } else {
+    if (banner) banner.style.display = 'none';
+  }
+
+  // 3. Update-Revision
+  if (data.updateRevision && lastSeenUpdateRevision > 0 && data.updateRevision > lastSeenUpdateRevision) {
+    const updatedFile = data.lastUpdatedFile ? ` (${data.lastUpdatedFile})` : '';
+    showToast(`Live-Update angewendet: Revision #${data.updateRevision}${updatedFile}!`, 'success');
+  }
+  if (data.updateRevision) {
+    lastSeenUpdateRevision = data.updateRevision;
+  }
+}
+
+// ====================================================
+// Client-Telemetrie & Heartbeat
+// ====================================================
+
+function getOrCreateClientId() {
+  let id = localStorage.getItem('wa_client_id');
+  if (!id) {
+    id = 'client_' + Math.random().toString(36).substring(2, 10);
+    localStorage.setItem('wa_client_id', id);
+  }
+  return id;
+}
+
+function detectClientOS() {
+  const ua = navigator.userAgent || '';
+  if (ua.includes('Win')) return 'Windows';
+  if (ua.includes('Mac')) return 'macOS';
+  if (ua.includes('Linux') && !ua.includes('Android')) return 'Linux';
+  if (ua.includes('Android')) return 'Android';
+  if (ua.includes('iPhone') || ua.includes('iPad')) return 'iOS';
+  return navigator.platform || 'Unbekannt';
+}
+
+async function sendClientHeartbeat() {
+  try {
+    const clientId = getOrCreateClientId();
+    const os = detectClientOS();
+    const res = await fetch('/api/client/heartbeat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId, os, version: '1.0.0' })
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      handleGlobalStatusUpdate(data);
+    }
+  } catch (err) {
+    // Stiller Heartbeat-Fehler
+  }
+}
+
+// Dashboard regelmässig aktualisieren wenn aktiv
+setInterval(() => {
+  if (currentActiveTabId === 'view-dashboard') {
+    fetchAdminOverview();
+  }
+}, 3000);
 
 

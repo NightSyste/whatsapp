@@ -68,21 +68,152 @@
       </div>
     </header>
 
-    <!-- Navigation: Start, Chats, Bot, Click Instant, Dateien & Updates, Support, Settings -->
+    <!-- Navigation: Dashboard, Start, Chats, Bot, Click Instant, Dateien API, Support, Settings -->
     <nav class="tab-nav">
-      <button id="navStartBtn" class="tab-link active" onclick="selectTab('view-start')" data-i18n="tab_start">Start</button>
+      <button id="navDashboardBtn" class="tab-link active" onclick="selectTab('view-dashboard')" data-i18n="tab_dashboard">Dashboard</button>
+      <button id="navStartBtn" class="tab-link" onclick="selectTab('view-start')" data-i18n="tab_start">Start</button>
       <button id="navChatsBtn" class="tab-link" onclick="selectTab('view-chats')" data-i18n="tab_chats">Chats</button>
       <button id="navBotBtn" class="tab-link" onclick="selectTab('view-bot')" data-i18n="tab_bot">Bot</button>
       <button id="navInstantBtn" class="tab-link" style="display: none;" onclick="selectTab('view-instant')" data-i18n="tab_instant">Click Instant</button>
-      <button id="navFilesBtn" class="tab-link" onclick="selectTab('view-files')" data-i18n="tab_files">Dateien &amp; Updates</button>
+      <button id="navFilesBtn" class="tab-link" onclick="selectTab('view-files')" data-i18n="tab_files">Dateien API</button>
       <button id="navSupportBtn" class="tab-link" onclick="selectTab('view-support')" data-i18n="tab_support">Support</button>
       <button id="navSettingsBtn" class="tab-link" onclick="selectTab('view-settings')" data-i18n="tab_settings">Settings</button>
     </nav>
 
+    <!-- Global Announcement Banner -->
+    <div id="globalAnnouncementBanner" class="global-announcement-banner" style="display: none;">
+      <div class="announcement-inner">
+        <span id="announcementBadge" class="announcement-tag tag-info">[HINWEIS]</span>
+        <span id="announcementText" class="announcement-msg"></span>
+      </div>
+    </div>
+
     <!-- Main Viewport -->
     <main>
+      <!-- TAB 0: Dashboard (Admin Control Center & Remote Lock) -->
+      <section id="view-dashboard" class="tab-view active">
+        <div class="dashboard-layout">
+          
+          <!-- Top Row: Killswitch & Announcement -->
+          <div class="dashboard-grid">
+
+            <!-- 1. Globaler Killswitch / Remote Lock -->
+            <div class="panel dashboard-card">
+              <div class="panel-header">
+                <div>
+                  <div class="panel-title">Tool sperren für alle (Killswitch)</div>
+                  <div class="panel-desc">Sperrt oder entsperrt die Tool-Nutzung weltweit auf Knopfdruck.</div>
+                </div>
+                <span id="adminLockStateBadge" class="status-badge status-connected">TOOL FREIGEGEBEN</span>
+              </div>
+
+              <div class="lock-control-container">
+                <div class="lock-status-indicator" id="lockStatusBox">
+                  <div class="lock-indicator-dot" id="lockIndicatorDot"></div>
+                  <div class="lock-status-labels">
+                    <span class="lock-label-title" id="lockStateTitle">Tool ist aktuell freigegeben</span>
+                    <span class="lock-label-sub" id="lockStateSub">Alle Funktionen stehen normalen Nutzern zur Verfügung.</span>
+                  </div>
+                </div>
+
+                <div class="lock-reason-group">
+                  <label class="input-label" for="adminLockReasonInput">Sperrgrund (wird im Sperrbildschirm angezeigt):</label>
+                  <input type="text" id="adminLockReasonInput" class="chat-input-box" placeholder="z. B. Wartungsarbeiten, Update im Gange..." value="Wartungsarbeiten durch den Administrator. Bitte später erneut versuchen.">
+                </div>
+
+                <div class="lock-buttons-row">
+                  <button id="btnToggleGlobalLock" class="btn btn-danger btn-lock-toggle" onclick="toggleGlobalToolLock()">
+                    <span class="btn-icon">🔒</span> Tool jetzt für alle SPERREN
+                  </button>
+                  <button class="btn btn-secondary" onclick="fetchAdminOverview()">
+                    <span class="btn-icon">↻</span> Aktualisieren
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Globale Ankündigung (Broadcast) -->
+            <div class="panel dashboard-card">
+              <div class="panel-header">
+                <div>
+                  <div class="panel-title">Globale Ankündigung (Broadcast)</div>
+                  <div class="panel-desc">Blendet eine Meldung im Kopf aller aktiven Instanzen ein.</div>
+                </div>
+                <span id="announcementStatusBadge" class="status-badge">INAKTIV</span>
+              </div>
+
+              <div class="announcement-form">
+                <div class="input-group">
+                  <label class="input-label" for="announcementTextInput">Ankündigungstext:</label>
+                  <input type="text" id="announcementTextInput" class="chat-input-box" placeholder="z. B. Neues Update verfügbar. Bitte Downloader starten!">
+                </div>
+
+                <div class="announcement-type-row">
+                  <label class="settings-radio-label">
+                    <input type="radio" name="announcementTypeRadio" value="info" checked>
+                    <span>Info (Blau)</span>
+                  </label>
+                  <label class="settings-radio-label">
+                    <input type="radio" name="announcementTypeRadio" value="warning">
+                    <span>Warnung (Gelb)</span>
+                  </label>
+                  <label class="settings-radio-label">
+                    <input type="radio" name="announcementTypeRadio" value="error">
+                    <span>Dringend (Rot)</span>
+                  </label>
+                </div>
+
+                <div class="btn-group" style="margin-top: 10px;">
+                  <button class="btn btn-primary" onclick="publishAnnouncement()">
+                    <span class="btn-icon">📢</span> Ankündigung senden
+                  </button>
+                  <button class="btn btn-secondary" onclick="clearAnnouncement()">
+                    Löschen
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Middle Row: Active Clients & Telemetrie -->
+          <div class="panel dashboard-clients-panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Aktive Instanzen &amp; Telemetrie</div>
+                <div class="panel-desc">Erkennung verbundener Clients und Betriebssysteme.</div>
+              </div>
+              <div class="btn-group">
+                <span id="activeClientsCountBadge" class="status-badge status-connected">0 Online</span>
+                <button class="btn btn-sm btn-secondary" onclick="fetchAdminOverview()">↻ Neu laden</button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="dashboard-table">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Client-ID</th>
+                    <th>Betriebssystem</th>
+                    <th>Version</th>
+                    <th>Letzter Heartbeat</th>
+                  </tr>
+                </thead>
+                <tbody id="clientsTableBody">
+                  <tr>
+                    <td colspan="5" class="table-empty">Warte auf verbundene Clients...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       <!-- TAB 1: Start (WhatsApp-System QR-Code) -->
-      <section id="view-start" class="tab-view active">
+      <section id="view-start" class="tab-view">
         <div class="start-container">
           <div class="panel" style="text-align: center;">
             <div class="panel-header" style="text-align: left;">
@@ -834,6 +965,22 @@
     <!-- Toast -->
     <div id="toast"></div>
 
+  <!-- Global Remote Lock Screen (Admin Sperre) -->
+  <div id="globalLockOverlay" class="global-lock-overlay" style="display: none;">
+    <div class="global-lock-card">
+      <div class="lock-shield-icon">🔒</div>
+      <div class="global-lock-badge">[TOOL VOM ADMINISTRATOR GESPERRT]</div>
+      <h2 class="global-lock-title">Wartungsmodus aktiv</h2>
+      <p id="globalLockReasonDisplay" class="global-lock-reason">Das Tool wurde vom Administrator vorübergehend gesperrt.</p>
+      <div class="global-lock-info-box">
+        <span>Status: Vorübergehend angehalten</span>
+        <span id="globalLockTimeText">Warte auf Freigabe durch Administrator...</span>
+      </div>
+      <div class="global-lock-btn-row">
+        <button class="btn btn-secondary" onclick="pollGlobalStatus(true)">Status jetzt prüfen</button>
+        <button class="btn btn-primary" onclick="adminAccessFromLock()">Admin-Dashboard (Entsperren)</button>
+      </div>
+    </div>
   </div>
 
   <!-- 24h Tool Blocked Overlay Screen -->
