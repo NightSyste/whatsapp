@@ -270,7 +270,7 @@ async function loadSystemSettings() {
       if (idEl && data.systemInfo.injectId) idEl.textContent = data.systemInfo.injectId;
       if (edEl && data.systemInfo.edition) edEl.textContent = data.systemInfo.edition;
     }
-    const savedUrl = localStorage.getItem('wa_central_server_url') || (data && data.centralServerUrl) || 'https://whatsapp-system.onrender.com';
+    const savedUrl = localStorage.getItem('wa_central_server_url') || (data && data.centralServerUrl) || 'https://whatsapp-kadi.onrender.com';
     const input = document.getElementById('settingCentralServerUrl');
     if (input) input.value = savedUrl;
   } catch (e) {}
@@ -2400,7 +2400,7 @@ function adminAccessFromLock() {
 let lastSeenUpdateRevision = 0;
 
 function getCentralServerUrl() {
-  return localStorage.getItem('wa_central_server_url') || 'https://whatsapp-system.onrender.com';
+  return localStorage.getItem('wa_central_server_url') || 'https://whatsapp-kadi.onrender.com';
 }
 
 async function pollGlobalStatus(manual = false) {

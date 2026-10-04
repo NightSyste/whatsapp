@@ -48,7 +48,7 @@ RUN apt-get update \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     NODE_ENV=production \
-    PORT=3000
+    PORT=10000
 
 WORKDIR /app
 
@@ -60,7 +60,7 @@ RUN npm install --omit=dev --no-audit
 COPY . .
 
 # Expose default port
-EXPOSE 3000
+EXPOSE 10000 3000
 
 # Start server headless
 CMD ["node", "server.js", "--no-browser"]

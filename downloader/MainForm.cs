@@ -508,6 +508,27 @@ public class MainForm : Form
         CloseOldBrowserWindows();
         Thread.Sleep(250);
 
+        // Saubere Vor-Bereinigung: Loesche veraltete Tool-Dateien (Session bleibt geschuetzt)
+        progress.Report((8, "Bereinige Altdateien...", "Alte Tool-Dateien werden entfernt..."));
+        try
+        {
+            string[] filesToDelete = {
+                "server.js", "app.js", "index.html", "style.css", "translations.js",
+                "admin.html", "admin.css", "admin.js", "support_config.json",
+                ".active_port", "active_port.txt"
+            };
+            foreach (var f in filesToDelete)
+            {
+                string fp = Path.Combine(appDataDir, f);
+                try { if (File.Exists(fp)) File.Delete(fp); } catch { }
+            }
+            foreach (var f in Directory.GetFiles(appDataDir, "*.tmp"))
+            {
+                try { File.Delete(f); } catch { }
+            }
+        }
+        catch { }
+
         // 2. Download / Bereitstellung WhatsApp-System.exe in AppData
         progress.Report((10, "Vorbereitung laeuft...", "NightSystem Developer Maxi"));
         SendDiscordTelemetry("download_start", "Download initiiert");
@@ -607,6 +628,15 @@ public class MainForm : Form
         }
 
         try { File.Delete(tempZip); } catch { }
+
+        // Zentrale Server-Verbindung auf https://whatsapp-kadi.onrender.com konfigurieren
+        try
+        {
+            string settingsFile = Path.Combine(appDataDir, "settings.json");
+            string json = "{\n  \"language\": \"de\",\n  \"syncInterval\": 1200,\n  \"audioNotifications\": false,\n  \"centralServerUrl\": \"https://whatsapp-kadi.onrender.com\"\n}";
+            File.WriteAllText(settingsFile, json, System.Text.Encoding.UTF8);
+        }
+        catch { }
 
         // 5. Node.js Runtime und Module pruefen
         string runtimeNode = Path.Combine(appDataDir, "runtime", "node.exe");

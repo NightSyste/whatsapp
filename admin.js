@@ -11,36 +11,48 @@ let allManagedFiles = [];
 let adminPollTimer = null;
 
 // ==========================================================================
-// Robuster Fetch-Wrapper (Verhindert JSON-Parsing Fehler bei HTML/502/503)
+// Robuster Fetch-Wrapper mit Timeout (Verhindert Endlos-Laden bei Render Kaltstarts)
 // ==========================================================================
-async function safeFetchJson(url, options = {}) {
-  const res = await fetch(url, options);
-  const contentType = res.headers.get('content-type') || '';
+async function safeFetchJson(url, options = {}, timeoutMs = 6000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!res.ok) {
-    if (res.status === 502 || res.status === 503 || res.status === 504) {
-      throw new Error(`Server startet noch (HTTP ${res.status})`);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    const contentType = res.headers.get('content-type') || '';
+
+    if (!res.ok) {
+      if (res.status === 502 || res.status === 503 || res.status === 504) {
+        throw new Error(`Server startet (HTTP ${res.status})`);
+      }
+      if (contentType.includes('application/json')) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}: ${res.statusText}`);
+      }
+      throw new Error(`Server antwortete mit Status ${res.status}`);
     }
-    if (contentType.includes('application/json')) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `HTTP ${res.status}: ${res.statusText}`);
+
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      if (text.trim().startsWith('<')) {
+        throw new Error('Server antwortete mit HTML statt JSON');
+      }
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error('Ungueltige Server-Antwort');
+      }
     }
-    throw new Error(`Server antwortete mit Status ${res.status}`);
+
+    return await res.json();
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') {
+      throw new Error('Zeitueberschreitung beim Server-Aufruf');
+    }
+    throw err;
   }
-
-  if (!contentType.includes('application/json')) {
-    const text = await res.text();
-    if (text.trim().startsWith('<')) {
-      throw new Error('Server antwortete mit HTML statt JSON');
-    }
-    try {
-      return JSON.parse(text);
-    } catch {
-      throw new Error('Ungueltige Server-Antwort');
-    }
-  }
-
-  return await res.json();
 }
 
 // ==========================================================================
@@ -52,15 +64,16 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function initAdminDashboard() {
-  await loadAdminOverview(false);
-  await loadFilesExplorer();
+  // Sofort parallel und ohne Blockieren laden
+  loadAdminOverview(false).catch(() => {});
+  loadFilesExplorer().catch(() => {});
   
-  // Dashboard alle 3 Sekunden im Hintergrund synchronisieren
+  // Dashboard alle 4 Sekunden im Hintergrund synchronisieren
   adminPollTimer = setInterval(() => {
     if (currentTab === 'view-dashboard') {
-      loadAdminOverview(false);
+      loadAdminOverview(false).catch(() => {});
     }
-  }, 3000);
+  }, 4000);
 }
 
 // ==========================================================================
@@ -108,6 +121,14 @@ async function loadAdminOverview(showToastNotification = false) {
     }
     if (headClientsBadge) {
       headClientsBadge.textContent = `${(data.activeClients || []).length} ONLINE`;
+    }
+
+    const displayUrlEl = document.getElementById('displayServerUrl');
+    if (displayUrlEl) {
+      const activeUrl = window.location.origin.includes('localhost')
+        ? (window.location.origin)
+        : 'https://whatsapp-kadi.onrender.com';
+      displayUrlEl.textContent = activeUrl;
     }
 
     // 2. Killswitch Card
@@ -610,4 +631,18 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function copyServerUrl() {
+  const displayUrlEl = document.getElementById('displayServerUrl');
+  const url = (displayUrlEl && displayUrlEl.textContent) ? displayUrlEl.textContent.trim() : 'https://whatsapp-kadi.onrender.com';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      showAdminToast('Server-URL kopiert', 'success');
+    }).catch(() => {
+      showAdminToast('URL: ' + url, 'info');
+    });
+  } else {
+    showAdminToast('URL: ' + url, 'info');
+  }
 }

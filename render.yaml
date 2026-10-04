@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: whatsapp-system
+    name: whatsapp-kadi
     runtime: docker
     plan: free
     region: frankfurt
@@ -12,6 +12,8 @@ services:
         value: 10000
       - key: NODE_ENV
         value: production
+      - key: RENDER
+        value: "true"
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: "true"
       - key: PUPPETEER_EXECUTABLE_PATH

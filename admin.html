@@ -52,6 +52,19 @@
     <section id="view-dashboard" class="view-section active">
       <div class="dashboard-container">
         
+        <!-- Server Connection Bar -->
+        <div class="server-connection-bar">
+          <div class="connection-info">
+            <span class="connection-label">ZENTRALE SERVER-URL:</span>
+            <span class="code-pill bold-silver" id="displayServerUrl">https://whatsapp-kadi.onrender.com</span>
+          </div>
+          <div class="connection-actions">
+            <button class="btn btn-silver" onclick="copyServerUrl()" title="Kopiert die URL fuer Desktop-Clients">
+              URL KOPIEREN
+            </button>
+          </div>
+        </div>
+
         <div class="dashboard-grid-cards">
 
           <!-- 1. Globaler Killswitch / Remote Tool Lock -->

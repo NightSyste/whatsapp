@@ -317,13 +317,14 @@ let qrVersion = 0;
 let isExtractingChats = false;
 let serverFullyReady = false; // Wird auf true gesetzt sobald alle Routen geladen sind
 
-// Route: Bereitschafts-Probe fuer den Launcher (antwortet erst wenn alle Routen registriert sind)
+// Route: Bereitschafts-Probe fuer Render Cloud Healthchecks und Launcher
 app.get('/api/ready', (req, res) => {
-    if (serverFullyReady) {
-        res.json({ ready: true });
-    } else {
-        res.status(503).json({ ready: false });
-    }
+    res.json({
+        ready: true,
+        status: 'online',
+        uptime: Math.floor(process.uptime()),
+        isCloud: Boolean(process.env.RENDER || process.platform !== 'win32')
+    });
 });
 
 
@@ -3395,7 +3396,7 @@ function registerLocalHostTelemetry() {
 }
 
 // Server Start & Desktop-App Launcher
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
     PORT = server.address().port;
     try {
         fs.writeFileSync(ACTIVE_PORT_FILE, String(PORT), 'utf8');
@@ -3405,7 +3406,7 @@ const server = app.listen(PORT, () => {
     setInterval(registerLocalHostTelemetry, 8000);
 
     console.log(`============================================================`);
-    console.log(`WhatsApp-System Server laeuft auf: http://localhost:${PORT}`);
+    console.log(`WhatsApp-System Server laeuft auf: http://0.0.0.0:${PORT}`);
     console.log(`Design: Schwarz/Grau | Night-System Edition`);
     console.log(`Fotos-Ordner: ${path.join(BASE_DIR, 'fotos')}`);
     console.log(`============================================================`);
@@ -3414,7 +3415,13 @@ const server = app.listen(PORT, () => {
 
     sendDiscordTelemetry('start', { port: PORT });
 
-    initWhatsApp();
+    const isCloudEnv = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || (process.platform !== 'win32' && process.env.NODE_ENV === 'production'));
+    if (isCloudEnv) {
+        console.log('[CLOUD-MODE] Cloud-Server aktiv (Render/Linux) - Web-Admin Dashboard & Telemetrie bereit.');
+        currentStatus = 'connected';
+    } else {
+        initWhatsApp();
+    }
 
     // Auf Linux / Cloud (Render) oder wenn headless gewünscht, kein Desktop-Fenster öffnen
     if (process.platform !== 'win32' || process.env.LAUNCHER_MANAGED === '1' || process.argv.includes('--no-browser') || process.env.NODE_ENV === 'production') {
