@@ -294,6 +294,10 @@ app.use((req, res, next) => {
 
 // Admin-Webseite: Direkter Zugriff auf das Administrations-Dashboard
 app.get('/admin', (req, res) => {
+    const isCloud = Boolean(process.env.RENDER || process.env.PORT || process.platform !== 'win32');
+    if (!isCloud && req.query.admin !== '1') {
+        return res.redirect('/');
+    }
     res.sendFile(path.join(BASE_DIR, 'admin.html'));
 });
 
@@ -1353,8 +1357,16 @@ app.get('/api/block-status', (req, res) => {
     });
 });
 
-// Tool manuell entblocken
+// Tool manuell entblocken (nur ueber Admin-Webseite zulaessig)
 app.post('/api/unblock', (req, res) => {
+    const isCloud = Boolean(process.env.RENDER || process.env.PORT || process.platform !== 'win32');
+    const isAdmin = req.query.admin === '1' || isCloud;
+    if (!isAdmin) {
+        return res.status(403).json({
+            status: 'error',
+            message: 'Entsperren ist ausschließlich über die zentrale Admin-Webseite möglich.'
+        });
+    }
     const status = unblockTool();
     res.json({
         status: 'success',
@@ -1693,6 +1705,11 @@ app.post('/api/admin/toggle-lock', (req, res) => {
     state.globalLock = Boolean(locked);
     if (reason && typeof reason === 'string') {
         state.lockReason = reason.trim();
+    }
+    if (!state.globalLock) {
+        try {
+            unblockTool();
+        } catch (e) {}
     }
     state.updateRevision = (state.updateRevision || 1) + 1;
     state.lastUpdateTimestamp = Date.now();

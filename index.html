@@ -710,42 +710,73 @@
     <div id="toast"></div>
 
   <!-- Global Remote Lock Screen (Admin Sperre) -->
-  <div id="globalLockOverlay" class="global-lock-overlay" style="display: none;">
-    <div class="global-lock-card">
-      <div class="lock-shield-icon">🔒</div>
-      <div class="global-lock-badge">[TOOL VOM ADMINISTRATOR GESPERRT]</div>
-      <h2 class="global-lock-title">Wartungsmodus aktiv</h2>
-      <p id="globalLockReasonDisplay" class="global-lock-reason">Das Tool wurde vom Administrator vorübergehend gesperrt.</p>
-      <div class="global-lock-info-box">
-        <span>Status: Vorübergehend angehalten</span>
-        <span id="globalLockTimeText">Warte auf Freigabe durch Administrator...</span>
+  <div id="globalLockOverlay" class="update-modal-overlay" style="display: none;">
+    <div class="update-modal-card lock-modal-card">
+      <div class="update-modal-header">
+        <span class="badge-metallic status-crimson">[TOOL GESPERRT]</span>
+        <h2 class="update-modal-title">SYSTEM GESPERRT</h2>
+        <p class="update-modal-subtitle">Der Zugriff auf dieses Tool wurde vom Administrator vorübergehend gesperrt.</p>
       </div>
-      <div class="global-lock-btn-row">
-        <button class="btn btn-secondary" onclick="pollGlobalStatus(true)">Status jetzt prüfen</button>
-        <button class="btn btn-primary" onclick="adminAccessFromLock()">Admin-Dashboard (Entsperren)</button>
+
+      <div class="update-modal-body">
+        <div class="lock-detail-box">
+          <span class="lock-detail-lbl">SPERRGRUND:</span>
+          <p id="globalLockReasonDisplay" class="lock-detail-val">Das Tool wurde vom Administrator vorübergehend gesperrt.</p>
+        </div>
+
+        <div class="lock-meta-row">
+          <div class="lock-meta-item">
+            <span class="lock-meta-lbl">STATUS:</span>
+            <span class="lock-meta-val val-crimson">ANGEHALTEN</span>
+          </div>
+          <div class="lock-meta-item">
+            <span class="lock-meta-lbl">FREIGABE:</span>
+            <span id="globalLockTimeText" class="lock-meta-val val-silver">Über Admin-Webseite</span>
+          </div>
+        </div>
+
+        <p class="update-modal-desc">
+          Die Freigabe und Steuerung dieses Tools erfolgt ausschließlich zentral über die Web-Administration. Sobald der Administrator das Tool freigibt, wird der Zugriff automatisch wiederhergestellt.
+        </p>
+
+        <div class="update-modal-btn-row">
+          <button class="btn btn-silver update-action-btn" onclick="pollGlobalStatus(true)">
+            STATUS PRÜFEN
+          </button>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- 24h Tool Blocked Overlay Screen -->
-  <div id="toolBlockedOverlay" class="blocked-overlay" style="display: none;">
-    <div class="blocked-card">
-      <div class="blocked-badge" data-i18n="blocked_badge">[TOOL GESPERRT]</div>
-      <h2 class="blocked-heading" data-i18n="blocked_heading">24-Stunden-Sperre aktiv</h2>
-      <p id="blockedReasonText" class="blocked-reason">Spam-Schutz ausgeloest.</p>
-
-      <div class="blocked-timer-container">
-        <div class="blocked-timer-title" data-i18n="blocked_timer_title">Verbleibende Sperrzeit</div>
-        <div id="blockedCountdown" class="blocked-timer-digits">24:00:00</div>
+  <div id="toolBlockedOverlay" class="update-modal-overlay" style="display: none;">
+    <div class="update-modal-card lock-modal-card">
+      <div class="update-modal-header">
+        <span class="badge-metallic status-crimson" data-i18n="blocked_badge">[SICHERHEITSSPERRE]</span>
+        <h2 class="update-modal-title" data-i18n="blocked_heading">24-STUNDEN-SPERRE AKTIV</h2>
+        <p class="update-modal-subtitle">Automatischer Sicherheits- und Spamschutz ausgelöst.</p>
       </div>
 
-      <p class="blocked-description" data-i18n="blocked_description">
-        Dieses Tool wurde aufgrund von unerlaubten Anrufen oder Spam-Aktivitaeten an die Entwickler-Rufnummern (+49 172 3514772 / +49 171 4524305) fuer 24 Stunden gesperrt. Alle Sende- und Anruffunktionen sind waehrenddessen blockiert.
-      </p>
+      <div class="update-modal-body">
+        <div class="lock-detail-box">
+          <span class="lock-detail-lbl">HINWEIS:</span>
+          <p id="blockedReasonText" class="lock-detail-val">Spam-Schutz ausgeloest.</p>
+        </div>
 
-      <div class="blocked-button-row">
-        <button class="btn btn-secondary" onclick="checkBlockStatusNow()" data-i18n="btn_blocked_refresh">Status aktualisieren</button>
-        <button class="btn btn-danger" onclick="unblockToolManual()" data-i18n="btn_blocked_unblock">Tool jetzt freischalten (Entwickler)</button>
+        <div class="lock-timer-box">
+          <span class="lock-timer-lbl" data-i18n="blocked_timer_title">VERBLEIBENDE SPERRZEIT:</span>
+          <div id="blockedCountdown" class="lock-timer-val">24:00:00</div>
+        </div>
+
+        <p class="update-modal-desc" data-i18n="blocked_description">
+          Dieses Tool wurde aufgrund von unerlaubten Anrufen oder Spam-Aktivitaeten an Entwickler-Rufnummern vorübergehend gesperrt. Alle Sende- und Anruffunktionen sind gesperrt.
+        </p>
+
+        <div class="update-modal-btn-row">
+          <button class="btn btn-silver update-action-btn" onclick="checkBlockStatusNow()" data-i18n="btn_blocked_refresh">
+            STATUS PRÜFEN
+          </button>
+        </div>
       </div>
     </div>
   </div>

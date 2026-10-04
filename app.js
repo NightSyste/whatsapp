@@ -2121,19 +2121,7 @@ async function checkBlockStatusNow() {
 }
 
 async function unblockToolManual() {
-  try {
-    const res = await fetch('/api/unblock', { method: 'POST' });
-    const data = await res.json();
-    if (data.status === 'success') {
-      hideBlockOverlay();
-      showToast(t('toast_unblocked', currentLanguage));
-      pollStatus(true);
-    } else {
-      showToast(data.message || 'Entblocken fehlgeschlagen.', true);
-    }
-  } catch (e) {
-    showToast('Fehler beim Entblocken: ' + e.message, true);
-  }
+  showToast('Entsperren ist nur über die zentrale Admin-Webseite möglich.', 'warn');
 }
 
 // ====================================================
@@ -2399,10 +2387,6 @@ function hideGlobalLockOverlay() {
   isToolGloballyLocked = false;
   const overlay = document.getElementById('globalLockOverlay');
   if (overlay) overlay.style.display = 'none';
-}
-
-function adminAccessFromLock() {
-  window.open('/admin', '_blank');
 }
 
 let lastSeenUpdateRevision = 0;
