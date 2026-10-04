@@ -1761,6 +1761,12 @@ async function saveActiveFile() {
     if (data.status === 'success') {
       showAdminToast(data.message || 'Datei erfolgreich gespeichert & Update aktiv!', 'success');
       
+      if (data.version) {
+        latestAdminVersion = data.version;
+        const headVer = document.getElementById('headerVersionBadge');
+        if (headVer) headVer.textContent = `VERSION: v${data.version.replace(/^v/i, '')}`;
+      }
+
       const revEl = document.getElementById('editorUpdateRevisionText');
       if (revEl && data.revision) {
         revEl.textContent = `REVISION: #${data.revision}`;
@@ -1780,8 +1786,32 @@ async function saveActiveFile() {
   } finally {
     if (saveBtn) {
       saveBtn.disabled = false;
-      saveBtn.textContent = 'SPEICHERN';
+      saveBtn.textContent = 'SPEICHERN & UPDATE';
     }
+  }
+}
+
+async function triggerAdminVersionBump() {
+  try {
+    showAdminToast('Erhoehe Versionsnummer...', 'info');
+    const res = await safeFetchJson('/api/admin/bump-version', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: currentActiveFile || 'Web-Dashboard' })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`Neue Version v${res.newVersion} aktiv! Update an alle Clients uebermittelt.`, 'success');
+      latestAdminVersion = res.newVersion;
+      const headVer = document.getElementById('headerVersionBadge');
+      if (headVer) headVer.textContent = `VERSION: v${res.newVersion.replace(/^v/i, '')}`;
+      const revEl = document.getElementById('editorUpdateRevisionText');
+      if (revEl && res.revision) revEl.textContent = `REVISION: #${res.revision}`;
+      loadAdminOverview(false);
+    } else {
+      showAdminToast(res.message || 'Fehler beim Erhoehen der Version', 'error');
+    }
+  } catch (err) {
+    showAdminToast(`Fehler: ${err.message}`, 'error');
   }
 }
 

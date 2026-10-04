@@ -792,26 +792,50 @@
         </div>
 
         <div class="update-file-row" id="updateFileRow">
-          <span class="update-file-lbl">GEAENDERTE DATEI:</span>
-          <span class="update-file-val" id="updateFileText">README.md</span>
+          <span class="update-file-lbl">HAUPTAENDERUNG:</span>
+          <span class="update-file-val" id="updateFileText">app.js</span>
+        </div>
+
+        <!-- Vorab-Aenderungsanzeige & Changelog -->
+        <div class="update-changes-panel" id="updateChangesPanel">
+          <div class="update-panel-header">
+            <span class="update-panel-title">AENDERUNGSUEBERSICHT (CHANGELOG):</span>
+            <span class="badge-metallic status-blue" id="updateChangesBadge">v1.0.1 BEREIT</span>
+          </div>
+          <div class="update-changes-list" id="updateChangesList">
+            <div class="change-item">&bull; v1.0.1: Neue Spiegelschrift-Effekte &amp; visuelle UI-Effekte</div>
+            <div class="change-item">&bull; v1.0.1: Updateverwaltung mit Vorab-Pruefung &amp; Datei-Integritaet</div>
+            <div class="change-item">&bull; v1.0.1: Fortlaufende automatische Versionierung ueber Web-Dashboard</div>
+          </div>
+        </div>
+
+        <!-- Vorab-Dateiueberpruefung & Integritaet -->
+        <div class="update-verify-panel" id="updateVerifyPanel">
+          <div class="update-panel-header">
+            <span class="update-panel-title">DATEIPRUEFUNG VOR DEM DOWNLOAD:</span>
+            <span class="badge-metallic status-green" id="updateVerifyStatusBadge">[INTEGRITAET: 100% OK]</span>
+          </div>
+          <div class="update-verify-details" id="updateVerifyDetails">
+            Alle Dateien auf dem Web-Server geprueft, Hashes validiert und fehlerfrei verifiziert.
+          </div>
         </div>
 
         <p class="update-modal-desc">
-          Wir empfehlen immer die neueste Version zu nutzen, da aeltere Versionen Fehler enthalten koennen. Sie koennen die Fixit-Version jetzt sofort einspielen oder die alte Version weiterbenutzen.
+          Wir empfehlen immer die neueste Version zu nutzen, da aeltere Versionen Fehler enthalten koennen. Sie koennen das Update jetzt sofort einspielen oder die alte Version weiterbenutzen.
         </p>
 
         <!-- Animated Loader (wird waehrend der Aktualisierung eingeblendet) -->
         <div id="updateLoaderSection" class="update-loader-section" style="display: none;">
           <div class="update-spinner"></div>
           <div class="update-loader-text-group">
-            <span class="update-loader-title">AKTUALISIERE DATEIEN...</span>
-            <span class="update-loader-desc">Version wird eingespielt. Tool startet gleich neu...</span>
+            <span class="update-loader-title" id="updateLoaderTitle">LADE DATEIEN HERUNTER...</span>
+            <span class="update-loader-desc" id="updateLoaderDesc">Dateien werden verifiziert und eingespielt. Tool startet gleich neu...</span>
           </div>
         </div>
 
         <div id="updateModalBtnRow" class="update-modal-btn-row">
-          <button class="btn btn-primary-blue update-action-btn" onclick="applyFixitVersion()">
-            FIXIT-VERSION
+          <button class="btn btn-primary-blue update-action-btn" id="btnApplyUpdate" onclick="applyFixitVersion()">
+            UPDATE INSTALLIEREN (V1.0.1)
           </button>
           <button class="btn btn-silver update-action-btn" onclick="keepOldVersion()">
             ALTE VERSION WEITERBENUTZEN

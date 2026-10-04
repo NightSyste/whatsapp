@@ -262,7 +262,10 @@
 
             <div class="editor-tab-actions">
               <button id="btnSaveFile" class="btn btn-silver-primary" onclick="saveActiveFile()">
-                SPEICHERN
+                SPEICHERN &amp; UPDATE
+              </button>
+              <button class="btn btn-silver" onclick="triggerAdminVersionBump()" title="Erhoeht die Versionsnummer automatisch (z. B. v1.0.1 -> v1.0.2) und loest ein Update fuer alle Clients aus">
+                VERSION ERHOEHEN
               </button>
               <button class="btn btn-silver" onclick="reloadActiveFile()">
                 NEU LADEN

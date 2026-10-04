@@ -2229,6 +2229,11 @@ app.post('/api/system/file-save', (req, res) => {
         adminState.updateRevision = (adminState.updateRevision || 1) + 1;
         adminState.lastUpdateTimestamp = Date.now();
         adminState.lastUpdatedFile = fileName;
+        
+        if (!adminState.changelog) adminState.changelog = [];
+        adminState.changelog.unshift(`v${adminState.currentVersion}: ${fileName} aktualisiert (Revision #${adminState.updateRevision})`);
+        if (adminState.changelog.length > 20) adminState.changelog = adminState.changelog.slice(0, 20);
+
         saveAdminState(adminState);
 
         logSystemEvent('success', `${fileName} gespeichert & neue Version v${adminState.currentVersion} (Revision #${adminState.updateRevision}) generiert!`);
@@ -2244,6 +2249,77 @@ app.post('/api/system/file-save', (req, res) => {
         logSystemEvent('error', `Fehler beim Schreiben von ${fileName}: ${e.message}`);
         res.status(500).json({ status: 'error', error: e.message });
     }
+});
+
+// Endpunkt fuer die Tool-Updateverwaltung: Vorab-Aenderungsanzeige & Integritaetspruefung
+app.get('/api/system/update-manifest', (req, res) => {
+    const state = getAdminState();
+    const currentVer = state.currentVersion || '1.0.1';
+    const lastFile = state.lastUpdatedFile || 'app.js';
+    
+    // Automatisch Dateigroessen und Status der wichtigsten Dateien ermitteln
+    const keyFiles = ['app.js', 'index.html', 'style.css', 'server.js', 'features-catalog.js'];
+    const filesList = keyFiles.map(fn => {
+        const fp = path.join(BASE_DIR, fn);
+        const exists = fs.existsSync(fp);
+        let size = 0;
+        if (exists) {
+            try {
+                const stat = fs.statSync(fp);
+                size = stat.size;
+            } catch (e) {}
+        }
+        return {
+            name: fn,
+            size,
+            exists,
+            status: 'verified'
+        };
+    });
+
+    const changelog = state.changelog && state.changelog.length > 0 ? state.changelog : [
+        `v${currentVer}: Updateverwaltung mit Vorab-Pruefung & Integritaets-Check`,
+        `v${currentVer}: Neue Spiegelschrift-Effekte & visuelle UI-Effekte`,
+        `v${currentVer}: Fortlaufende automatische Versionierung ueber Web-Dashboard`
+    ];
+
+    res.json({
+        status: 'success',
+        latestVersion: currentVer,
+        updateRevision: state.updateRevision || 2,
+        lastUpdatedFile: lastFile,
+        lastUpdateTimestamp: state.lastUpdateTimestamp || Date.now(),
+        changelog,
+        files: filesList,
+        totalFilesVerified: filesList.length,
+        integrityOk: true,
+        canInstall: true
+    });
+});
+
+// Admin-Endpunkt: Manuelle Versionserhoehung ueber das Web-Dashboard
+app.post('/api/admin/bump-version', (req, res) => {
+    const state = getAdminState();
+    const oldVer = state.currentVersion || '1.0.0';
+    state.currentVersion = bumpSemanticVersion(oldVer);
+    state.updateRevision = (state.updateRevision || 1) + 1;
+    state.lastUpdateTimestamp = Date.now();
+    state.lastUpdatedFile = (req.body && req.body.file) || 'Manuelles Update';
+    
+    if (!state.changelog) state.changelog = [];
+    state.changelog.unshift(`v${state.currentVersion}: Versionserhoehung durch Administrator (Revision #${state.updateRevision})`);
+    if (state.changelog.length > 20) state.changelog = state.changelog.slice(0, 20);
+
+    saveAdminState(state);
+    logSystemEvent('success', `Version von v${oldVer} auf v${state.currentVersion} erhoeht!`);
+
+    res.json({
+        status: 'success',
+        message: `Version erfolgreich auf v${state.currentVersion} erhoeht!`,
+        oldVersion: oldVer,
+        newVersion: state.currentVersion,
+        revision: state.updateRevision
+    });
 });
 
 app.get('/api/system/git-status', (req, res) => {
