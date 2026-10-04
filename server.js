@@ -1525,6 +1525,13 @@ const MANAGED_FILES = {
         category: 'Admin-Web',
         type: 'javascript'
     },
+    'features-catalog.js': {
+        name: 'features-catalog.js',
+        title: 'Master Features Katalog (250)',
+        description: 'Vollstaendige Definition aller 250 modularen Features',
+        category: 'Admin-Web',
+        type: 'javascript'
+    },
     // 4. Backend & Core-Logik
     'server.js': {
         name: 'server.js',
@@ -1664,17 +1671,20 @@ app.get('/api/admin/overview', (req, res) => {
     const state = getAdminState();
     const now = Date.now();
     
+    if (!state.bannedHwids) state.bannedHwids = {};
     const activeClientsList = Object.entries(state.clients || {})
         .map(([id, c]) => ({
             id,
+            hwid: c.hwid || ('HWID-' + id.substring(0, 8).toUpperCase()),
             pcName: c.pcName || 'Client-PC',
             username: c.username || 'Benutzer',
             os: c.os || 'Windows',
             version: c.version || '1.0.0',
-            ip: c.ip || 'Lokal',
+            ip: c.ip || '127.0.0.1',
             lastSeenAgo: Math.max(0, Math.floor((now - (c.lastSeen || now)) / 1000)),
             isOnline: (now - (c.lastSeen || 0)) < 120000,
             allowed: c.allowed !== false,
+            isBanned: Boolean(c.isBanned || (c.hwid && state.bannedHwids && state.bannedHwids[c.hwid])),
             pendingCommand: c.pendingCommand || null
         }))
         .filter(c => c.isOnline)
@@ -1692,6 +1702,7 @@ app.get('/api/admin/overview', (req, res) => {
         lastUpdatedFile: state.lastUpdatedFile,
         activeClients: activeClientsList,
         clientCount: activeClientsList.length,
+        bannedHwids: state.bannedHwids || {},
         uptime: Math.floor(process.uptime()),
         platform: process.platform,
         isCloud: Boolean(process.env.RENDER || process.env.PORT || process.platform !== 'win32')
@@ -1749,7 +1760,7 @@ app.post('/api/admin/set-announcement', (req, res) => {
 
 // Client Heartbeat
 app.post('/api/client/heartbeat', (req, res) => {
-    const { clientId, pcName, username, os: clientOs, version, platform } = req.body || {};
+    const { clientId, hwid, pcName, username, os: clientOs, version, platform } = req.body || {};
     const remoteIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip || '127.0.0.1';
     const isLocalReq = remoteIp.includes('127.0.0.1') || remoteIp.includes('::1') || remoteIp.includes('localhost');
 
@@ -1767,15 +1778,20 @@ app.post('/api/client/heartbeat', (req, res) => {
     const cId = String(clientId || (finalPc + '-' + finalUser) || 'client_' + Math.random().toString(36).substring(2, 8));
     const state = getAdminState();
 
+    if (!state.bannedHwids) state.bannedHwids = {};
     if (!state.clients) state.clients = {};
     const prevClient = state.clients[cId] || {};
-    const isAllowed = prevClient.allowed !== false;
+
+    const clientHwid = String(hwid || prevClient.hwid || ('HWID-' + cId.substring(0, 10).toUpperCase())).trim();
+    const isHwidBanned = Boolean(clientHwid && state.bannedHwids[clientHwid]);
+    const isAllowed = prevClient.allowed !== false && !isHwidBanned;
     const pendingCmd = prevClient.pendingCommand || null;
     const pendingCmdData = prevClient.pendingCommandData || null;
 
     state.clients[cId] = {
         ...prevClient,
         id: cId,
+        hwid: clientHwid,
         pcName: finalPc,
         username: finalUser,
         os: String(clientOs || platform || (process.platform === 'win32' ? 'Windows' : 'Linux')).substring(0, 80),
@@ -1784,11 +1800,19 @@ app.post('/api/client/heartbeat', (req, res) => {
         ip: remoteIp,
         isLocal: isLocalReq,
         allowed: isAllowed,
+        isBanned: isHwidBanned,
         pendingCommand: null, // Beim Abholen verbraucht
         pendingCommandData: null
     };
 
     saveAdminState(state);
+
+    let blockReason = '';
+    if (isHwidBanned) {
+        blockReason = `Dieses Gerät (HWID: ${clientHwid}) wurde dauerhaft vom Administrator gesperrt (BANNED).`;
+    } else if (!isAllowed) {
+        blockReason = 'Die App-Nutzung wurde fuer dieses Geraet vom Administrator gesperrt.';
+    }
 
     res.json({
         status: 'success',
@@ -1796,7 +1820,10 @@ app.post('/api/client/heartbeat', (req, res) => {
         lockReason: state.lockReason,
         clientAllowed: isAllowed,
         clientBlocked: !isAllowed,
-        clientBlockReason: !isAllowed ? 'Die App-Nutzung wurde fuer dieses Geraet vom Administrator gesperrt.' : '',
+        clientBlockReason: blockReason,
+        isBanned: isHwidBanned,
+        hwid: clientHwid,
+        ip: remoteIp,
         command: pendingCmd,
         commandData: pendingCmdData,
         announcement: state.announcement,
@@ -1810,9 +1837,13 @@ app.post('/api/client/heartbeat', (req, res) => {
 // Client Status (Quick Check)
 app.get('/api/client/status', (req, res) => {
     const cId = req.query.clientId || '';
+    const qHwid = req.query.hwid || '';
     const state = getAdminState();
+    if (!state.bannedHwids) state.bannedHwids = {};
     const client = cId && state.clients ? state.clients[cId] : null;
-    const isAllowed = client ? client.allowed !== false : true;
+    const clientHwid = String(qHwid || (client ? client.hwid : '')).trim();
+    const isHwidBanned = Boolean(clientHwid && state.bannedHwids[clientHwid]);
+    const isAllowed = client ? (client.allowed !== false && !isHwidBanned) : !isHwidBanned;
     let pendingCmd = client ? client.pendingCommand : null;
     let pendingCmdData = client ? client.pendingCommandData : null;
 
@@ -1822,13 +1853,22 @@ app.get('/api/client/status', (req, res) => {
         saveAdminState(state);
     }
 
+    let blockReason = '';
+    if (isHwidBanned) {
+        blockReason = `Dieses Gerät (HWID: ${clientHwid}) wurde dauerhaft vom Administrator gesperrt (BANNED).`;
+    } else if (!isAllowed) {
+        blockReason = 'Die App-Nutzung wurde fuer dieses Geraet vom Administrator gesperrt.';
+    }
+
     res.json({
         status: 'success',
         locked: state.globalLock,
         lockReason: state.lockReason,
         clientAllowed: isAllowed,
         clientBlocked: !isAllowed,
-        clientBlockReason: !isAllowed ? 'Die App-Nutzung wurde fuer dieses Geraet vom Administrator gesperrt.' : '',
+        clientBlockReason: blockReason,
+        isBanned: isHwidBanned,
+        hwid: clientHwid,
         command: pendingCmd,
         commandData: pendingCmdData,
         announcement: state.announcement,
@@ -1885,6 +1925,96 @@ app.post('/api/admin/client-toggle-allow', (req, res) => {
         status: 'success',
         allowed: state.clients[clientId].allowed,
         clientId
+    });
+});
+
+// Admin: HWID bannen (Dauerhafte Hardware-Sperre)
+app.post('/api/admin/ban-hwid', (req, res) => {
+    const { hwid, clientId, reason } = req.body || {};
+    if (!hwid && !clientId) {
+        return res.status(400).json({ status: 'error', message: 'Keine HWID oder clientId angegeben' });
+    }
+    const state = getAdminState();
+    if (!state.bannedHwids) state.bannedHwids = {};
+    if (!state.clients) state.clients = {};
+
+    let targetHwid = hwid ? String(hwid).trim() : '';
+    if (!targetHwid && clientId && state.clients[clientId]) {
+        targetHwid = state.clients[clientId].hwid || '';
+    }
+    if (!targetHwid) {
+        targetHwid = 'CLIENT-' + clientId;
+    }
+
+    state.bannedHwids[targetHwid] = {
+        hwid: targetHwid,
+        clientId: clientId || null,
+        reason: reason || 'Dauerhafte HWID-Sperre durch Administrator',
+        bannedAt: Date.now()
+    };
+
+    if (clientId && state.clients[clientId]) {
+        state.clients[clientId].allowed = false;
+        state.clients[clientId].isBanned = true;
+        state.clients[clientId].pendingCommand = 'force_reload';
+    } else {
+        Object.values(state.clients).forEach(c => {
+            if (c.hwid === targetHwid) {
+                c.allowed = false;
+                c.isBanned = true;
+                c.pendingCommand = 'force_reload';
+            }
+        });
+    }
+
+    saveAdminState(state);
+    logSystemEvent('warn', `HWID '${targetHwid}' wurde dauerhaft GESPERRT (BANNED)!`);
+    res.json({
+        status: 'success',
+        hwid: targetHwid,
+        message: `HWID '${targetHwid}' erfolgreich gebannt.`
+    });
+});
+
+// Admin: HWID entbannen
+app.post('/api/admin/unban-hwid', (req, res) => {
+    const { hwid, clientId } = req.body || {};
+    if (!hwid && !clientId) {
+        return res.status(400).json({ status: 'error', message: 'Keine HWID oder clientId angegeben' });
+    }
+    const state = getAdminState();
+    if (!state.bannedHwids) state.bannedHwids = {};
+    if (!state.clients) state.clients = {};
+
+    let targetHwid = hwid ? String(hwid).trim() : '';
+    if (!targetHwid && clientId && state.clients[clientId]) {
+        targetHwid = state.clients[clientId].hwid || '';
+    }
+
+    if (targetHwid && state.bannedHwids[targetHwid]) {
+        delete state.bannedHwids[targetHwid];
+    }
+
+    if (clientId && state.clients[clientId]) {
+        state.clients[clientId].allowed = true;
+        state.clients[clientId].isBanned = false;
+    }
+
+    if (targetHwid) {
+        Object.values(state.clients).forEach(c => {
+            if (c.hwid === targetHwid) {
+                c.allowed = true;
+                c.isBanned = false;
+            }
+        });
+    }
+
+    saveAdminState(state);
+    logSystemEvent('info', `HWID '${targetHwid}' wurde ENTBANNT.`);
+    res.json({
+        status: 'success',
+        hwid: targetHwid,
+        message: `HWID '${targetHwid}' erfolgreich entbannt.`
     });
 });
 

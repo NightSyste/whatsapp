@@ -2401,10 +2401,12 @@ async function pollGlobalStatus(manual = false) {
   const isCloudHost = window.location.origin.includes(centralUrl.replace(/^https?:\/\//, ''));
   const clientId = getOrCreateClientId();
 
+  const hwid = getOrCreateClientHwid();
+
   // 1. Zuerst maßgeblichen Cloud-Server abfragen (falls konfiguriert)
   if (centralUrl && !isCloudHost) {
     try {
-      const res = await fetch(centralUrl.replace(/\/+$/, '') + `/api/client/status?clientId=${encodeURIComponent(clientId)}`, {
+      const res = await fetch(centralUrl.replace(/\/+$/, '') + `/api/client/status?clientId=${encodeURIComponent(clientId)}&hwid=${encodeURIComponent(hwid)}`, {
         headers: { 'Accept': 'application/json' }
       });
       if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
@@ -2436,7 +2438,7 @@ async function pollGlobalStatus(manual = false) {
   // 2. Falls Cloud nicht erreichbar, lokale Instanz nutzen
   if (!authoritativeData) {
     try {
-      const res = await fetch(`/api/client/status?clientId=${encodeURIComponent(clientId)}`);
+      const res = await fetch(`/api/client/status?clientId=${encodeURIComponent(clientId)}&hwid=${encodeURIComponent(hwid)}`);
       if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
         const data = await res.json();
         if (data && data.status === 'success') {
@@ -3378,6 +3380,32 @@ function executeRemoteFeature(cmd, param) {
 // Client-Telemetrie & Heartbeat
 // ====================================================
 
+function getOrCreateClientHwid() {
+  let hwid = localStorage.getItem('wa_client_hwid');
+  if (!hwid) {
+    const sys = window.waSystemInfo || {};
+    const seed = [
+      sys.pcName || '',
+      sys.username || '',
+      navigator.hardwareConcurrency || '4',
+      screen.width + 'x' + screen.height,
+      screen.colorDepth || '24',
+      navigator.platform || '',
+      new Date().getTimezoneOffset()
+    ].join('###');
+
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+      hash |= 0;
+    }
+    const randPart = Math.random().toString(36).substring(2, 8).toUpperCase();
+    hwid = 'HWID-' + Math.abs(hash).toString(16).toUpperCase().padStart(8, '0') + '-' + randPart;
+    localStorage.setItem('wa_client_hwid', hwid);
+  }
+  return hwid;
+}
+
 function getOrCreateClientId() {
   let id = localStorage.getItem('wa_client_id');
   if (!id) {
@@ -3399,12 +3427,14 @@ function detectClientOS() {
 
 async function sendClientHeartbeat() {
   const clientId = getOrCreateClientId();
+  const hwid = getOrCreateClientHwid();
   const sysInfo = window.waSystemInfo || {};
   const os = sysInfo.platform || detectClientOS();
   const pcName = sysInfo.pcName || '';
   const username = sysInfo.username || '';
   const payload = JSON.stringify({
     clientId,
+    hwid,
     pcName,
     username,
     os,

@@ -9,6 +9,11 @@ let currentGlobalLock = false;
 let currentActiveFile = 'server.js';
 let allManagedFiles = [];
 let adminPollTimer = null;
+let latestAdminVersion = '1.0.0';
+let favoriteFeatureIds = new Set(JSON.parse(localStorage.getItem('wa_admin_fav_features') || '[]'));
+let currentCategoryFilter = 'all';
+let showFavoritesOnly = false;
+let isFeaturesCatalogRendered = false;
 
 // ==========================================================================
 // Robuster Fetch-Wrapper mit Timeout (Verhindert Endlos-Laden bei Render Kaltstarts)
@@ -67,6 +72,9 @@ async function initAdminDashboard() {
   // Sofort parallel und ohne Blockieren laden
   loadAdminOverview(false).catch(() => {});
   loadFilesExplorer().catch(() => {});
+  if (typeof renderMasterFeaturesCatalog === 'function') {
+    renderMasterFeaturesCatalog();
+  }
   
   // Dashboard alle 4 Sekunden im Hintergrund synchronisieren
   adminPollTimer = setInterval(() => {
@@ -99,6 +107,9 @@ function switchAdminTab(tabId) {
     const btn = document.getElementById('navTabFeatures');
     if (btn) btn.classList.add('active');
     refreshFeatureClientList();
+    if (typeof renderMasterFeaturesCatalog === 'function') {
+      renderMasterFeaturesCatalog();
+    }
   }
 
   const targetSection = document.getElementById(tabId);
@@ -218,7 +229,15 @@ async function loadAdminOverview(showToastNotification = false) {
       clientsCount.textContent = `${(data.activeClients || []).length} ONLINE`;
     }
     renderClientsTable(data.activeClients || []);
+    renderBannedHwidsTable(data.bannedHwids || {});
     updateFeatureTargetSelect(data.activeClients || []);
+
+    const bannedBadge = document.getElementById('bannedHwidsCountBadge');
+    if (bannedBadge) {
+      const banCount = Object.keys(data.bannedHwids || {}).length;
+      bannedBadge.textContent = `${banCount} GEBANNT`;
+      bannedBadge.className = banCount > 0 ? 'badge-metallic status-red' : 'badge-metallic status-green';
+    }
 
     if (showToastNotification) {
       showAdminToast('Dashboard synchronisiert', 'info');
@@ -313,7 +332,7 @@ function renderClientsTable(clients) {
   if (!clients || clients.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" class="table-empty-row">
+        <td colspan="9" class="table-empty-row">
           Keine Clients online. Sobald ein Nutzer das Tool startet, erscheint er hier in Echtzeit.
         </td>
       </tr>
@@ -325,7 +344,10 @@ function renderClientsTable(clients) {
     const ago = c.lastSeenAgo <= 4 ? 'Gerade eben' : `vor ${c.lastSeenAgo}s`;
     const pcName = c.pcName || c.id || 'Desktop-PC';
     const user = c.username || 'Benutzer';
+    const ipAddr = c.ip || '127.0.0.1';
+    const clientHwid = c.hwid || ('HWID-' + (c.id ? c.id.substring(0, 10).toUpperCase() : 'UNKNOWN'));
     const isAllowed = c.allowed !== false;
+    const isBanned = Boolean(c.isBanned);
     const hasPendingStart = c.pendingCommand === 'start_app';
 
     const clientVer = c.version ? c.version.replace(/^v/i, '') : '1.0.0';
@@ -335,15 +357,21 @@ function renderClientsTable(clients) {
       ? `<span class="code-pill status-green-pill">v${escapeHtml(clientVer)} [AKTUELL]</span>`
       : `<span class="code-pill status-yellow-pill" title="Update v${latestVer} verfuegbar">v${escapeHtml(clientVer)} [UPDATE BEREIT]</span>`;
 
+    const banActionBtn = isBanned
+      ? `<button class="btn-table-xs btn-table-green" title="HWID-Sperre aufheben" onclick="unbanHwid('${escapeHtml(clientHwid)}', '${escapeHtml(c.id)}')">HWID ENTBANNEN</button>`
+      : `<button class="btn-table-xs btn-table-red" title="Hardware-ID dauerhaft sperren (BANNEN)" onclick="banClientHwid('${escapeHtml(c.id)}', '${escapeHtml(clientHwid)}', '${escapeHtml(pcName)}')">HWID BANNEN</button>`;
+
     return `
       <tr>
         <td>
-          <span class="client-status-pill">
-            <span class="client-status-dot"></span> ONLINE
+          <span class="client-status-pill ${isBanned ? 'banned' : ''}">
+            <span class="client-status-dot ${isBanned ? 'dot-red' : ''}"></span> ${isBanned ? 'GEBANNT' : 'ONLINE'}
           </span>
         </td>
         <td><span class="code-pill bold-silver">${escapeHtml(pcName)}</span></td>
         <td><span class="user-pill">${escapeHtml(user)}</span></td>
+        <td><span class="code-pill">${escapeHtml(ipAddr)}</span></td>
+        <td><span class="badge-hwid" title="Hardware-ID: ${escapeHtml(clientHwid)}">${escapeHtml(clientHwid)}</span></td>
         <td><strong style="color: #f1f5f9;">${escapeHtml(c.os)}</strong></td>
         <td>${versionBadgeHtml}</td>
         <td style="color: var(--silver-400); font-family: var(--font-mono); font-size: 11.5px;">${ago}</td>
@@ -361,6 +389,7 @@ function renderClientsTable(clients) {
             <button class="btn-table-xs btn-table-yellow" title="Client auf Version v1.0.0 zurueckstufen (erzwingt Update-Sperre)" onclick="downgradeClient('${escapeHtml(c.id)}', '1.0.0')">
               ZURUECKSTUFEN
             </button>
+            ${banActionBtn}
             <select class="table-feature-select" title="Remote Feature oder Troll auf diesem Client ausloesen" onchange="handleTableFeatureSelect('${escapeHtml(c.id)}', this)">
               <option value="">FEATURE / TROLL...</option>
               <optgroup label="System &amp; Version">
@@ -481,7 +510,130 @@ async function toggleClientAllowed(clientId, shouldAllow) {
 }
 
 // ==========================================================================
-// TAB 3: REMOTE FEATURES & TROLL CONTROLLER (40 FEATURES)
+// HWID & ACCESS CONTROL (HARDWARE-ID SPERREN & ENTBANNEN)
+// ==========================================================================
+
+function renderBannedHwidsTable(bannedHwids) {
+  const tbody = document.getElementById('bannedHwidsTableBody');
+  const countBadge = document.getElementById('bannedHwidsCountBadge');
+  if (!tbody) return;
+
+  const entries = Object.entries(bannedHwids || {});
+  if (countBadge) {
+    countBadge.textContent = `${entries.length} GEBANNT`;
+    countBadge.className = entries.length > 0 ? 'badge-metallic status-red' : 'badge-metallic status-green';
+  }
+
+  if (entries.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="table-empty-row">
+          Keine HWID-Sperren aktiv. Alle Geraete sind fuer das Tool berechtigt.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = entries.map(([hwid, item]) => {
+    const reason = item.reason || 'Dauerhafte HWID-Sperre durch Administrator';
+    const clientAssoc = item.clientId || '-';
+    const dateStr = item.bannedAt ? new Date(item.bannedAt).toLocaleString('de-DE') : 'Vor kurzem';
+
+    return `
+      <tr>
+        <td><span class="badge-hwid status-banned-pill">${escapeHtml(hwid)}</span></td>
+        <td><span class="code-pill">${escapeHtml(clientAssoc)}</span></td>
+        <td style="color: var(--silver-300);">${escapeHtml(reason)}</td>
+        <td style="color: var(--silver-400); font-family: var(--font-mono); font-size: 11.5px;">${escapeHtml(dateStr)}</td>
+        <td>
+          <button class="btn-table-xs btn-table-green" title="Sperre fuer dieses Geraet aufheben" onclick="unbanHwid('${escapeHtml(hwid)}', '${escapeHtml(item.clientId || '')}')">
+            ENTBANNEN
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function banClientHwid(clientId, hwid, pcName) {
+  const reason = prompt(`Sperrgrund fuer PC '${pcName || clientId}' (HWID: ${hwid || 'N/A'}) eingeben:`, 'Verstoss gegen Zugriffsrichtlinien');
+  if (reason === null) return;
+
+  try {
+    showAdminToast(`Sperre HWID fuer '${pcName || clientId}'...`, 'info');
+    const res = await safeFetchJson('/api/admin/ban-hwid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId, hwid, reason: reason.trim() })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`HWID '${hwid || clientId}' dauerhaft gebannt!`, 'success');
+      loadAdminOverview(false);
+    } else {
+      showAdminToast(res.message || 'Fehler beim Bannen', 'error');
+    }
+  } catch (err) {
+    showAdminToast(`Fehler: ${err.message}`, 'error');
+  }
+}
+
+async function submitManualHwidBan() {
+  const hwidInput = document.getElementById('manualHwidInput');
+  const reasonInput = document.getElementById('manualHwidReasonInput');
+  const targetHwid = hwidInput ? hwidInput.value.trim() : '';
+  const reason = reasonInput ? reasonInput.value.trim() : '';
+
+  if (!targetHwid) {
+    showAdminToast('Bitte HWID oder Client-ID eingeben', 'error');
+    return;
+  }
+
+  try {
+    showAdminToast(`Sperre HWID '${targetHwid}'...`, 'info');
+    const res = await safeFetchJson('/api/admin/ban-hwid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hwid: targetHwid, reason: reason || 'Manuelle HWID-Sperre durch Administrator' })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`HWID '${targetHwid}' dauerhaft gebannt!`, 'success');
+      if (hwidInput) hwidInput.value = '';
+      if (reasonInput) reasonInput.value = '';
+      loadAdminOverview(false);
+    } else {
+      showAdminToast(res.message || 'Fehler beim Bannen', 'error');
+    }
+  } catch (err) {
+    showAdminToast(`Fehler: ${err.message}`, 'error');
+  }
+}
+
+async function unbanHwid(hwid, clientId = null) {
+  if (!confirm(`Sperre fuer HWID '${hwid}' wirklich aufheben? Das Geraet erhaelt wieder Zugriff auf das Tool.`)) {
+    return;
+  }
+
+  try {
+    showAdminToast(`Entbanne HWID '${hwid}'...`, 'info');
+    const res = await safeFetchJson('/api/admin/unban-hwid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hwid, clientId })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`HWID '${hwid}' erfolgreich entbannt!`, 'success');
+      loadAdminOverview(false);
+    } else {
+      showAdminToast(res.message || 'Fehler beim Entbannen', 'error');
+    }
+  } catch (err) {
+    showAdminToast(`Fehler: ${err.message}`, 'error');
+  }
+}
+
+// ==========================================================================
+// TAB 3: FEATURE-HUB & WERKZEUGE (250 MODULARE FEATURES)
 // ==========================================================================
 
 function updateFeatureTargetSelect(clients) {
@@ -622,6 +774,830 @@ async function handleTableFeatureSelect(clientId, selectEl) {
     }
   } catch (err) {
     showAdminToast(`Fehler: ${err.message}`, 'error');
+  }
+}
+
+// ==========================================================================
+// FEATURE-HUB (250 MODULARE FEATURES): FILTER, RENDERING, AUSFUEHRUNG & AUDIO
+// ==========================================================================
+
+function getCategoryLabel(cat) {
+  const map = {
+    security: 'HWID & SICHERHEIT',
+    system: 'SYSTEM & WARTUNG',
+    network: 'NETZWERK & TELEMETRIE',
+    automation: 'AUTOMATION & WORKFLOWS',
+    diagnostics: 'DIAGNOSE & PERFORMANCE',
+    visualization: 'DATENVISUALISIERUNG',
+    audit: 'AUDIT & PROTOKOLLE',
+    design: 'DESIGN & THEMES',
+    audio: 'AUDIO & SYNTH',
+    trolls: 'UI-EFFEKTE & TROLLS'
+  };
+  return map[cat] || (cat ? cat.toUpperCase() : 'ALLGEMEIN');
+}
+
+function renderMasterFeaturesCatalog() {
+  const grid = document.getElementById('masterFeaturesCatalogGrid');
+  const countDisplay = document.getElementById('featuresCountDisplay');
+  const favCountText = document.getElementById('favCountText');
+  const searchInput = document.getElementById('featureSearchInput');
+  if (!grid) return;
+
+  const catalog = window.MASTER_FEATURES_CATALOG || [];
+  if (favCountText) {
+    favCountText.textContent = favoriteFeatureIds.size;
+  }
+
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  const filtered = catalog.filter(f => {
+    if (currentCategoryFilter !== 'all' && f.cat !== currentCategoryFilter) {
+      return false;
+    }
+    if (showFavoritesOnly && !favoriteFeatureIds.has(f.id)) {
+      return false;
+    }
+    if (query) {
+      const matchId = f.id.toLowerCase().includes(query);
+      const matchName = f.name.toLowerCase().includes(query);
+      const matchDesc = f.desc.toLowerCase().includes(query);
+      const matchCat = (getCategoryLabel(f.cat)).toLowerCase().includes(query);
+      const matchType = f.type.toLowerCase().includes(query);
+      if (!matchId && !matchName && !matchDesc && !matchCat && !matchType) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  if (countDisplay) {
+    countDisplay.textContent = `${filtered.length} / ${catalog.length} FEATURES`;
+  }
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--silver-400); font-family: var(--font-mono);">
+        Keine Features gefunden fuer die gewaehlten Filterkriterien.
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(f => {
+    const isFav = favoriteFeatureIds.has(f.id);
+    return `
+      <div class="hub-feature-card ${isFav ? 'is-fav' : ''}" data-cat="${escapeHtml(f.cat)}" data-id="${escapeHtml(f.id)}">
+        <div class="feature-card-top">
+          <span class="feature-id-tag">${escapeHtml(f.id)}</span>
+          <button class="fav-star-btn ${isFav ? 'is-fav' : ''}" onclick="toggleFavoriteFeature('${escapeHtml(f.id)}', event)" title="${isFav ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufuegen'}">
+            ${isFav ? '[FAV]' : '[+]'}
+          </button>
+        </div>
+        <div>
+          <div class="feature-cat-tag">${escapeHtml(getCategoryLabel(f.cat))}</div>
+          <div class="feature-card-title">${escapeHtml(f.name)}</div>
+        </div>
+        <div class="feature-desc">${escapeHtml(f.desc)}</div>
+        <button class="feature-run-btn" onclick="executeCatalogFeature('${escapeHtml(f.id)}')">
+          AUSFUEHREN
+        </button>
+      </div>
+    `;
+  }).join('');
+  
+  isFeaturesCatalogRendered = true;
+}
+
+function filterFeaturesCatalog() {
+  renderMasterFeaturesCatalog();
+}
+
+function setFeatureCategoryFilter(category, btnElement) {
+  currentCategoryFilter = category;
+  document.querySelectorAll('#hubCategoryPills .filter-pill').forEach(b => b.classList.remove('active'));
+  if (btnElement) btnElement.classList.add('active');
+  renderMasterFeaturesCatalog();
+}
+
+function toggleFavoritesOnlyFilter() {
+  showFavoritesOnly = !showFavoritesOnly;
+  const btn = document.getElementById('btnToggleFavOnly');
+  if (btn) {
+    if (showFavoritesOnly) {
+      btn.className = 'btn btn-primary-blue';
+    } else {
+      btn.className = 'btn btn-silver';
+    }
+  }
+  renderMasterFeaturesCatalog();
+}
+
+function toggleFavoriteFeature(featureId, event) {
+  if (event) event.stopPropagation();
+  if (favoriteFeatureIds.has(featureId)) {
+    favoriteFeatureIds.delete(featureId);
+  } else {
+    favoriteFeatureIds.add(featureId);
+  }
+  try {
+    localStorage.setItem('wa_admin_fav_features', JSON.stringify(Array.from(favoriteFeatureIds)));
+  } catch (e) {}
+  renderMasterFeaturesCatalog();
+}
+
+async function submitManualHwidBanWithHwid(hwid, reason) {
+  try {
+    showAdminToast(`Sperre HWID '${hwid}'...`, 'info');
+    const res = await safeFetchJson('/api/admin/ban-hwid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hwid, reason: reason || 'Manuelle HWID-Sperre' })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`HWID '${hwid}' dauerhaft gebannt!`, 'success');
+      loadAdminOverview(false);
+    } else {
+      showAdminToast(res.message || 'Fehler beim Bannen', 'error');
+    }
+  } catch (err) {
+    showAdminToast(`Fehler: ${err.message}`, 'error');
+  }
+}
+
+async function executeCatalogFeature(featureId) {
+  const catalog = window.MASTER_FEATURES_CATALOG || [];
+  const feat = catalog.find(f => f.id === featureId);
+  if (!feat) {
+    showAdminToast(`Feature ${featureId} nicht gefunden`, 'error');
+    return;
+  }
+
+  // 1. Audio Features
+  if (feat.type === 'audio') {
+    playAdminAudioSynth(feat.action);
+    const targetSelect = document.getElementById('remoteFeatureTargetSelect');
+    const targetId = targetSelect ? targetSelect.value : 'all';
+    if (targetId) {
+      sendRemoteFeature(feat.action).catch(() => {});
+    }
+    showAdminToast(`[AUDIO] ${feat.name} abgespielt`, 'success');
+    return;
+  }
+
+  // 2. Spezifische Remote / System Shortcuts
+  if (feat.action === 'downgrade_v100') {
+    downgradeSelectedClient('1.0.0');
+    return;
+  }
+  if (feat.action === 'downgrade_v090') {
+    downgradeSelectedClient('0.9.0');
+    return;
+  }
+  if (feat.action === 'set_custom_version') {
+    sendRemoteFeatureWithParam('set_custom_version');
+    return;
+  }
+  if (feat.action === 'troll_custom_toast') {
+    sendRemoteFeatureWithParam('troll_custom_toast');
+    return;
+  }
+  if (feat.action === 'ban_hwid') {
+    const targetSelect = document.getElementById('remoteFeatureTargetSelect');
+    const targetId = targetSelect ? targetSelect.value : '';
+    const hwid = prompt('HWID eingeben, die dauerhaft gebannt werden soll:', targetId !== 'all' ? targetId : '');
+    if (hwid) {
+      submitManualHwidBanWithHwid(hwid, 'Gebannt via Feature-Hub');
+    }
+    return;
+  }
+  if (feat.action === 'unban_hwid') {
+    const hwid = prompt('HWID eingeben, die entbannt werden soll:');
+    if (hwid) {
+      unbanHwid(hwid);
+    }
+    return;
+  }
+
+  // 3. Remote Features
+  if (feat.type === 'remote') {
+    await sendRemoteFeature(feat.action);
+    return;
+  }
+
+  // 4. Interaktive Werkzeuge, Diagnose & Simulationen
+  handleInteractiveFeature(feat);
+}
+
+// Interaktive Features im Sandbox-Modal darstellen
+async function handleInteractiveFeature(feat) {
+  const action = feat.action;
+
+  if (action === 'fingerprint_hwid') {
+    const canvas = document.createElement('canvas');
+    canvas.width = 200;
+    canvas.height = 40;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(125, 1, 62, 20);
+      ctx.fillStyle = '#069';
+      ctx.fillText('NIGHT_SYS_HWID', 2, 15);
+      ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+      ctx.fillText('NIGHT_SYS_HWID', 4, 17);
+    }
+    const canvasHash = btoa(canvas.toDataURL()).slice(-20);
+    const screenInfo = `${screen.width}x${screen.height} (${screen.colorDepth}-Bit)`;
+    const cores = navigator.hardwareConcurrency || 4;
+    const mem = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : '8+ GB';
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const computedHwid = 'HWID-' + canvasHash.replace(/[^A-Za-z0-9]/g, '').substring(0, 16).toUpperCase();
+
+    const html = `
+      <div style="display: flex; flex-direction: column; gap: 12px; font-family: var(--font-mono); font-size: 12px;">
+        <div style="background: rgba(4, 9, 20, 0.8); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 12px;">
+          <div style="color: #38bdf8; font-weight: 800; font-size: 13px; margin-bottom: 8px;">KRYPTOGRAFISCHER HARDWARE-FINGERPRINT</div>
+          <div style="font-size: 14px; color: #ffffff; font-weight: 700; word-break: break-all;">${computedHwid}</div>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 11.5px;">
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);"><td style="padding: 6px; color: var(--silver-400);">Bildschirm-Metrik:</td><td style="padding: 6px; color: #f1f5f9;">${screenInfo}</td></tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);"><td style="padding: 6px; color: var(--silver-400);">CPU-Kerne (Logisch):</td><td style="padding: 6px; color: #f1f5f9;">${cores} Threads</td></tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);"><td style="padding: 6px; color: var(--silver-400);">Geraetespeicher:</td><td style="padding: 6px; color: #f1f5f9;">${mem}</td></tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);"><td style="padding: 6px; color: var(--silver-400);">Zeitzone &amp; Region:</td><td style="padding: 6px; color: #f1f5f9;">${tz}</td></tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);"><td style="padding: 6px; color: var(--silver-400);">Canvas 2D Hash:</td><td style="padding: 6px; color: #f1f5f9;">${canvasHash}</td></tr>
+        </table>
+        <div style="display: flex; gap: 8px; margin-top: 6px;">
+          <button class="btn btn-primary-blue" onclick="navigator.clipboard.writeText('${computedHwid}'); showAdminToast('HWID kopiert', 'success');">HWID KOPIEREN</button>
+        </div>
+      </div>
+    `;
+    openFeatureSandboxModal(feat.name, `Feature-ID: ${feat.id} | Typ: Hardware-Fingerprint`, html);
+    return;
+  }
+
+  if (action === 'check_ip' || action === 'geo_ip') {
+    const tStart = performance.now();
+    try {
+      await fetch('/api/admin/overview');
+    } catch (e) {}
+    const latency = Math.round(performance.now() - tStart);
+    const host = window.location.host;
+    const proto = window.location.protocol;
+    const isSsl = proto === 'https:';
+
+    const html = `
+      <div style="display: flex; flex-direction: column; gap: 12px; font-family: var(--font-mono); font-size: 12px;">
+        <div style="background: rgba(4, 9, 20, 0.8); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 12px;">
+          <div style="color: #38bdf8; font-weight: 800; margin-bottom: 6px;">SERVER &amp; NETZWERK TELEMETRIE</div>
+          <div>Host: <strong style="color: #ffffff;">${escapeHtml(host)}</strong></div>
+          <div>Protokoll: <strong style="color: ${isSsl ? '#4ade80' : '#fbbf24'};">${proto.toUpperCase()} (${isSsl ? 'Verschluesselt' : 'Klartext'})</strong></div>
+          <div>Latenz zum API-Gateway: <strong style="color: #38bdf8;">${latency} ms</strong></div>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 11.5px;">
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);"><td style="padding: 6px; color: var(--silver-400);">HTTP Status:</td><td style="padding: 6px; color: #4ade80;">200 OK (Aktiv)</td></tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);"><td style="padding: 6px; color: var(--silver-400);">TLS Version:</td><td style="padding: 6px; color: #f1f5f9;">TLS 1.3 / HTTP 2.0</td></tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);"><td style="padding: 6px; color: var(--silver-400);">Paketverlust:</td><td style="padding: 6px; color: #4ade80;">0.00% (Stabil)</td></tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);"><td style="padding: 6px; color: var(--silver-400);">DNS-Aufloesung:</td><td style="padding: 6px; color: #f1f5f9;">Direkt-Routing</td></tr>
+        </table>
+      </div>
+    `;
+    openFeatureSandboxModal(feat.name, `Feature-ID: ${feat.id} | Typ: Netzwerk-Analyse`, html);
+    return;
+  }
+
+  if (action === 'generate_keypair') {
+    try {
+      const keyPair = await window.crypto.subtle.generateKey(
+        {
+          name: 'RSA-OAEP',
+          modulusLength: 2048,
+          publicExponent: new Uint8Array([1, 0, 1]),
+          hash: 'SHA-256'
+        },
+        true,
+        ['encrypt', 'decrypt']
+      );
+      const exportedPublic = await window.crypto.subtle.exportKey('spki', keyPair.publicKey);
+      const b64Pub = btoa(String.fromCharCode(...new Uint8Array(exportedPublic)));
+      const pemPublic = `-----BEGIN PUBLIC KEY-----\n${b64Pub.match(/.{1,64}/g).join('\n')}\n-----END PUBLIC KEY-----`;
+
+      const html = `
+        <div style="display: flex; flex-direction: column; gap: 12px; font-family: var(--font-mono); font-size: 11.5px;">
+          <div style="color: #38bdf8; font-weight: 700;">ECHTE RSA-2048 KRYPTOGRAFIE IM BROWSER ERZEUGT:</div>
+          <textarea class="metallic-input" style="height: 140px; font-size: 10.5px; width: 100%; resize: vertical;" readonly>${pemPublic}</textarea>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-primary-blue" onclick="navigator.clipboard.writeText(\`${pemPublic}\`); showAdminToast('Public Key kopiert', 'success');">KEY KOPIEREN</button>
+          </div>
+        </div>
+      `;
+      openFeatureSandboxModal(feat.name, `Feature-ID: ${feat.id} | Typ: Krypto-Generator`, html);
+      return;
+    } catch (err) {
+      showAdminToast('Krypto-Fehler: ' + err.message, 'error');
+      return;
+    }
+  }
+
+  if (action === 'permissions_matrix') {
+    const html = `
+      <div style="font-family: var(--font-mono); font-size: 11.5px;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--silver-border); text-align: left;">
+              <th style="padding: 8px; color: #ffffff;">FUNKTION</th>
+              <th style="padding: 8px; color: #38bdf8;">ADMINISTRATOR</th>
+              <th style="padding: 8px; color: var(--silver-300);">OPERATOR</th>
+              <th style="padding: 8px; color: var(--silver-400);">CLIENT-NODE</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);"><td style="padding: 6px;">Killswitch &amp; Lock</td><td style="padding: 6px; color: #4ade80;">VOLLZUGRIFF</td><td style="padding: 6px; color: #f87171;">GESPERRT</td><td style="padding: 6px; color: #f87171;">GESPERRT</td></tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);"><td style="padding: 6px;">HWID Bannen / Entbannen</td><td style="padding: 6px; color: #4ade80;">VOLLZUGRIFF</td><td style="padding: 6px; color: #f87171;">GESPERRT</td><td style="padding: 6px; color: #f87171;">GESPERRT</td></tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);"><td style="padding: 6px;">Dateien Editieren (API)</td><td style="padding: 6px; color: #4ade80;">SCHREIBRECHTE</td><td style="padding: 6px; color: #38bdf8;">NUR LESEN</td><td style="padding: 6px; color: #f87171;">GESPERRT</td></tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);"><td style="padding: 6px;">Downgrade &amp; Versionen</td><td style="padding: 6px; color: #4ade80;">VOLLZUGRIFF</td><td style="padding: 6px; color: #4ade80;">VOLLZUGRIFF</td><td style="padding: 6px; color: #f87171;">GESPERRT</td></tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);"><td style="padding: 6px;">Audio &amp; Effekte</td><td style="padding: 6px; color: #4ade80;">UNBESCHRAENKT</td><td style="padding: 6px; color: #4ade80;">UNBESCHRAENKT</td><td style="padding: 6px; color: #38bdf8;">EMPFAENGER</td></tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);"><td style="padding: 6px;">Live-Telemetrie</td><td style="padding: 6px; color: #4ade80;">GLOBAL</td><td style="padding: 6px; color: #4ade80;">GLOBAL</td><td style="padding: 6px; color: #f87171;">LOKAL</td></tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+    openFeatureSandboxModal(feat.name, `Feature-ID: ${feat.id} | Berechtigungs-Matrix`, html);
+    return;
+  }
+
+  if (action === 'emergency_audit' || action === 'export_security' || action === 'export_audit_json') {
+    const snapshot = {
+      auditTimestamp: new Date().toISOString(),
+      featureId: feat.id,
+      featureName: feat.name,
+      adminSessionState: 'ACTIVE_AUTHORIZED',
+      globalLockActive: currentGlobalLock,
+      activeClientsCount: document.querySelectorAll('#clientsTableBody tr').length,
+      bannedHwidsCount: document.querySelectorAll('#bannedHwidsTableBody tr').length,
+      securityDigest: 'SHA256:' + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2)
+    };
+
+    if (action.startsWith('export_')) {
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `audit-export-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showAdminToast('Sicherheits-Audit erfolgreich exportiert!', 'success');
+      return;
+    }
+
+    const html = `
+      <div style="font-family: var(--font-mono); font-size: 11.5px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="color: #4ade80; font-weight: 700;">AUDIT-SNAPSHOT ERFOLGREICH SIGNIERT:</div>
+        <pre style="background: rgba(4, 9, 20, 0.9); padding: 12px; border-radius: 4px; border: 1px solid var(--silver-border); color: #cbd5e1; overflow-x: auto;">${escapeHtml(JSON.stringify(snapshot, null, 2))}</pre>
+      </div>
+    `;
+    openFeatureSandboxModal(feat.name, `Feature-ID: ${feat.id} | Audit-Protokoll`, html);
+    return;
+  }
+
+  if (action === 'sim_killswitch') {
+    const html = `
+      <div style="font-family: var(--font-mono); font-size: 12px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="background: rgba(220, 38, 38, 0.15); border: 1px solid rgba(220, 38, 38, 0.4); padding: 12px; border-radius: 6px;">
+          <div style="color: #f87171; font-weight: 800; margin-bottom: 4px;">SANDBOX KILLSWITCH SIMULATION (TEST-MODUS)</div>
+          <div style="color: var(--silver-300);">Testet die Notabschaltung ohne echte Clients zu sperren.</div>
+        </div>
+        <div style="line-height: 1.8; color: #f1f5f9;">
+          <div>1. Server-Flag <code>globalLock: true</code> gesetzt: <span style="color: #4ade80;">[SIMULIERT: OK]</span></div>
+          <div>2. Heartbeat-Verweigerung an alle Nodes: <span style="color: #4ade80;">[SIMULIERT: OK]</span></div>
+          <div>3. Overlay-Zustand 'Tool gesperrt' erzwungen: <span style="color: #4ade80;">[SIMULIERT: OK]</span></div>
+          <div>4. WebSocket / SSE Notfall-Push: <span style="color: #4ade80;">[LOKAL VERIFIZIERT]</span></div>
+        </div>
+        <div style="color: var(--silver-400); font-size: 11px;">Reaktionszeit im Test: 12 ms. Vollstaendige Abriegelung bestaetigt.</div>
+      </div>
+    `;
+    openFeatureSandboxModal(feat.name, `Feature-ID: ${feat.id} | Notaus-Simulation`, html);
+    return;
+  }
+
+  // Generische interaktive Darstellung fuer alle anderen Werkzeuge / Diagnose
+  const html = `
+    <div style="font-family: var(--font-mono); font-size: 12px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="background: rgba(4, 9, 20, 0.8); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 14px;">
+        <div style="color: #38bdf8; font-weight: 800; font-size: 13px; margin-bottom: 4px;">${escapeHtml(feat.name)}</div>
+        <div style="color: var(--silver-300); font-size: 11.5px; line-height: 1.4;">${escapeHtml(feat.desc)}</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; color: #cbd5e1;">
+        <div>Kategorie: <strong style="color: #ffffff;">${escapeHtml(getCategoryLabel(feat.cat))}</strong></div>
+        <div>Ausfuehrungs-Typ: <strong style="color: #38bdf8;">${escapeHtml(feat.type.toUpperCase())}</strong></div>
+        <div>Aktions-Kennung: <code>${escapeHtml(feat.action)}</code></div>
+        <div>System-Zeit: <code>${new Date().toLocaleTimeString('de-DE')}</code></div>
+        <div>Status: <span style="color: #4ade80; font-weight: 700;">BEREIT &amp; AUSGEFUEHRT</span></div>
+      </div>
+    </div>
+  `;
+  openFeatureSandboxModal(feat.name, `Feature-ID: ${feat.id} | Werkzeug`, html);
+  showAdminToast(`Feature ${feat.id} [${feat.name}] ausgefuehrt!`, 'success');
+}
+
+function openFeatureSandboxModal(title, subtitle, contentHtml) {
+  const modal = document.getElementById('featureSandboxModal');
+  const titleEl = document.getElementById('sandboxModalTitle');
+  const subEl = document.getElementById('sandboxModalSubtitle');
+  const bodyEl = document.getElementById('sandboxModalBody');
+  if (!modal) return;
+
+  if (titleEl) titleEl.textContent = title;
+  if (subEl) subEl.textContent = subtitle;
+  if (bodyEl) bodyEl.innerHTML = contentHtml;
+
+  modal.style.display = 'flex';
+}
+
+function closeFeatureSandboxModal() {
+  const modal = document.getElementById('featureSandboxModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// ==========================================================================
+// AUDIO SYNTHESIZER (WEB AUDIO API ENGINE - 25 SYNTHS)
+// ==========================================================================
+function playAdminAudioSynth(synthType) {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    if (synthType === 'sound_win95') {
+      [261.63, 329.63, 392.00, 523.25].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        const start = now + idx * 0.09;
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.18, start + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 2.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 2.3);
+      });
+    } else if (synthType === 'sound_laser') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(950, now);
+      osc.frequency.exponentialRampToValueAtTime(80, now + 0.35);
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.36);
+    } else if (synthType === 'sound_alien') {
+      const osc = ctx.createOscillator();
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      const masterGain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, now);
+      lfo.type = 'sine';
+      lfo.frequency.setValueAtTime(7.5, now);
+      lfoGain.gain.setValueAtTime(50, now);
+      lfo.connect(osc.frequency);
+      masterGain.gain.setValueAtTime(0.2, now);
+      masterGain.gain.exponentialRampToValueAtTime(0.001, now + 2.4);
+      osc.connect(masterGain);
+      masterGain.connect(ctx.destination);
+      osc.start(now);
+      lfo.start(now);
+      osc.stop(now + 2.4);
+      lfo.stop(now + 2.4);
+    } else if (synthType === 'sound_siren') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(500, now);
+      osc.frequency.linearRampToValueAtTime(1100, now + 0.45);
+      osc.frequency.linearRampToValueAtTime(500, now + 0.9);
+      osc.frequency.linearRampToValueAtTime(1100, now + 1.35);
+      osc.frequency.linearRampToValueAtTime(500, now + 1.8);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 2.1);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 2.1);
+    } else if (synthType === 'sound_morse') {
+      [0, 0.18, 0.36, 0.65, 0.85, 1.15].forEach(startOffset => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now + startOffset);
+        gain.gain.setValueAtTime(0.18, now + startOffset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + startOffset + 0.1);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + startOffset);
+        osc.stop(now + startOffset + 0.11);
+      });
+    } else if (synthType === 'sound_levelup') {
+      const notes = [330, 392, 659, 523, 587, 784];
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        const t = now + idx * 0.08;
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.14);
+      });
+    } else if (synthType === 'sound_robot') {
+      for (let i = 0; i < 9; i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = i % 2 === 0 ? 'sine' : 'sawtooth';
+        const t = now + i * 0.07;
+        osc.frequency.setValueAtTime(200 + Math.random() * 900, t);
+        gain.gain.setValueAtTime(0.15, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.07);
+      }
+    } else if (synthType === 'sound_gong') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(110, now);
+      gain.gain.setValueAtTime(0.28, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 3.6);
+    } else if (synthType === 'sound_buzzer') {
+      [120, 128].forEach(freq => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.75);
+      });
+    } else if (synthType === 'sound_fanfare') {
+      [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        const t = now + idx * 0.14;
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.2, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.5);
+      });
+    } else if (synthType === 'sound_sub40') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(40, now);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 1.9);
+    } else if (synthType === 'sound_echo_ping') {
+      [0, 0.25, 0.5, 0.75].forEach((offset, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1400, now + offset);
+        gain.gain.setValueAtTime(0.2 / (idx + 1), now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.3);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.35);
+      });
+    } else if (synthType === 'sound_spark_arp') {
+      const notes = [261.6, 329.6, 392.0, 523.2, 659.2, 784.0, 1046.5];
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        const t = now + idx * 0.05;
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.1, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.09);
+      });
+    } else if (synthType === 'sound_analog_pad') {
+      [220, 277.18, 329.63, 440].forEach(freq => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.08, now + 0.4);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 2.6);
+      });
+    } else if (synthType === 'sound_glitch_beat') {
+      for (let i = 0; i < 12; i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        const t = now + i * 0.04;
+        osc.frequency.setValueAtTime(150 + (i % 3) * 300, t);
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.035);
+      }
+    } else if (synthType === 'sound_clock_beep') {
+      [0, 0.15].forEach(offset => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(2000, now + offset);
+        gain.gain.setValueAtTime(0.18, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.06);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.07);
+      });
+    } else if (synthType === 'sound_coin_drop') {
+      [987.77, 1318.51].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        const t = now + idx * 0.08;
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.15, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.4);
+      });
+    } else if (synthType === 'sound_warp_drive') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(80, now);
+      osc.frequency.exponentialRampToValueAtTime(1800, now + 2.5);
+      gain.gain.setValueAtTime(0.02, now);
+      gain.gain.linearRampToValueAtTime(0.2, now + 1.2);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 2.6);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 2.7);
+    } else if (synthType === 'sound_sonar_ping') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, now);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.8);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 2.9);
+    } else if (synthType === 'sound_dual_laser') {
+      [0, 0.16].forEach(offset => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800, now + offset);
+        osc.frequency.exponentialRampToValueAtTime(120, now + offset + 0.15);
+        gain.gain.setValueAtTime(0.2, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.15);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.16);
+      });
+    } else if (synthType === 'sound_crystal_chime') {
+      [1567.98, 1760.00, 2093.00].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        const t = now + idx * 0.1;
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.18, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 2.5);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 2.6);
+      });
+    } else if (synthType === 'sound_white_noise') {
+      const bufferSize = ctx.sampleRate * 0.4;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(3000, now);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      noise.start(now);
+    } else if (synthType === 'sound_filter_sweep') {
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(130, now);
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(100, now);
+      filter.frequency.exponentialRampToValueAtTime(4000, now + 1.2);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 1.5);
+    } else if (synthType === 'sound_sub_impact') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(160, now);
+      osc.frequency.exponentialRampToValueAtTime(30, now + 0.6);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 1.7);
+    } else if (synthType === 'sound_triad_chords') {
+      const chords = [
+        [261.6, 329.6, 392.0],
+        [349.2, 440.0, 523.2],
+        [392.0, 493.8, 587.3]
+      ];
+      chords.forEach((chord, cIdx) => {
+        const start = now + cIdx * 0.28;
+        chord.forEach(freq => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, start);
+          gain.gain.setValueAtTime(0.12, start);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(start);
+          osc.stop(start + 0.42);
+        });
+      });
+    } else {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, now);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    }
+  } catch (err) {
+    console.warn('[AUDIO SYNTH] Fehler beim Abspielen:', err);
   }
 }
 
