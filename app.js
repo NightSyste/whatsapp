@@ -14,7 +14,7 @@ let activeMsgSyncTimer = null;
 let lastKnownStatus = '';
 let lastKnownQr = '';
 let currentMessagesMap = new Map(); // id -> msgObj zur Erkennung neuer Nachrichten
-let currentActiveTabId = 'view-dashboard';
+let currentActiveTabId = 'view-start';
 
 // Bot & Click Instant Status
 let isBotActive = false;
@@ -88,7 +88,6 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => selectTab(savedTab), 60);
   }
 
-  initDashboardView();
   sendClientHeartbeat();
   setInterval(sendClientHeartbeat, 15000);
   pollGlobalStatus();
@@ -265,7 +264,20 @@ async function loadSystemSettings() {
       if (idEl && data.systemInfo.injectId) idEl.textContent = data.systemInfo.injectId;
       if (edEl && data.systemInfo.edition) edEl.textContent = data.systemInfo.edition;
     }
+    const savedUrl = localStorage.getItem('wa_central_server_url') || (data && data.centralServerUrl) || 'https://whatsapp-system.onrender.com';
+    const input = document.getElementById('settingCentralServerUrl');
+    if (input) input.value = savedUrl;
   } catch (e) {}
+}
+
+function saveCentralServerSetting() {
+  const input = document.getElementById('settingCentralServerUrl');
+  if (!input) return;
+  const url = input.value.trim();
+  localStorage.setItem('wa_central_server_url', url);
+  showToast('Zentrale Server-URL gespeichert & aktiv!', 'success');
+  pollGlobalStatus();
+  sendClientHeartbeat();
 }
 
 // ----------------------------------------------------
@@ -317,12 +329,10 @@ function selectTab(viewId) {
   document.querySelectorAll('.tab-view').forEach(view => view.classList.remove('active'));
 
   let activeBtn = null;
-  if (viewId === 'view-dashboard') activeBtn = document.getElementById('navDashboardBtn');
-  else if (viewId === 'view-start') activeBtn = document.getElementById('navStartBtn');
+  if (viewId === 'view-start') activeBtn = document.getElementById('navStartBtn');
   else if (viewId === 'view-chats') activeBtn = document.getElementById('navChatsBtn');
   else if (viewId === 'view-bot') activeBtn = document.getElementById('navBotBtn');
   else if (viewId === 'view-instant') activeBtn = document.getElementById('navInstantBtn');
-  else if (viewId === 'view-files') activeBtn = document.getElementById('navFilesBtn');
   else if (viewId === 'view-support') activeBtn = document.getElementById('navSupportBtn');
   else if (viewId === 'view-settings') activeBtn = document.getElementById('navSettingsBtn');
 
@@ -330,10 +340,6 @@ function selectTab(viewId) {
 
   const activeView = document.getElementById(viewId);
   if (activeView) activeView.classList.add('active');
-
-  if (viewId === 'view-dashboard') {
-    initDashboardView();
-  }
 
   if (viewId === 'view-chats' && allChatsList.length === 0) {
     loadChats();
@@ -345,10 +351,6 @@ function selectTab(viewId) {
     } else {
       renderInstantDropdowns();
     }
-  }
-
-  if (viewId === 'view-files') {
-    initFilesView();
   }
 
   if (viewId === 'view-support') {
@@ -2358,311 +2360,6 @@ async function sendSupportMessage() {
   }
 }
 
-// ==========================================================================
-// DATEIEN-VERWALTUNG, GITHUB-UPDATES & TELEMETRIE
-// ==========================================================================
-let managedFilesList = [];
-let activeFileId = 'support_config.json';
-
-async function initFilesView() {
-  await Promise.all([
-    loadManagedFilesList(),
-    fetchGitAndServerStatus(),
-    fetchSystemLogs()
-  ]);
-  if (activeFileId) {
-    loadActiveFileContent(activeFileId);
-  }
-}
-
-async function loadManagedFilesList() {
-  try {
-    const res = await fetch('/api/system/files');
-    const data = await res.json();
-    if (data.status === 'success' && Array.isArray(data.files)) {
-      managedFilesList = data.files;
-      renderFileSelectorTabs();
-    }
-  } catch (err) {
-    console.warn('[FILES] Fehler beim Laden der Dateiliste:', err);
-  }
-}
-
-function renderFileSelectorTabs() {
-  const container = document.getElementById('fileSelectorTabs');
-  if (!container) return;
-  container.innerHTML = '';
-
-  managedFilesList.forEach(f => {
-    const btn = document.createElement('button');
-    btn.className = 'file-tab-btn' + (f.id === activeFileId ? ' active' : '');
-    btn.textContent = f.name;
-    btn.title = f.description || f.title;
-    btn.onclick = () => selectActiveFile(f.id);
-    container.appendChild(btn);
-  });
-}
-
-function selectActiveFile(fileId) {
-  activeFileId = fileId;
-  renderFileSelectorTabs();
-  loadActiveFileContent(fileId);
-}
-
-async function loadActiveFileContent(fileId) {
-  const textarea = document.getElementById('fileEditorTextarea');
-  const nameEl = document.getElementById('activeFileName');
-  const catEl = document.getElementById('activeFileCategory');
-  const sizeEl = document.getElementById('activeFileSize');
-  const syntaxBadge = document.getElementById('fileSyntaxBadge');
-  const statusText = document.getElementById('editorStatusText');
-
-  const fileMeta = managedFilesList.find(f => f.id === fileId) || { name: fileId, category: 'Allgemein', size: 0 };
-  if (nameEl) nameEl.textContent = fileMeta.name;
-  if (catEl) catEl.textContent = fileMeta.category || 'Konfiguration';
-  if (sizeEl) sizeEl.textContent = `${fileMeta.size || 0} Bytes`;
-  if (statusText) statusText.textContent = 'Datei wird geladen...';
-
-  try {
-    const res = await fetch(`/api/system/file-content?file=${encodeURIComponent(fileId)}`);
-    const data = await res.json();
-    if (data.status === 'success') {
-      if (textarea) textarea.value = data.content || '';
-      validateEditorSyntax();
-      if (statusText) statusText.textContent = 'Bereit. Änderungen werden sofort nach Speichern wirksam.';
-    } else {
-      showToast(data.error || 'Fehler beim Laden', 'error');
-    }
-  } catch (err) {
-    showToast('Netzwerkfehler: ' + err.message, 'error');
-  }
-}
-
-function reloadActiveFileContent() {
-  if (activeFileId) {
-    loadActiveFileContent(activeFileId);
-    showToast('Datei neu geladen', 'info');
-  }
-}
-
-function validateEditorSyntax() {
-  const textarea = document.getElementById('fileEditorTextarea');
-  const syntaxBadge = document.getElementById('fileSyntaxBadge');
-  if (!textarea || !syntaxBadge) return true;
-
-  const fname = (activeFileId || '').toLowerCase();
-  if (fname.endsWith('.json')) {
-    try {
-      JSON.parse(textarea.value);
-      syntaxBadge.textContent = 'JSON GÜLTIG';
-      syntaxBadge.className = 'status-badge status-connected';
-      return true;
-    } catch (e) {
-      syntaxBadge.textContent = 'JSON SYNTAXFEHLER';
-      syntaxBadge.className = 'status-badge status-disconnected';
-      return false;
-    }
-  }
-
-  if (fname.endsWith('.js')) {
-    try {
-      new Function(textarea.value);
-      syntaxBadge.textContent = 'JS GÜLTIG';
-      syntaxBadge.className = 'status-badge status-connected';
-      return true;
-    } catch (e) {
-      syntaxBadge.textContent = 'JS SYNTAXFEHLER';
-      syntaxBadge.className = 'status-badge status-disconnected';
-      return false;
-    }
-  }
-
-  syntaxBadge.textContent = 'DATEI BEREIT';
-  syntaxBadge.className = 'status-badge status-connected';
-  return true;
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const textarea = document.getElementById('fileEditorTextarea');
-  if (textarea) {
-    textarea.addEventListener('input', () => {
-      validateEditorSyntax();
-    });
-  }
-});
-
-async function saveActiveFileContent() {
-  const textarea = document.getElementById('fileEditorTextarea');
-  const saveBtn = document.getElementById('btnSaveFile');
-  const statusText = document.getElementById('editorStatusText');
-  if (!textarea || !activeFileId) return;
-
-  const content = textarea.value;
-  if (!validateEditorSyntax()) {
-    showToast('Fehler: Die Datei enthält Syntaxfehler. Bitte korrigieren!', 'error');
-    return;
-  }
-
-  if (saveBtn) {
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = '<span class="btn-icon">⏳</span> Speichere &amp; Wende an...';
-  }
-
-  try {
-    const res = await fetch('/api/system/file-save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file: activeFileId, content })
-    });
-    const data = await res.json();
-
-    if (data.status === 'success') {
-      showToast(`${activeFileId} gespeichert & sofort aktiv!`, 'success');
-      if (statusText) statusText.textContent = `Erfolgreich gespeichert (${new Date().toLocaleTimeString('de-DE')}) - Sofort aktiv!`;
-      await loadManagedFilesList();
-      fetchSystemLogs();
-    } else {
-      showToast(data.error || 'Fehler beim Speichern', 'error');
-      if (statusText) statusText.textContent = `Fehler: ${data.error}`;
-    }
-  } catch (err) {
-    showToast('Netzwerkfehler: ' + err.message, 'error');
-  } finally {
-    if (saveBtn) {
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = '<span class="btn-icon">💾</span> Änderungen speichern &amp; Live anwenden';
-    }
-  }
-}
-
-async function fetchGitAndServerStatus() {
-  try {
-    const res = await fetch('/api/system/git-status');
-    const data = await res.json();
-    if (data.status === 'success') {
-      const commitEl = document.getElementById('gitCommitText');
-      const platformEl = document.getElementById('serverPlatformText');
-      const uptimeEl = document.getElementById('serverUptimeText');
-      const cloudBadge = document.getElementById('cloudServerBadge');
-
-      if (commitEl) commitEl.textContent = data.commit || 'Aktuell';
-      if (platformEl) platformEl.textContent = data.isCloud ? `Render Cloud (${data.platform})` : `Lokal (${data.platform})`;
-      if (uptimeEl) {
-        const mins = Math.floor((data.uptimeSec || 0) / 60);
-        uptimeEl.textContent = mins === 0 ? 'Gerade gestartet' : `${mins} Minuten`;
-      }
-      if (cloudBadge) {
-        cloudBadge.textContent = data.isCloud ? 'RENDER CLOUD' : 'LOKAL AKTIV';
-      }
-    }
-  } catch (err) {
-    console.warn('[GIT] Fehler beim Laden des Git-Status:', err);
-  }
-}
-
-async function triggerGitUpdate() {
-  const btn = document.getElementById('btnGitPull');
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<span class="btn-icon">⏳</span> Aktualisiere von GitHub...';
-  }
-
-  showToast('Hole neueste Version von GitHub...', 'info');
-
-  try {
-    const res = await fetch('/api/system/update-pull', { method: 'POST' });
-    const data = await res.json();
-    if (data.status === 'success') {
-      showToast('GitHub Live-Update erfolgreich angewendet!', 'success');
-      await Promise.all([
-        fetchGitAndServerStatus(),
-        loadManagedFilesList(),
-        fetchSystemLogs()
-      ]);
-    } else {
-      showToast('Update fehlgeschlagen: ' + (data.error || 'Unbekannter Fehler'), 'error');
-    }
-  } catch (err) {
-    showToast('Netzwerkfehler beim Update: ' + err.message, 'error');
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<span class="btn-icon">↻</span> Von GitHub aktualisieren';
-    }
-  }
-}
-
-async function fetchSystemLogs() {
-  try {
-    const res = await fetch('/api/system/logs');
-    const data = await res.json();
-    if (data.status === 'success' && Array.isArray(data.logs)) {
-      renderSystemLogs(data.logs);
-    }
-  } catch (err) {
-    console.warn('[LOGS] Fehler beim Abrufen der Logs:', err);
-  }
-}
-
-function renderSystemLogs(logs) {
-  const feed = document.getElementById('systemLogsFeed');
-  const healthBadge = document.getElementById('systemHealthBadge');
-  if (!feed) return;
-
-  if (logs.length === 0) {
-    feed.innerHTML = `
-      <div class="log-entry log-info">
-        <span class="log-time">[${new Date().toLocaleTimeString('de-DE')}]</span>
-        <span class="log-tag tag-info">SYSTEM</span>
-        <span class="log-msg">Alle Systeme laufen einwandfrei und fehlerfrei.</span>
-      </div>`;
-    if (healthBadge) {
-      healthBadge.textContent = '[SYSTEM: OK]';
-      healthBadge.className = 'status-badge status-connected';
-    }
-    return;
-  }
-
-  let errorCount = 0;
-  feed.innerHTML = '';
-  [...logs].reverse().forEach(entry => {
-    if (entry.type === 'error') errorCount++;
-
-    const div = document.createElement('div');
-    div.className = `log-entry log-${entry.type}`;
-
-    let tagClass = 'tag-info';
-    let tagText = 'INFO';
-    if (entry.type === 'success') { tagClass = 'tag-success'; tagText = 'ERFOLG'; }
-    else if (entry.type === 'warn') { tagClass = 'tag-warn'; tagText = 'WARN'; }
-    else if (entry.type === 'error') { tagClass = 'tag-error'; tagText = 'FEHLER'; }
-
-    div.innerHTML = `
-      <span class="log-time">[${entry.time || '00:00:00'}]</span>
-      <span class="log-tag ${tagClass}">${tagText}</span>
-      <span class="log-msg">${escapeHtml(entry.message)}</span>
-    `;
-    feed.appendChild(div);
-  });
-
-  if (healthBadge) {
-    if (errorCount > 0) {
-      healthBadge.textContent = `[WARNUNG: ${errorCount} FEHLER]`;
-      healthBadge.className = 'status-badge status-disconnected';
-    } else {
-      healthBadge.textContent = '[SYSTEM: OK]';
-      healthBadge.className = 'status-badge status-connected';
-    }
-  }
-}
-
-function clearLocalLogsDisplay() {
-  const feed = document.getElementById('systemLogsFeed');
-  if (feed) {
-    feed.innerHTML = '<div class="log-entry log-info"><span class="log-msg">Ansicht geleert.</span></div>';
-  }
-}
-
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)
@@ -2672,207 +2369,8 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-setInterval(() => {
-  if (currentActiveTabId === 'view-files') {
-    fetchSystemLogs();
-    fetchGitAndServerStatus();
-  }
-}, 8000);
-
 // ====================================================
-// TAB 0: Dashboard (Admin Control Center & Telemetrie)
-// ====================================================
-
-let currentGlobalLockState = false;
-let lastSeenUpdateRevision = 0;
-
-async function initDashboardView() {
-  await fetchAdminOverview();
-}
-
-async function fetchAdminOverview() {
-  try {
-    const res = await fetch('/api/admin/overview');
-    const data = await res.json();
-    if (data.status !== 'success') return;
-
-    currentGlobalLockState = Boolean(data.globalLock);
-
-    // 1. Lock Switch Status Badge & Dot
-    const lockBadge = document.getElementById('adminLockStateBadge');
-    const lockDot = document.getElementById('lockIndicatorDot');
-    const lockTitle = document.getElementById('lockStateTitle');
-    const lockSub = document.getElementById('lockStateSub');
-    const toggleBtn = document.getElementById('btnToggleGlobalLock');
-    const reasonInput = document.getElementById('adminLockReasonInput');
-
-    if (currentGlobalLockState) {
-      if (lockBadge) {
-        lockBadge.textContent = 'TOOL GESPERRT';
-        lockBadge.className = 'status-badge status-disconnected';
-      }
-      if (lockDot) {
-        lockDot.className = 'lock-indicator-dot locked';
-      }
-      if (lockTitle) lockTitle.textContent = 'Tool ist aktuell GESPERRT';
-      if (lockSub) lockSub.textContent = `Sperrgrund: "${data.lockReason || 'Kein Grund angegeben'}"`;
-      if (toggleBtn) {
-        toggleBtn.className = 'btn btn-success btn-lock-toggle';
-        toggleBtn.innerHTML = '<span class="btn-icon">🔓</span> Tool für alle ENTSPERREN';
-      }
-    } else {
-      if (lockBadge) {
-        lockBadge.textContent = 'TOOL FREIGEGEBEN';
-        lockBadge.className = 'status-badge status-connected';
-      }
-      if (lockDot) {
-        lockDot.className = 'lock-indicator-dot unlocked';
-      }
-      if (lockTitle) lockTitle.textContent = 'Tool ist aktuell freigegeben';
-      if (lockSub) lockSub.textContent = 'Alle Funktionen stehen normalen Nutzern zur Verfügung.';
-      if (toggleBtn) {
-        toggleBtn.className = 'btn btn-danger btn-lock-toggle';
-        toggleBtn.innerHTML = '<span class="btn-icon">🔒</span> Tool jetzt für alle SPERREN';
-      }
-    }
-
-    if (reasonInput && data.lockReason && !reasonInput.matches(':focus')) {
-      reasonInput.value = data.lockReason;
-    }
-
-    // 2. Announcement Form & Status
-    const annBadge = document.getElementById('announcementStatusBadge');
-    const annInput = document.getElementById('announcementTextInput');
-    const hasAnnouncement = Boolean(data.announcement && data.announcement.trim());
-
-    if (annBadge) {
-      annBadge.textContent = hasAnnouncement ? 'AKTIV' : 'INAKTIV';
-      annBadge.className = hasAnnouncement ? 'status-badge status-connected' : 'status-badge';
-    }
-    if (annInput && !annInput.matches(':focus')) {
-      annInput.value = data.announcement || '';
-    }
-    if (data.announcementType) {
-      const radio = document.querySelector(`input[name="announcementTypeRadio"][value="${data.announcementType}"]`);
-      if (radio) radio.checked = true;
-    }
-
-    // 3. Active Clients Table
-    const countBadge = document.getElementById('activeClientsCountBadge');
-    if (countBadge) {
-      const cnt = (data.activeClients || []).length;
-      countBadge.textContent = `${cnt} Online`;
-    }
-    renderClientsTable(data.activeClients || []);
-
-  } catch (err) {
-    console.warn('[ADMIN] Fehler beim Laden des Admin-Overviews:', err);
-  }
-}
-
-async function toggleGlobalToolLock() {
-  const targetState = !currentGlobalLockState;
-  const reasonInput = document.getElementById('adminLockReasonInput');
-  const reason = reasonInput ? reasonInput.value : '';
-
-  try {
-    const res = await fetch('/api/admin/toggle-lock', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ locked: targetState, reason })
-    });
-    const data = await res.json();
-    if (data.status === 'success') {
-      showToast(targetState ? 'Tool wurde weltweit gesperrt!' : 'Tool wurde freigegeben!', targetState ? 'error' : 'success');
-      await fetchAdminOverview();
-      pollGlobalStatus();
-    } else {
-      showToast(data.error || 'Fehler beim Umschalten der Sperre', 'error');
-    }
-  } catch (err) {
-    showToast('Netzwerkfehler: ' + err.message, 'error');
-  }
-}
-
-async function publishAnnouncement() {
-  const input = document.getElementById('announcementTextInput');
-  const text = input ? input.value.trim() : '';
-  const radio = document.querySelector('input[name="announcementTypeRadio"]:checked');
-  const type = radio ? radio.value : 'info';
-
-  if (!text) {
-    showToast('Bitte geben Sie einen Ankündigungstext ein!', 'warning');
-    return;
-  }
-
-  try {
-    const res = await fetch('/api/admin/set-announcement', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, type })
-    });
-    const data = await res.json();
-    if (data.status === 'success') {
-      showToast('Ankündigung erfolgreich gesendet!', 'success');
-      await fetchAdminOverview();
-      pollGlobalStatus();
-    } else {
-      showToast(data.error || 'Fehler beim Senden', 'error');
-    }
-  } catch (err) {
-    showToast('Netzwerkfehler: ' + err.message, 'error');
-  }
-}
-
-async function clearAnnouncement() {
-  try {
-    const res = await fetch('/api/admin/set-announcement', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: '', type: 'info' })
-    });
-    const data = await res.json();
-    if (data.status === 'success') {
-      const input = document.getElementById('announcementTextInput');
-      if (input) input.value = '';
-      showToast('Ankündigung gelöscht', 'info');
-      await fetchAdminOverview();
-      pollGlobalStatus();
-    }
-  } catch (err) {
-    showToast('Netzwerkfehler: ' + err.message, 'error');
-  }
-}
-
-function renderClientsTable(clients) {
-  const tbody = document.getElementById('clientsTableBody');
-  if (!tbody) return;
-
-  if (!clients || clients.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Warte auf verbundene Clients... (Sobald eine Instanz das Tool öffnet, erscheint sie hier)</td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = clients.map(c => {
-    const ago = c.lastSeenAgo <= 5 ? 'Gerade eben' : `vor ${c.lastSeenAgo}s`;
-    return `
-      <tr>
-        <td>
-          <span class="client-status-pill online">
-            <span class="status-dot-pulse"></span> Online
-          </span>
-        </td>
-        <td><code>${escapeHtml(c.id)}</code></td>
-        <td><strong>${escapeHtml(c.os)}</strong></td>
-        <td><span class="badge-version">v${escapeHtml(c.version)}</span></td>
-        <td style="color: var(--text-secondary);">${ago}</td>
-      </tr>
-    `;
-  }).join('');
-}
-
-// ====================================================
-// Globale Sperre & Banner Overlay Handler
+// Client-seitige Sperre & Banner Handler (Desktop-Tool)
 // ====================================================
 
 function showGlobalLockOverlay(reason) {
@@ -2890,37 +2388,73 @@ function hideGlobalLockOverlay() {
 }
 
 function adminAccessFromLock() {
-  hideGlobalLockOverlay();
-  selectTab('view-dashboard');
-  showToast('Admin-Dashboard geöffnet. Klicken Sie auf "Tool für alle ENTSPERREN", um die Sperre aufzuheben.', 'info');
+  window.open('/admin', '_blank');
+}
+
+let lastSeenUpdateRevision = 0;
+
+function getCentralServerUrl() {
+  return localStorage.getItem('wa_central_server_url') || 'https://whatsapp-system.onrender.com';
 }
 
 async function pollGlobalStatus(manual = false) {
+  let statusData = null;
+
   try {
     const res = await fetch('/api/client/status');
     const data = await res.json();
     if (data.status === 'success') {
-      handleGlobalStatusUpdate(data);
-      if (manual) {
-        showToast('Systemstatus aktualisiert', 'info');
+      statusData = data;
+    }
+  } catch (err) {}
+
+  const centralUrl = getCentralServerUrl();
+  if (centralUrl && !window.location.origin.includes(centralUrl.replace(/^https?:\/\//, ''))) {
+    try {
+      const res = await fetch(centralUrl.replace(/\/+$/, '') + '/api/client/status', {
+        headers: { 'Accept': 'application/json' }
+      });
+      const cData = await res.json();
+      if (cData.status === 'success') {
+        const badge = document.getElementById('centralServerStatusBadge');
+        if (badge) {
+          badge.textContent = '[VERBUNDEN]';
+          badge.className = 'status-badge status-connected';
+        }
+        if (cData.locked) {
+          statusData = cData;
+        } else if (!statusData || !statusData.locked) {
+          statusData = cData;
+        }
+      }
+    } catch (err) {
+      const badge = document.getElementById('centralServerStatusBadge');
+      if (badge) {
+        badge.textContent = '[LOKAL AKTIV]';
+        badge.className = 'status-badge';
       }
     }
-  } catch (err) {
+  }
+
+  if (statusData) {
+    handleGlobalStatusUpdate(statusData);
     if (manual) {
-      showToast('Statusprüfung fehlgeschlagen', 'error');
+      showToast('Systemstatus aktualisiert', 'info');
     }
+  } else if (manual) {
+    showToast('Statusprüfung fehlgeschlagen', 'error');
   }
 }
 
 function handleGlobalStatusUpdate(data) {
-  // 1. Sperre prüfen
+  // 1. Globale Remote-Sperre prüfen
   if (data.locked) {
     showGlobalLockOverlay(data.lockReason);
   } else {
     hideGlobalLockOverlay();
   }
 
-  // 2. Globale Ankündigung
+  // 2. Globale Ankündigung prüfen
   const banner = document.getElementById('globalAnnouncementBanner');
   const bannerText = document.getElementById('announcementText');
   const bannerBadge = document.getElementById('announcementBadge');
@@ -2939,8 +2473,8 @@ function handleGlobalStatusUpdate(data) {
 
   // 3. Update-Revision
   if (data.updateRevision && lastSeenUpdateRevision > 0 && data.updateRevision > lastSeenUpdateRevision) {
-    const updatedFile = data.lastUpdatedFile ? ` (${data.lastUpdatedFile})` : '';
-    showToast(`Live-Update angewendet: Revision #${data.updateRevision}${updatedFile}!`, 'success');
+    const updatedFile = data.lastUpdatedFile ? (' (' + data.lastUpdatedFile + ')') : '';
+    showToast('Live-Update empfangen: Revision #' + data.updateRevision + updatedFile + '!', 'success');
   }
   if (data.updateRevision) {
     lastSeenUpdateRevision = data.updateRevision;
@@ -2971,28 +2505,34 @@ function detectClientOS() {
 }
 
 async function sendClientHeartbeat() {
+  const clientId = getOrCreateClientId();
+  const os = detectClientOS();
+  const payload = JSON.stringify({ clientId, os, version: '1.0.0' });
+
   try {
-    const clientId = getOrCreateClientId();
-    const os = detectClientOS();
     const res = await fetch('/api/client/heartbeat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId, os, version: '1.0.0' })
+      body: payload
     });
     const data = await res.json();
     if (data.status === 'success') {
       handleGlobalStatusUpdate(data);
     }
-  } catch (err) {
-    // Stiller Heartbeat-Fehler
+  } catch (err) {}
+
+  const centralUrl = getCentralServerUrl();
+  if (centralUrl && !window.location.origin.includes(centralUrl.replace(/^https?:\/\//, ''))) {
+    try {
+      const res = await fetch(centralUrl.replace(/\/+$/, '') + '/api/client/heartbeat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        handleGlobalStatusUpdate(data);
+      }
+    } catch (err) {}
   }
 }
-
-// Dashboard regelmässig aktualisieren wenn aktiv
-setInterval(() => {
-  if (currentActiveTabId === 'view-dashboard') {
-    fetchAdminOverview();
-  }
-}, 3000);
-
-

@@ -282,6 +282,30 @@ setInterval(() => {
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// CORS-Unterstuetzung fuer plattformuebergreifende Web- & Client-Kommunikation
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+});
+
+// Admin-Webseite: Direkter Zugriff auf das Administrations-Dashboard
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(BASE_DIR, 'admin.html'));
+});
+
+// Root-Route: In der Cloud (Render) oder via ?admin direkt Admin-Webseite servieren
+app.get('/', (req, res, next) => {
+    const isCloud = Boolean(process.env.RENDER || process.env.PORT || process.platform !== 'win32');
+    if (isCloud || req.query.admin === '1') {
+        return res.sendFile(path.join(BASE_DIR, 'admin.html'));
+    }
+    next();
+});
+
 app.use(express.static(BASE_DIR));
 
 let currentStatus = 'loading'; // 'loading', 'qr_ready', 'connected', 'disconnected'
@@ -1449,6 +1473,27 @@ const MANAGED_FILES = {
         category: 'Frontend',
         type: 'javascript'
     },
+    'admin.html': {
+        name: 'admin.html',
+        title: 'Admin Control Center UI',
+        description: 'Web-Dashboard Hauptoberfläche für Administrator',
+        category: 'Admin-Web',
+        type: 'html'
+    },
+    'admin.css': {
+        name: 'admin.css',
+        title: 'Blau-Silber Design',
+        description: 'Dunkles Blau-Silber Theme für das Admin-Dashboard',
+        category: 'Admin-Web',
+        type: 'css'
+    },
+    'admin.js': {
+        name: 'admin.js',
+        title: 'Admin Controller',
+        description: 'Dashboard-Steuerung, Killswitch & Dateien-API Logik',
+        category: 'Admin-Web',
+        type: 'javascript'
+    },
     // 3. Backend & Cloud Deployment
     'server.js': {
         name: 'server.js',
@@ -1486,12 +1531,27 @@ const MANAGED_FILES = {
         category: 'Downloader',
         type: 'csharp'
     },
+    'downloader/Program.cs': {
+        name: 'Program.cs',
+        title: 'Downloader Entry Point',
+        description: 'C# Startmethode des Downloaders',
+        category: 'Downloader',
+        type: 'csharp'
+    },
     'downloader/WhatsAppDownloader.csproj': {
         name: 'WhatsAppDownloader.csproj',
         title: 'Downloader Projektdatei',
         description: '.NET 8 Projektkonfiguration',
         category: 'Downloader',
         type: 'xml'
+    },
+    // 5. Dokumentation
+    'README.md': {
+        name: 'README.md',
+        title: 'Dokumentation',
+        description: 'Projektbeschreibung und Setup-Anleitung',
+        category: 'Dokumentation',
+        type: 'markdown'
     }
 };
 

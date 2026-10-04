@@ -63,19 +63,17 @@
       </div>
       <div class="header-actions">
         <span id="connectionBadge" class="status-badge" data-i18n="status_disconnected">[STATUS: GETRENNT]</span>
-        <span id="systemHealthBadge" class="status-badge status-connected" style="cursor: pointer;" onclick="selectTab('view-files')" title="Klicken für Systemprotokoll &amp; Dateien">[SYSTEM: OK]</span>
+        <span id="systemHealthBadge" class="status-badge status-connected" title="Systembetrieb aktiv">[SYSTEM: OK]</span>
         <button class="btn btn-sm btn-danger header-shutdown-btn" onclick="shutdownApp()" title="WhatsApp-System und alle Prozesse komplett beenden" data-i18n="btn_shutdown">[X] Beenden</button>
       </div>
     </header>
 
-    <!-- Navigation: Dashboard, Start, Chats, Bot, Click Instant, Dateien API, Support, Settings -->
+    <!-- Navigation: Start, Chats, Bot, Click Instant, Support, Settings -->
     <nav class="tab-nav">
-      <button id="navDashboardBtn" class="tab-link active" onclick="selectTab('view-dashboard')" data-i18n="tab_dashboard">Dashboard</button>
-      <button id="navStartBtn" class="tab-link" onclick="selectTab('view-start')" data-i18n="tab_start">Start</button>
+      <button id="navStartBtn" class="tab-link active" onclick="selectTab('view-start')" data-i18n="tab_start">Start</button>
       <button id="navChatsBtn" class="tab-link" onclick="selectTab('view-chats')" data-i18n="tab_chats">Chats</button>
       <button id="navBotBtn" class="tab-link" onclick="selectTab('view-bot')" data-i18n="tab_bot">Bot</button>
       <button id="navInstantBtn" class="tab-link" style="display: none;" onclick="selectTab('view-instant')" data-i18n="tab_instant">Click Instant</button>
-      <button id="navFilesBtn" class="tab-link" onclick="selectTab('view-files')" data-i18n="tab_files">Dateien API</button>
       <button id="navSupportBtn" class="tab-link" onclick="selectTab('view-support')" data-i18n="tab_support">Support</button>
       <button id="navSettingsBtn" class="tab-link" onclick="selectTab('view-settings')" data-i18n="tab_settings">Settings</button>
     </nav>
@@ -90,130 +88,8 @@
 
     <!-- Main Viewport -->
     <main>
-      <!-- TAB 0: Dashboard (Admin Control Center & Remote Lock) -->
-      <section id="view-dashboard" class="tab-view active">
-        <div class="dashboard-layout">
-          
-          <!-- Top Row: Killswitch & Announcement -->
-          <div class="dashboard-grid">
-
-            <!-- 1. Globaler Killswitch / Remote Lock -->
-            <div class="panel dashboard-card">
-              <div class="panel-header">
-                <div>
-                  <div class="panel-title">Tool sperren für alle (Killswitch)</div>
-                  <div class="panel-desc">Sperrt oder entsperrt die Tool-Nutzung weltweit auf Knopfdruck.</div>
-                </div>
-                <span id="adminLockStateBadge" class="status-badge status-connected">TOOL FREIGEGEBEN</span>
-              </div>
-
-              <div class="lock-control-container">
-                <div class="lock-status-indicator" id="lockStatusBox">
-                  <div class="lock-indicator-dot" id="lockIndicatorDot"></div>
-                  <div class="lock-status-labels">
-                    <span class="lock-label-title" id="lockStateTitle">Tool ist aktuell freigegeben</span>
-                    <span class="lock-label-sub" id="lockStateSub">Alle Funktionen stehen normalen Nutzern zur Verfügung.</span>
-                  </div>
-                </div>
-
-                <div class="lock-reason-group">
-                  <label class="input-label" for="adminLockReasonInput">Sperrgrund (wird im Sperrbildschirm angezeigt):</label>
-                  <input type="text" id="adminLockReasonInput" class="chat-input-box" placeholder="z. B. Wartungsarbeiten, Update im Gange..." value="Wartungsarbeiten durch den Administrator. Bitte später erneut versuchen.">
-                </div>
-
-                <div class="lock-buttons-row">
-                  <button id="btnToggleGlobalLock" class="btn btn-danger btn-lock-toggle" onclick="toggleGlobalToolLock()">
-                    <span class="btn-icon">🔒</span> Tool jetzt für alle SPERREN
-                  </button>
-                  <button class="btn btn-secondary" onclick="fetchAdminOverview()">
-                    <span class="btn-icon">↻</span> Aktualisieren
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- 2. Globale Ankündigung (Broadcast) -->
-            <div class="panel dashboard-card">
-              <div class="panel-header">
-                <div>
-                  <div class="panel-title">Globale Ankündigung (Broadcast)</div>
-                  <div class="panel-desc">Blendet eine Meldung im Kopf aller aktiven Instanzen ein.</div>
-                </div>
-                <span id="announcementStatusBadge" class="status-badge">INAKTIV</span>
-              </div>
-
-              <div class="announcement-form">
-                <div class="input-group">
-                  <label class="input-label" for="announcementTextInput">Ankündigungstext:</label>
-                  <input type="text" id="announcementTextInput" class="chat-input-box" placeholder="z. B. Neues Update verfügbar. Bitte Downloader starten!">
-                </div>
-
-                <div class="announcement-type-row">
-                  <label class="settings-radio-label">
-                    <input type="radio" name="announcementTypeRadio" value="info" checked>
-                    <span>Info (Blau)</span>
-                  </label>
-                  <label class="settings-radio-label">
-                    <input type="radio" name="announcementTypeRadio" value="warning">
-                    <span>Warnung (Gelb)</span>
-                  </label>
-                  <label class="settings-radio-label">
-                    <input type="radio" name="announcementTypeRadio" value="error">
-                    <span>Dringend (Rot)</span>
-                  </label>
-                </div>
-
-                <div class="btn-group" style="margin-top: 10px;">
-                  <button class="btn btn-primary" onclick="publishAnnouncement()">
-                    <span class="btn-icon">📢</span> Ankündigung senden
-                  </button>
-                  <button class="btn btn-secondary" onclick="clearAnnouncement()">
-                    Löschen
-                  </button>
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          <!-- Middle Row: Active Clients & Telemetrie -->
-          <div class="panel dashboard-clients-panel">
-            <div class="panel-header">
-              <div>
-                <div class="panel-title">Aktive Instanzen &amp; Telemetrie</div>
-                <div class="panel-desc">Erkennung verbundener Clients und Betriebssysteme.</div>
-              </div>
-              <div class="btn-group">
-                <span id="activeClientsCountBadge" class="status-badge status-connected">0 Online</span>
-                <button class="btn btn-sm btn-secondary" onclick="fetchAdminOverview()">↻ Neu laden</button>
-              </div>
-            </div>
-
-            <div class="table-responsive">
-              <table class="dashboard-table">
-                <thead>
-                  <tr>
-                    <th>Status</th>
-                    <th>Client-ID</th>
-                    <th>Betriebssystem</th>
-                    <th>Version</th>
-                    <th>Letzter Heartbeat</th>
-                  </tr>
-                </thead>
-                <tbody id="clientsTableBody">
-                  <tr>
-                    <td colspan="5" class="table-empty">Warte auf verbundene Clients...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
       <!-- TAB 1: Start (WhatsApp-System QR-Code) -->
-      <section id="view-start" class="tab-view">
+      <section id="view-start" class="tab-view active">
         <div class="start-container">
           <div class="panel" style="text-align: center;">
             <div class="panel-header" style="text-align: left;">
@@ -715,154 +591,6 @@
         </div>
       </section>
 
-      <!-- TAB 5: Dateien & Live-Updates (In-Browser Dateiverwaltung & GitHub Sync) -->
-      <section id="view-files" class="tab-view">
-        <div class="files-view-layout">
-          
-          <!-- Obere Reihe: Server & GitHub Status Kacheln -->
-          <div class="files-status-grid">
-            
-            <!-- Server / Cloud Status -->
-            <div class="panel file-status-card">
-              <div class="panel-header">
-                <div class="panel-title">Server &amp; Cloud Status</div>
-                <span id="cloudServerBadge" class="status-badge status-connected">AKTIV</span>
-              </div>
-              <div class="file-card-details">
-                <div class="detail-row">
-                  <span class="detail-k">Plattform:</span>
-                  <span id="serverPlatformText" class="detail-v">Windows / Cloud-Ready</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-k">Laufzeit-Uptime:</span>
-                  <span id="serverUptimeText" class="detail-v">0 Min</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-k">Render Deployment:</span>
-                  <span class="detail-v text-accent">Docker &amp; Blueprint aktiv</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- GitHub Synchronisation & Live Updates -->
-            <div class="panel file-status-card">
-              <div class="panel-header">
-                <div class="panel-title">GitHub &amp; Auto-Update</div>
-                <span id="gitStatusBadge" class="status-badge">SYNCHRONISIERT</span>
-              </div>
-              <div class="file-card-details">
-                <div class="detail-row">
-                  <span class="detail-k">Repository:</span>
-                  <span class="detail-v"><a href="https://github.com/NightSyste/whatsapp" target="_blank" class="git-link">NightSyste/whatsapp</a></span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-k">Letzter Commit:</span>
-                  <span id="gitCommitText" class="detail-v font-mono">Lädt...</span>
-                </div>
-              </div>
-              <div class="file-card-actions">
-                <button id="btnGitPull" class="btn btn-primary btn-sm" onclick="triggerGitUpdate()">
-                  <span class="btn-icon">↻</span> Von GitHub aktualisieren
-                </button>
-              </div>
-            </div>
-
-            <!-- Downloader & Desktop Tool -->
-            <div class="panel file-status-card">
-              <div class="panel-header">
-                <div class="panel-title">Downloader-Datei</div>
-                <span class="status-badge status-connected">DESKTOP BEREIT</span>
-              </div>
-              <div class="file-card-details">
-                <div class="detail-row">
-                  <span class="detail-k">Desktop-Datei:</span>
-                  <span class="detail-v">WhatsApp-Downloader.exe</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-k">Version:</span>
-                  <span class="detail-v text-accent">v1.0.0 (Self-Contained x64)</span>
-                </div>
-              </div>
-              <div class="file-card-actions">
-                <a href="https://raw.githubusercontent.com/NightSyste/dowloader/main/WhatsApp-Downloader.exe" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none; display:inline-flex; align-items:center;">
-                  <span class="btn-icon">⬇</span> Downloader herunterladen
-                </a>
-              </div>
-            </div>
-
-          </div>
-
-          <!-- Mittlerer Bereich: Dateien-Editor -->
-          <div class="panel file-editor-panel">
-            <div class="panel-header file-editor-header">
-              <div>
-                <div class="panel-title">Dateien-Editor (Live-Konfiguration)</div>
-                <div class="panel-desc">Bearbeiten Sie Konfigurationen direkt im Browser. Änderungen schlagen sofort ohne Neustart an!</div>
-              </div>
-              <div class="file-selector-tabs" id="fileSelectorTabs">
-                <!-- Dynamisch generierte Dateitabs -->
-              </div>
-            </div>
-
-            <div class="file-meta-bar">
-              <div class="meta-item">
-                <span class="meta-k">Aktive Datei:</span>
-                <span id="activeFileName" class="meta-v font-mono">support_config.json</span>
-              </div>
-              <div class="meta-item">
-                <span class="meta-k">Kategorie:</span>
-                <span id="activeFileCategory" class="meta-v">Support</span>
-              </div>
-              <div class="meta-item">
-                <span class="meta-k">Größe:</span>
-                <span id="activeFileSize" class="meta-v">0 Bytes</span>
-              </div>
-              <div class="meta-item">
-                <span class="meta-k">JSON-Syntax:</span>
-                <span id="fileSyntaxBadge" class="status-badge status-connected">GÜLTIG</span>
-              </div>
-            </div>
-
-            <div class="editor-container">
-              <textarea id="fileEditorTextarea" class="code-editor" spellcheck="false" placeholder="Lade Dateiinhalt..."></textarea>
-            </div>
-
-            <div class="editor-actions-bar">
-              <button class="btn btn-primary" id="btnSaveFile" onclick="saveActiveFileContent()">
-                <span class="btn-icon">💾</span> Änderungen speichern &amp; Live anwenden
-              </button>
-              <button class="btn btn-secondary" onclick="reloadActiveFileContent()">
-                <span class="btn-icon">↺</span> Neu laden
-              </button>
-              <span id="editorStatusText" class="editor-status-text">Alle Änderungen werden sofort wirksam.</span>
-            </div>
-          </div>
-
-          <!-- Unterer Bereich: Live Server-Logs & Fehleranzeige -->
-          <div class="panel logs-panel">
-            <div class="panel-header">
-              <div>
-                <div class="panel-title">System-Ereignisse &amp; Fehlermeldungen</div>
-                <div class="panel-desc">Echtzeit-Telemetrie und Fehlerausgaben des Servers und WhatsApp-Clients.</div>
-              </div>
-              <div class="btn-group">
-                <button class="btn btn-sm btn-secondary" onclick="fetchSystemLogs()">↻ Aktualisieren</button>
-                <button class="btn btn-sm" onclick="clearLocalLogsDisplay()">Leeren</button>
-              </div>
-            </div>
-
-            <div id="systemLogsFeed" class="logs-feed">
-              <div class="log-entry log-info">
-                <span class="log-time">[00:00:00]</span>
-                <span class="log-tag tag-info">INFO</span>
-                <span class="log-msg">Warte auf Systemprotokoll...</span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
       <!-- TAB 6: Settings (Einstellungen & Sprache) -->
       <section id="view-settings" class="tab-view">
         <div class="settings-view-layout">
@@ -928,6 +656,21 @@
               </div>
               <div class="settings-buttons-group">
                 <button class="btn btn-secondary" onclick="resetSession()" data-i18n="btn_reset_session">Sitzung trennen / Neu starten</button>
+              </div>
+            </div>
+
+            <!-- Zentraler Server / Render Web-Schnittstelle -->
+            <div class="settings-section-card">
+              <div class="settings-card-header">
+                <span class="settings-card-title">Zentraler Web-Server &amp; Admin-Verbindung</span>
+                <span id="centralServerStatusBadge" class="status-badge status-connected">[VERBUNDEN]</span>
+              </div>
+              <p class="settings-card-desc">
+                Adresse der zentralen Render-Webseite für weltweite Synchronisation und Admin-Steuerung:
+              </p>
+              <div style="display: flex; gap: 8px; margin-top: 10px;">
+                <input type="text" id="settingCentralServerUrl" class="chat-input-box" placeholder="https://whatsapp-system.onrender.com" value="https://whatsapp-system.onrender.com" style="flex: 1;">
+                <button class="btn btn-primary" onclick="saveCentralServerSetting()">Speichern</button>
               </div>
             </div>
 
