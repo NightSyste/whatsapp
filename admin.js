@@ -1,6 +1,7 @@
 // ==========================================================================
 // NIGHT-SYSTEM - ADMIN CONTROL CENTER CONTROLLER
-// Dunkles Blau-Silber Theme | Killswitch | VS Code Datei-API
+// Dunkles Blau-Silber | Killswitch | VS Code Datei-API | Live-Telemetrie
+// Keine Emojis | Praezise Abkuerzungen | Robuste Fehlerbehandlung
 // ==========================================================================
 
 let currentTab = 'view-dashboard';
@@ -8,6 +9,39 @@ let currentGlobalLock = false;
 let currentActiveFile = 'server.js';
 let allManagedFiles = [];
 let adminPollTimer = null;
+
+// ==========================================================================
+// Robuster Fetch-Wrapper (Verhindert JSON-Parsing Fehler bei HTML/502/503)
+// ==========================================================================
+async function safeFetchJson(url, options = {}) {
+  const res = await fetch(url, options);
+  const contentType = res.headers.get('content-type') || '';
+
+  if (!res.ok) {
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error(`Server startet noch (HTTP ${res.status})`);
+    }
+    if (contentType.includes('application/json')) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `HTTP ${res.status}: ${res.statusText}`);
+    }
+    throw new Error(`Server antwortete mit Status ${res.status}`);
+  }
+
+  if (!contentType.includes('application/json')) {
+    const text = await res.text();
+    if (text.trim().startsWith('<')) {
+      throw new Error('Server antwortete mit HTML statt JSON');
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error('Ungueltige Server-Antwort');
+    }
+  }
+
+  return await res.json();
+}
 
 // ==========================================================================
 // Initialisierung
@@ -18,10 +52,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function initAdminDashboard() {
-  await loadAdminOverview();
+  await loadAdminOverview(false);
   await loadFilesExplorer();
   
-  // Dashboard im Hintergrund alle 3 Sekunden aktualisieren
+  // Dashboard alle 3 Sekunden im Hintergrund synchronisieren
   adminPollTimer = setInterval(() => {
     if (currentTab === 'view-dashboard') {
       loadAdminOverview(false);
@@ -55,12 +89,11 @@ function switchAdminTab(tabId) {
 }
 
 // ==========================================================================
-// TAB 1: DASHBOARD LOGIK (KILLSWITCH, ANKÜNDIGUNG, INSTANZEN)
+// TAB 1: DASHBOARD (KILLSWITCH, BROADCAST, TELEMETRIE)
 // ==========================================================================
 async function loadAdminOverview(showToastNotification = false) {
   try {
-    const res = await fetch('/api/admin/overview');
-    const data = await res.json();
+    const data = await safeFetchJson('/api/admin/overview');
     if (data.status !== 'success') return;
 
     currentGlobalLock = Boolean(data.globalLock);
@@ -77,7 +110,7 @@ async function loadAdminOverview(showToastNotification = false) {
       headClientsBadge.textContent = `${(data.activeClients || []).length} ONLINE`;
     }
 
-    // 2. Killswitch Card UI
+    // 2. Killswitch Card
     const statusBox = document.getElementById('killswitchStatusBox');
     const primaryText = document.getElementById('statusPrimaryText');
     const descText = document.getElementById('statusDescText');
@@ -86,30 +119,27 @@ async function loadAdminOverview(showToastNotification = false) {
     const reasonInput = document.getElementById('lockReasonInput');
 
     if (currentGlobalLock) {
-      // Tool ist GESPERRT
       if (headLockBadge) {
-        headLockBadge.textContent = '[TOOL GLOBAL GESPERRT]';
+        headLockBadge.textContent = '[TOOL GESPERRT]';
         headLockBadge.className = 'badge-metallic status-red';
       }
       if (lockPill) {
-        lockPill.textContent = 'GLOBAL GESPERRT';
+        lockPill.textContent = 'GESPERRT';
         lockPill.className = 'badge-metallic status-red';
       }
       if (statusBox) {
         statusBox.className = 'killswitch-status-box locked';
       }
-      if (primaryText) primaryText.textContent = 'Tool ist aktuell GLOBAL GESPERRT';
-      if (descText) descText.textContent = `Wartungsmodus aktiv. Grund: "${data.lockReason || 'Kein Grund angegeben'}"`;
+      if (primaryText) primaryText.textContent = 'TOOL GESPERRT';
+      if (descText) descText.textContent = `Wartungsmodus aktiv: "${data.lockReason || 'Kein Grund angegeben'}"`;
       
-      // Knopf bietet ENTSPERREN an
       if (toggleBtn) {
         toggleBtn.className = 'btn btn-lock-success';
-        toggleBtn.innerHTML = '<span>🔓</span> Tool für alle ENTSPERREN';
+        toggleBtn.textContent = 'TOOL ENTSPERREN';
       }
     } else {
-      // Tool ist FREIGEGEBEN
       if (headLockBadge) {
-        headLockBadge.textContent = '[TOOL FREIGEGEBEN]';
+        headLockBadge.textContent = '[FREIGEGEBEN]';
         headLockBadge.className = 'badge-metallic status-green';
       }
       if (lockPill) {
@@ -119,22 +149,20 @@ async function loadAdminOverview(showToastNotification = false) {
       if (statusBox) {
         statusBox.className = 'killswitch-status-box unlocked';
       }
-      if (primaryText) primaryText.textContent = 'Tool ist aktuell freigegeben';
-      if (descText) descText.textContent = 'Alle weltweiten Instanzen können das Tool normal nutzen.';
+      if (primaryText) primaryText.textContent = 'TOOL FREIGEGEBEN';
+      if (descText) descText.textContent = 'Alle Instanzen koennen das Tool normal nutzen.';
       
-      // Knopf bietet SPERREN an
       if (toggleBtn) {
         toggleBtn.className = 'btn btn-lock-danger';
-        toggleBtn.innerHTML = '<span>🔒</span> Tool jetzt für alle SPERREN';
+        toggleBtn.textContent = 'TOOL SPERREN';
       }
     }
 
-    // Grund-Eingabe nicht überschreiben, falls der Admin gerade tippt
     if (reasonInput && data.lockReason && !reasonInput.matches(':focus')) {
       reasonInput.value = data.lockReason;
     }
 
-    // 3. Ankündigung
+    // 3. Broadcast Ankündigung
     const annBadge = document.getElementById('announcementBadge');
     const annInput = document.getElementById('announcementInput');
     const hasAnn = Boolean(data.announcement && data.announcement.trim());
@@ -151,18 +179,25 @@ async function loadAdminOverview(showToastNotification = false) {
       if (radio) radio.checked = true;
     }
 
-    // 4. Verbundene Clients & Telemetrie-Tabelle
+    // 4. Verbundene Instanzen & Telemetrie
     const clientsCount = document.getElementById('clientsTableCount');
     if (clientsCount) {
-      clientsCount.textContent = `${(data.activeClients || []).length} Online`;
+      clientsCount.textContent = `${(data.activeClients || []).length} ONLINE`;
     }
     renderClientsTable(data.activeClients || []);
 
     if (showToastNotification) {
-      showAdminToast('Dashboard-Daten aktualisiert', 'info');
+      showAdminToast('Dashboard synchronisiert', 'info');
     }
   } catch (err) {
-    console.warn('[ADMIN] Fehler beim Laden des Overviews:', err);
+    // Bei periodischem Polling nicht mit Toasts nerven
+    if (showToastNotification) {
+      showAdminToast(err.message, 'error');
+    }
+    const platBadge = document.getElementById('headerPlatformBadge');
+    if (platBadge && err.message.includes('startet')) {
+      platBadge.textContent = 'VERBINDUNG...';
+    }
   }
 }
 
@@ -172,23 +207,22 @@ async function toggleToolLock() {
   const reason = reasonInput ? reasonInput.value.trim() : '';
 
   try {
-    const res = await fetch('/api/admin/toggle-lock', {
+    const data = await safeFetchJson('/api/admin/toggle-lock', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ locked: targetState, reason })
     });
-    const data = await res.json();
     if (data.status === 'success') {
       const msg = targetState 
-        ? 'Tool wurde weltweit für alle Nutzer GESPERRT!' 
-        : 'Tool wurde für alle Nutzer ENTSPERRT & FREIGEGEBEN!';
+        ? 'Tool fuer alle Clients GESPERRT' 
+        : 'Tool fuer alle Clients FREIGEGEBEN';
       showAdminToast(msg, targetState ? 'error' : 'success');
-      await loadAdminOverview();
+      await loadAdminOverview(false);
     } else {
       showAdminToast(data.error || 'Fehler beim Umschalten', 'error');
     }
   } catch (err) {
-    showAdminToast('Netzwerkfehler: ' + err.message, 'error');
+    showAdminToast(err.message, 'error');
   }
 }
 
@@ -199,44 +233,42 @@ async function publishAnnouncement() {
   const type = radio ? radio.value : 'info';
 
   if (!text) {
-    showAdminToast('Bitte einen Ankündigungstext eingeben!', 'error');
+    showAdminToast('Nachrichtentext eingeben', 'error');
     return;
   }
 
   try {
-    const res = await fetch('/api/admin/set-announcement', {
+    const data = await safeFetchJson('/api/admin/set-announcement', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, type })
     });
-    const data = await res.json();
     if (data.status === 'success') {
-      showAdminToast('Ankündigung erfolgreich an alle Instanzen gesendet!', 'success');
-      loadAdminOverview();
+      showAdminToast('Nachricht an alle Instanzen gesendet', 'success');
+      loadAdminOverview(false);
     } else {
       showAdminToast(data.error || 'Fehler beim Senden', 'error');
     }
   } catch (err) {
-    showAdminToast('Netzwerkfehler: ' + err.message, 'error');
+    showAdminToast(err.message, 'error');
   }
 }
 
 async function clearAnnouncement() {
   try {
-    const res = await fetch('/api/admin/set-announcement', {
+    const data = await safeFetchJson('/api/admin/set-announcement', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: '', type: 'info' })
     });
-    const data = await res.json();
     if (data.status === 'success') {
       const input = document.getElementById('announcementInput');
       if (input) input.value = '';
-      showAdminToast('Ankündigung entfernt', 'info');
-      loadAdminOverview();
+      showAdminToast('Nachricht entfernt', 'info');
+      loadAdminOverview(false);
     }
   } catch (err) {
-    showAdminToast('Netzwerkfehler: ' + err.message, 'error');
+    showAdminToast(err.message, 'error');
   }
 }
 
@@ -247,7 +279,7 @@ function renderClientsTable(clients) {
   if (!clients || clients.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" class="table-empty-row">
+        <td colspan="6" class="table-empty-row">
           Keine Clients online. Sobald ein Nutzer das Tool startet, erscheint er hier in Echtzeit.
         </td>
       </tr>
@@ -256,35 +288,36 @@ function renderClientsTable(clients) {
   }
 
   tbody.innerHTML = clients.map(c => {
-    const ago = c.lastSeenAgo <= 5 ? 'Gerade eben' : `vor ${c.lastSeenAgo}s`;
+    const ago = c.lastSeenAgo <= 4 ? 'Gerade eben' : `vor ${c.lastSeenAgo}s`;
+    const pcName = c.pcName || c.id || 'Desktop-PC';
+    const user = c.username || 'Benutzer';
     return `
       <tr>
         <td>
           <span class="client-status-pill">
-            <span class="client-status-dot"></span> Online
+            <span class="client-status-dot"></span> ONLINE
           </span>
         </td>
-        <td><span class="code-pill">${escapeHtml(c.id)}</span></td>
+        <td><span class="code-pill bold-silver">${escapeHtml(pcName)}</span></td>
+        <td><span class="user-pill">${escapeHtml(user)}</span></td>
         <td><strong style="color: #f1f5f9;">${escapeHtml(c.os)}</strong></td>
         <td><span class="code-pill">v${escapeHtml(c.version)}</span></td>
-        <td style="color: var(--silver-400);">${ago}</td>
+        <td style="color: var(--silver-400); font-family: var(--font-mono); font-size: 11.5px;">${ago}</td>
       </tr>
     `;
   }).join('');
 }
 
 // ==========================================================================
-// TAB 2: DATEIEN API (VISUAL STUDIO CODE STYLE FILE EXPLORER & EDITOR)
+// TAB 2: DATEIEN API (VS CODE EXPLORER & EDITOR)
 // ==========================================================================
 async function loadFilesExplorer() {
   try {
-    const res = await fetch('/api/system/files');
-    const data = await res.json();
+    const data = await safeFetchJson('/api/system/files');
     if (data.status === 'success' && Array.isArray(data.files)) {
       allManagedFiles = data.files;
       renderVsCodeSidebar(data.files);
 
-      // Erste Datei laden falls noch nichts geladen
       if (!currentActiveFile && data.files.length > 0) {
         currentActiveFile = data.files[0].id;
       }
@@ -303,10 +336,9 @@ function renderVsCodeSidebar(files) {
   if (!container) return;
 
   if (countBadge) {
-    countBadge.textContent = `${files.length} Dateien`;
+    countBadge.textContent = `${files.length} DATEIEN`;
   }
 
-  // Gruppiere nach Kategorie
   const categories = {};
   files.forEach(f => {
     const cat = f.category || 'Allgemein';
@@ -316,19 +348,17 @@ function renderVsCodeSidebar(files) {
 
   let html = '';
   for (const [catName, catFiles] of Object.entries(categories)) {
-    html += `<div class="tree-category-title">&#x1F4C2; ${escapeHtml(catName)}</div>`;
+    html += `<div class="file-category-header">${escapeHtml(catName)}</div>`;
     catFiles.forEach(file => {
-      const isActive = file.id === currentActiveFile ? ' active' : '';
+      const isActive = file.id === currentActiveFile ? 'active' : '';
       const iconClass = getFileIconClass(file.name);
       const iconText = getFileIconText(file.name);
-      const sizeStr = formatFileSize(file.size);
 
       html += `
-        <button class="tree-file-item${isActive}" onclick="selectActiveFile('${escapeHtml(file.id)}')">
+        <div class="file-item-row ${isActive}" data-file-id="${escapeHtml(file.id)}" onclick="selectActiveFile('${escapeHtml(file.id)}')">
           <span class="file-icon ${iconClass}">${iconText}</span>
-          <span class="tree-file-name" title="${escapeHtml(file.description || file.name)}">${escapeHtml(file.name)}</span>
-          <span class="tree-file-size">${sizeStr}</span>
-        </button>
+          <span class="file-name-text">${escapeHtml(file.name)}</span>
+        </div>
       `;
     });
   }
@@ -338,41 +368,38 @@ function renderVsCodeSidebar(files) {
 
 function getFileIconClass(filename) {
   const fn = (filename || '').toLowerCase();
-  if (fn.endsWith('.json')) return 'icon-json';
   if (fn.endsWith('.js')) return 'icon-js';
+  if (fn.endsWith('.json')) return 'icon-json';
   if (fn.endsWith('.html')) return 'icon-html';
   if (fn.endsWith('.css')) return 'icon-css';
-  if (fn.endsWith('.cs')) return 'icon-cs';
-  if (fn.endsWith('.csproj') || fn.endsWith('.xml')) return 'icon-cs';
+  if (fn.endsWith('.cs') || fn.endsWith('.csproj')) return 'icon-cs';
   if (fn.endsWith('.md')) return 'icon-md';
-  if (fn.endsWith('.yaml') || fn.endsWith('.yml')) return 'icon-yaml';
   if (fn.includes('docker')) return 'icon-docker';
-  return 'icon-md';
+  return 'icon-default';
 }
 
 function getFileIconText(filename) {
   const fn = (filename || '').toLowerCase();
-  if (fn.endsWith('.json')) return '{}';
   if (fn.endsWith('.js')) return 'JS';
+  if (fn.endsWith('.json')) return '{}';
   if (fn.endsWith('.html')) return '<>';
   if (fn.endsWith('.css')) return '#';
-  if (fn.endsWith('.cs')) return 'C#';
-  if (fn.endsWith('.csproj')) return 'PRJ';
+  if (fn.endsWith('.cs') || fn.endsWith('.csproj')) return 'C#';
   if (fn.endsWith('.md')) return 'MD';
-  if (fn.endsWith('.yaml') || fn.endsWith('.yml')) return 'YML';
-  if (fn.includes('docker')) return 'DOC';
+  if (fn.includes('docker')) return 'DK';
   return 'TXT';
-}
-
-function formatFileSize(bytes) {
-  if (!bytes || bytes === 0) return '0 B';
-  if (bytes < 1024) return `${bytes} B`;
-  return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
 function selectActiveFile(fileId) {
   currentActiveFile = fileId;
-  renderVsCodeSidebar(allManagedFiles);
+  document.querySelectorAll('.file-item-row').forEach(row => {
+    if (row.getAttribute('data-file-id') === fileId) {
+      row.classList.add('active');
+    } else {
+      row.classList.remove('active');
+    }
+  });
+
   loadActiveFileContent(fileId);
 }
 
@@ -391,11 +418,10 @@ async function loadActiveFileContent(fileId) {
     iconEl.className = 'file-icon ' + getFileIconClass(fileMeta.name);
     iconEl.textContent = getFileIconText(fileMeta.name);
   }
-  if (sizeEl) sizeEl.textContent = `Größe: ${formatFileSize(fileMeta.size)}`;
+  if (sizeEl) sizeEl.textContent = `GROESSE: ${formatFileSize(fileMeta.size)}`;
 
   try {
-    const res = await fetch(`/api/system/file-content?file=${encodeURIComponent(fileId)}`);
-    const data = await res.json();
+    const data = await safeFetchJson(`/api/system/file-content?file=${encodeURIComponent(fileId)}`);
     if (data.status === 'success') {
       if (textarea) {
         textarea.value = data.content || '';
@@ -406,7 +432,7 @@ async function loadActiveFileContent(fileId) {
       showAdminToast(data.error || 'Fehler beim Laden', 'error');
     }
   } catch (err) {
-    showAdminToast('Netzwerkfehler: ' + err.message, 'error');
+    showAdminToast(err.message, 'error');
   }
 }
 
@@ -424,49 +450,48 @@ async function saveActiveFile() {
 
   const content = textarea.value;
 
-  if (!validateCurrentSyntax()) {
-    showAdminToast('Achtung: Syntaxfehler entdeckt! Bitte vor dem Speichern korrigieren.', 'error');
-    return;
-  }
-
   if (saveBtn) {
     saveBtn.disabled = true;
-    saveBtn.innerHTML = '<span>⏳</span> Speichere &amp; wende an...';
+    saveBtn.textContent = 'SPEICHERN...';
   }
 
   try {
-    const res = await fetch('/api/system/file-save', {
+    const data = await safeFetchJson('/api/system/file-save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file: currentActiveFile, content })
+      body: JSON.stringify({
+        file: currentActiveFile,
+        content: content
+      })
     });
-    const data = await res.json();
 
     if (data.status === 'success') {
-      showAdminToast(`${currentActiveFile} gespeichert & sofort live aktiv (Rev #${data.revision || 1})!`, 'success');
+      showAdminToast(data.message || 'Datei erfolgreich gespeichert & Update aktiv!', 'success');
       
-      const revText = document.getElementById('editorUpdateRevisionText');
-      if (revText && data.revision) {
-        revText.textContent = `Update-Revision: #${data.revision}`;
+      const revEl = document.getElementById('editorUpdateRevisionText');
+      if (revEl && data.revision) {
+        revEl.textContent = `REVISION: #${data.revision}`;
       }
+      
+      const fileMeta = allManagedFiles.find(f => f.id === currentActiveFile);
+      if (fileMeta) fileMeta.size = new Blob([content]).size;
+      const sizeEl = document.getElementById('editorSizeText');
+      if (sizeEl) sizeEl.textContent = `GROESSE: ${formatFileSize(new Blob([content]).size)}`;
 
-      await loadFilesExplorer();
+      loadAdminOverview(false);
     } else {
       showAdminToast(data.error || 'Fehler beim Speichern', 'error');
     }
   } catch (err) {
-    showAdminToast('Netzwerkfehler: ' + err.message, 'error');
+    showAdminToast(err.message, 'error');
   } finally {
     if (saveBtn) {
       saveBtn.disabled = false;
-      saveBtn.innerHTML = '<span>💾</span> Speichern &amp; Live anwenden';
+      saveBtn.textContent = 'SPEICHERN';
     }
   }
 }
 
-// ==========================================================================
-// EDITOR ZEILENNUMMERN, SYNTAX & SHORTCUTS
-// ==========================================================================
 function updateEditorLineNumbers() {
   const textarea = document.getElementById('editorTextarea');
   const lineNumbers = document.getElementById('editorLineNumbers');
@@ -474,53 +499,37 @@ function updateEditorLineNumbers() {
   if (!textarea || !lineNumbers) return;
 
   const lines = textarea.value.split('\n').length;
-  let numbersHtml = '';
-  for (let i = 1; i <= lines; i++) {
-    numbersHtml += i + '<br>';
-  }
-  lineNumbers.innerHTML = numbersHtml;
-
-  if (lineCountText) {
-    lineCountText.textContent = `Zeilen: ${lines}`;
-  }
+  lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('<br>');
+  if (lineCountText) lineCountText.textContent = `ZEILEN: ${lines}`;
 }
 
 function validateCurrentSyntax() {
   const textarea = document.getElementById('editorTextarea');
   const badge = document.getElementById('activeSyntaxBadge');
-  if (!textarea || !badge) return true;
+  if (!textarea || !badge || !currentActiveFile) return;
 
-  const fn = (currentActiveFile || '').toLowerCase();
+  const content = textarea.value;
+  const fn = currentActiveFile.toLowerCase();
+
+  let isValid = true;
+  let errorMsg = '';
 
   if (fn.endsWith('.json')) {
     try {
-      JSON.parse(textarea.value);
-      badge.textContent = '[SYNTAX: GÜLTIG]';
-      badge.className = 'badge-metallic status-green';
-      return true;
+      JSON.parse(content);
     } catch (e) {
-      badge.textContent = '[SYNTAXFEHLER]';
-      badge.className = 'badge-metallic status-red';
-      return false;
+      isValid = false;
+      errorMsg = e.message;
     }
   }
 
-  if (fn.endsWith('.js')) {
-    try {
-      new Function(textarea.value);
-      badge.textContent = '[SYNTAX: GÜLTIG]';
-      badge.className = 'badge-metallic status-green';
-      return true;
-    } catch (e) {
-      badge.textContent = '[SYNTAXFEHLER]';
-      badge.className = 'badge-metallic status-red';
-      return false;
-    }
+  if (isValid) {
+    badge.textContent = '[SYNTAX: OK]';
+    badge.className = 'badge-metallic status-green';
+  } else {
+    badge.textContent = '[SYNTAX FEHLER]';
+    badge.className = 'badge-metallic status-red';
   }
-
-  badge.textContent = '[SYNTAX: GÜLTIG]';
-  badge.className = 'badge-metallic status-green';
-  return true;
 }
 
 function setupEditorKeyboardShortcuts() {
@@ -528,29 +537,24 @@ function setupEditorKeyboardShortcuts() {
   const lineNumbers = document.getElementById('editorLineNumbers');
   if (!textarea) return;
 
-  // Scroll Sync
+  textarea.addEventListener('input', () => {
+    updateEditorLineNumbers();
+    validateCurrentSyntax();
+  });
+
   textarea.addEventListener('scroll', () => {
     if (lineNumbers) {
       lineNumbers.scrollTop = textarea.scrollTop;
     }
   });
 
-  // Input & Zeilenaktualisierung
-  textarea.addEventListener('input', () => {
-    updateEditorLineNumbers();
-    validateCurrentSyntax();
-  });
-
-  // Tab & Speichern-Shortcuts
   textarea.addEventListener('keydown', (e) => {
-    // Ctrl+S / Cmd+S: Direkt speichern
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault();
       saveActiveFile();
       return;
     }
 
-    // Tab-Taste: 2 Leerzeichen einfügen statt Fokus zu verlieren
     if (e.key === 'Tab') {
       e.preventDefault();
       const start = textarea.selectionStart;
@@ -563,29 +567,39 @@ function setupEditorKeyboardShortcuts() {
 }
 
 // ==========================================================================
-// TOAST NOTIFICATIONS
+// Toast-System
 // ==========================================================================
 let toastTimer = null;
-function showAdminToast(msg, type = 'success') {
+function showAdminToast(message, type = 'info') {
   const toast = document.getElementById('adminToast');
-  const icon = document.getElementById('toastIcon');
-  const text = document.getElementById('toastMessage');
-  if (!toast) return;
+  const msgEl = document.getElementById('toastMessage');
+  const iconEl = document.getElementById('toastIcon');
+  if (!toast || !msgEl) return;
 
-  if (text) text.textContent = msg;
-  if (icon) {
-    if (type === 'success') icon.textContent = '✔';
-    else if (type === 'error') icon.textContent = '✖';
-    else icon.textContent = 'ℹ';
+  msgEl.textContent = message;
+  toast.className = `admin-toast toast-${type} visible`;
+
+  if (iconEl) {
+    if (type === 'success') iconEl.textContent = '[OK]';
+    else if (type === 'error') iconEl.textContent = '[FEHLER]';
+    else iconEl.textContent = '[INFO]';
   }
-
-  toast.className = `admin-toast ${type}`;
-  toast.style.display = 'flex';
 
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
-    toast.style.display = 'none';
+    toast.classList.remove('visible');
   }, 4000);
+}
+
+// ==========================================================================
+// Hilfsfunktionen
+// ==========================================================================
+function formatFileSize(bytes) {
+  if (!bytes || isNaN(bytes) || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
 function escapeHtml(str) {
@@ -594,5 +608,6 @@ function escapeHtml(str) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

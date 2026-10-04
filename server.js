@@ -1366,13 +1366,17 @@ function saveSettings(data) {
 }
 
 app.get('/api/settings', (req, res) => {
+    let username = 'Benutzer';
+    try { username = os.userInfo().username || 'Benutzer'; } catch (e) {}
     res.json({
         status: 'success',
         settings: getSettings(),
         systemInfo: {
             pcName: os.hostname() || 'NIGHTSYSTEM',
+            username: username,
+            platform: `${os.type()} ${os.release()} (${os.arch()})`,
             injectId: '78349102',
-            edition: 'v 1'
+            edition: 'v 1.0.0'
         }
     });
 });
@@ -1563,13 +1567,16 @@ app.get('/api/admin/overview', (req, res) => {
     const activeClientsList = Object.entries(state.clients || {})
         .map(([id, c]) => ({
             id,
+            pcName: c.pcName || 'Client-PC',
+            username: c.username || 'Benutzer',
             os: c.os || 'Windows',
             version: c.version || '1.0.0',
             ip: c.ip || 'Lokal',
             lastSeenAgo: Math.max(0, Math.floor((now - (c.lastSeen || now)) / 1000)),
-            isOnline: (now - (c.lastSeen || 0)) < 60000
+            isOnline: (now - (c.lastSeen || 0)) < 120000
         }))
-        .filter(c => c.isOnline);
+        .filter(c => c.isOnline)
+        .sort((a, b) => a.lastSeenAgo - b.lastSeenAgo);
 
     res.json({
         status: 'success',
@@ -1634,16 +1641,34 @@ app.post('/api/admin/set-announcement', (req, res) => {
 
 // Client Heartbeat
 app.post('/api/client/heartbeat', (req, res) => {
-    const { clientId, os, version } = req.body || {};
-    const cId = String(clientId || req.ip || 'client_' + Math.random().toString(36).substring(2, 8));
+    const { clientId, pcName, username, os: clientOs, version, platform } = req.body || {};
+    const remoteIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip || '127.0.0.1';
+    const isLocalReq = remoteIp.includes('127.0.0.1') || remoteIp.includes('::1') || remoteIp.includes('localhost');
+
+    let defaultPc = 'Client-PC';
+    let defaultUser = 'Benutzer';
+    try {
+        if (isLocalReq) {
+            defaultPc = os.hostname() || 'Lokal-PC';
+            defaultUser = os.userInfo().username || 'Benutzer';
+        }
+    } catch (e) {}
+
+    const finalPc = String(pcName || defaultPc).trim();
+    const finalUser = String(username || defaultUser).trim();
+    const cId = String(clientId || (finalPc + '-' + finalUser) || 'client_' + Math.random().toString(36).substring(2, 8));
     const state = getAdminState();
 
     if (!state.clients) state.clients = {};
     state.clients[cId] = {
-        os: String(os || req.headers['user-agent'] || 'Windows').substring(0, 80),
+        id: cId,
+        pcName: finalPc,
+        username: finalUser,
+        os: String(clientOs || platform || (process.platform === 'win32' ? 'Windows' : 'Linux')).substring(0, 80),
         version: String(version || '1.0.0').substring(0, 20),
         lastSeen: Date.now(),
-        ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''
+        ip: remoteIp,
+        isLocal: isLocalReq
     };
 
     saveAdminState(state);
@@ -3326,12 +3351,58 @@ app.post('/api/shutdown', async (req, res) => {
     }, 400);
 });
 
+// Catch-all fuer nicht existierende API-Routen: NIEMALS HTML zurueckgeben!
+app.use('/api', (req, res) => {
+    res.status(404).json({
+        status: 'error',
+        error: `API-Endpunkt nicht gefunden: ${req.method} ${req.originalUrl || req.url}`
+    });
+});
+
+// Globaler Error-Handler fuer Express API
+app.use((err, req, res, next) => {
+    console.error('[API-ERR]', err);
+    if (req.path && req.path.startsWith('/api/')) {
+        return res.status(500).json({
+            status: 'error',
+            error: err.message || 'Interner Serverfehler'
+        });
+    }
+    next(err);
+});
+
+// Lokale Host-Telemetrie sofort im Admin-State hinterlegen
+function registerLocalHostTelemetry() {
+    try {
+        const state = getAdminState();
+        if (!state.clients) state.clients = {};
+        const hostName = os.hostname() || 'Lokal-PC';
+        let userName = 'Benutzer';
+        try { userName = os.userInfo().username || 'Benutzer'; } catch (e) {}
+        const hostId = 'pc_' + hostName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        state.clients[hostId] = {
+            id: hostId,
+            pcName: hostName,
+            username: userName,
+            os: `${os.type()} ${os.release()} (${os.arch()})`,
+            version: '1.0.0',
+            lastSeen: Date.now(),
+            ip: '127.0.0.1',
+            isLocal: true
+        };
+        saveAdminState(state);
+    } catch (e) {}
+}
+
 // Server Start & Desktop-App Launcher
 const server = app.listen(PORT, () => {
     PORT = server.address().port;
     try {
         fs.writeFileSync(ACTIVE_PORT_FILE, String(PORT), 'utf8');
     } catch (e) {}
+
+    registerLocalHostTelemetry();
+    setInterval(registerLocalHostTelemetry, 8000);
 
     console.log(`============================================================`);
     console.log(`WhatsApp-System Server laeuft auf: http://localhost:${PORT}`);

@@ -79,7 +79,9 @@ window.addEventListener('DOMContentLoaded', () => {
   }, 1200);
 
   loadSupportConfig();
-  loadSystemSettings();
+  loadSystemSettings().then(() => {
+    sendClientHeartbeat();
+  });
 
   // Nach Reload ggf. vorherigen Tab wiederherstellen
   const savedTab = sessionStorage.getItem('active_tab_before_reload');
@@ -88,8 +90,7 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => selectTab(savedTab), 60);
   }
 
-  sendClientHeartbeat();
-  setInterval(sendClientHeartbeat, 15000);
+  setInterval(sendClientHeartbeat, 6000);
   pollGlobalStatus();
   setInterval(pollGlobalStatus, 4000);
 
@@ -257,6 +258,11 @@ async function loadSystemSettings() {
     const res = await fetch('/api/settings');
     const data = await res.json();
     if (data && data.systemInfo) {
+      window.waSystemInfo = {
+        pcName: data.systemInfo.pcName || '',
+        username: data.systemInfo.username || '',
+        platform: data.systemInfo.platform || ''
+      };
       const pcEl = document.getElementById('settingsPcName');
       const idEl = document.getElementById('settingsInjectId');
       const edEl = document.getElementById('settingsEdition');
@@ -2402,9 +2408,11 @@ async function pollGlobalStatus(manual = false) {
 
   try {
     const res = await fetch('/api/client/status');
-    const data = await res.json();
-    if (data.status === 'success') {
-      statusData = data;
+    if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+      const data = await res.json();
+      if (data && data.status === 'success') {
+        statusData = data;
+      }
     }
   } catch (err) {}
 
@@ -2414,17 +2422,19 @@ async function pollGlobalStatus(manual = false) {
       const res = await fetch(centralUrl.replace(/\/+$/, '') + '/api/client/status', {
         headers: { 'Accept': 'application/json' }
       });
-      const cData = await res.json();
-      if (cData.status === 'success') {
-        const badge = document.getElementById('centralServerStatusBadge');
-        if (badge) {
-          badge.textContent = '[VERBUNDEN]';
-          badge.className = 'status-badge status-connected';
-        }
-        if (cData.locked) {
-          statusData = cData;
-        } else if (!statusData || !statusData.locked) {
-          statusData = cData;
+      if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+        const cData = await res.json();
+        if (cData && cData.status === 'success') {
+          const badge = document.getElementById('centralServerStatusBadge');
+          if (badge) {
+            badge.textContent = '[VERBUNDEN]';
+            badge.className = 'status-badge status-connected';
+          }
+          if (cData.locked) {
+            statusData = cData;
+          } else if (!statusData || !statusData.locked) {
+            statusData = cData;
+          }
         }
       }
     } catch (err) {
@@ -2506,8 +2516,17 @@ function detectClientOS() {
 
 async function sendClientHeartbeat() {
   const clientId = getOrCreateClientId();
-  const os = detectClientOS();
-  const payload = JSON.stringify({ clientId, os, version: '1.0.0' });
+  const sysInfo = window.waSystemInfo || {};
+  const os = sysInfo.platform || detectClientOS();
+  const pcName = sysInfo.pcName || '';
+  const username = sysInfo.username || '';
+  const payload = JSON.stringify({
+    clientId,
+    pcName,
+    username,
+    os,
+    version: '1.0.0'
+  });
 
   try {
     const res = await fetch('/api/client/heartbeat', {
@@ -2515,9 +2534,14 @@ async function sendClientHeartbeat() {
       headers: { 'Content-Type': 'application/json' },
       body: payload
     });
-    const data = await res.json();
-    if (data.status === 'success') {
-      handleGlobalStatusUpdate(data);
+    if (res.ok) {
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const data = await res.json();
+        if (data && data.status === 'success') {
+          handleGlobalStatusUpdate(data);
+        }
+      }
     }
   } catch (err) {}
 
@@ -2529,9 +2553,14 @@ async function sendClientHeartbeat() {
         headers: { 'Content-Type': 'application/json' },
         body: payload
       });
-      const data = await res.json();
-      if (data.status === 'success') {
-        handleGlobalStatusUpdate(data);
+      if (res.ok) {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const data = await res.json();
+          if (data && data.status === 'success') {
+            handleGlobalStatusUpdate(data);
+          }
+        }
       }
     } catch (err) {}
   }

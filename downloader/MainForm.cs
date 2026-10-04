@@ -395,12 +395,22 @@ public class MainForm : Form
 
             if (File.Exists(appDataExe))
             {
-                Process.Start(new ProcessStartInfo
+                var psi = new ProcessStartInfo
                 {
                     FileName = appDataExe,
                     WorkingDirectory = appDataDir,
-                    UseShellExecute = true
-                });
+                    UseShellExecute = true,
+                    Verb = "runas"
+                };
+                try
+                {
+                    Process.Start(psi);
+                }
+                catch
+                {
+                    psi.Verb = "";
+                    Process.Start(psi);
+                }
             }
 
             _lblStatusTitle.Text = "WhatsApp-System gestartet!";

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Night-System | Admin Control Center</title>
+  <title>Night-System | Admin Dashboard</title>
   <link rel="stylesheet" href="admin.css">
   <link rel="icon" type="image/png" href="icon.png">
 </head>
@@ -12,23 +12,23 @@
   <!-- Top Navigation Header -->
   <header class="admin-header">
     <div class="brand-section">
-      <div class="brand-shield">&#x2694;</div>
+      <div class="brand-shield">NS</div>
       <div class="brand-titles">
-        <span class="brand-main">Night-System</span>
-        <span class="brand-sub">Admin Control Center</span>
+        <span class="brand-main">NIGHT-SYSTEM</span>
+        <span class="brand-sub">ADMIN CONTROL</span>
       </div>
     </div>
 
     <!-- Live Status Indicators -->
     <div class="header-status-group">
       <span id="headerPlatformBadge" class="badge-metallic status-blue">RENDER CLOUD</span>
-      <span id="headerLockBadge" class="badge-metallic status-green">[TOOL FREIGEGEBEN]</span>
-      <span id="headerClientsBadge" class="badge-metallic">0 ONLINE</span>
+      <span id="headerLockBadge" class="badge-metallic status-green">[FREIGEGEBEN]</span>
+      <span id="headerClientsBadge" class="badge-metallic">0 CLIENTS</span>
     </div>
 
     <div class="header-actions">
-      <button class="btn btn-silver" onclick="loadAdminOverview()" title="Aktualisiert alle Telemetriedaten und Client-Zustände">
-        <span>↻</span> Aktualisieren
+      <button class="btn btn-silver" onclick="loadAdminOverview(true)" title="Daten synchronisieren">
+        SYNC
       </button>
     </div>
   </header>
@@ -36,10 +36,10 @@
   <!-- Main Navigation Tabs: Nur Dashboard & Dateien API -->
   <nav class="nav-toolbar">
     <button id="navTabDashboard" class="nav-tab-btn active" onclick="switchAdminTab('view-dashboard')">
-      <span class="nav-tab-icon">📊</span> Dashboard
+      DASHBOARD
     </button>
     <button id="navTabFiles" class="nav-tab-btn" onclick="switchAdminTab('view-files')">
-      <span class="nav-tab-icon">📁</span> Dateien API
+      DATEIEN API
     </button>
   </nav>
 
@@ -58,12 +58,8 @@
           <div class="metallic-card">
             <div class="card-header">
               <div class="card-title-group">
-                <div class="card-title">
-                  <span>🔒</span> Tool sperren für alle (Globaler Killswitch)
-                </div>
-                <div class="card-subtitle">
-                  Sperrt oder entsperrt die Nutzung des Tools weltweit auf Knopfdruck.
-                </div>
+                <div class="card-title">KILLSWITCH</div>
+                <div class="card-subtitle">Zentraler Fernzugriff fuer weltweite Sperre</div>
               </div>
               <span id="lockStatusPill" class="badge-metallic status-green">FREIGEGEBEN</span>
             </div>
@@ -72,22 +68,22 @@
               <div id="killswitchStatusBox" class="killswitch-status-box unlocked">
                 <div class="status-indicator-orb" id="statusOrb"></div>
                 <div class="status-texts">
-                  <span id="statusPrimaryText" class="status-primary-text">Tool ist aktuell freigegeben</span>
-                  <span id="statusDescText" class="status-desc-text">Alle Funktionen stehen normalen Nutzern im Tool zur Verfügung.</span>
+                  <span id="statusPrimaryText" class="status-primary-text">TOOL FREIGEGEBEN</span>
+                  <span id="statusDescText" class="status-desc-text">Alle Instanzen koennen das Tool normal nutzen.</span>
                 </div>
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="lockReasonInput">Sperrgrund (wird allen gesperrten Nutzern im Tool angezeigt):</label>
-                <input type="text" id="lockReasonInput" class="metallic-input" placeholder="z. B. Wartungsarbeiten durch Administrator..." value="Wartungsarbeiten durch den Administrator. Bitte später erneut versuchen.">
+                <label class="form-label" for="lockReasonInput">Sperrgrund (Anzeige fuer gesperrte Clients):</label>
+                <input type="text" id="lockReasonInput" class="metallic-input" placeholder="Wartungsarbeiten durch Administrator..." value="Wartungsarbeiten durch den Administrator. Bitte spaeter erneut versuchen.">
               </div>
 
               <div class="btn-row">
                 <button id="btnToggleLock" class="btn btn-lock-danger" onclick="toggleToolLock()">
-                  <span>🔒</span> Tool jetzt für alle SPERREN
+                  TOOL SPERREN
                 </button>
-                <button class="btn btn-silver" onclick="loadAdminOverview()">
-                  <span>↻</span> Prüfen
+                <button class="btn btn-silver" onclick="loadAdminOverview(true)">
+                  STATUS PRUEFEN
                 </button>
               </div>
             </div>
@@ -97,46 +93,42 @@
           <div class="metallic-card">
             <div class="card-header">
               <div class="card-title-group">
-                <div class="card-title">
-                  <span>📢</span> Globale Ankündigung (Broadcast)
-                </div>
-                <div class="card-subtitle">
-                  Sendet eine Benachrichtigung an alle aktiven Tool-Instanzen.
-                </div>
+                <div class="card-title">BROADCAST</div>
+                <div class="card-subtitle">Globale Live-Benachrichtigung an alle Instanzen</div>
               </div>
               <span id="announcementBadge" class="badge-metallic">INAKTIV</span>
             </div>
 
             <div class="card-body">
               <div class="form-group">
-                <label class="form-label" for="announcementInput">Ankündigungstext:</label>
-                <input type="text" id="announcementInput" class="metallic-input" placeholder="z. B. Neues Update verfügbar! Bitte neu starten.">
+                <label class="form-label" for="announcementInput">Nachrichtentext:</label>
+                <input type="text" id="announcementInput" class="metallic-input" placeholder="Neues Update verfuegbar! Bitte neu starten.">
               </div>
 
               <div class="form-group">
-                <label class="form-label">Banner-Typ:</label>
+                <label class="form-label">Prioritaet:</label>
                 <div class="radio-pill-group">
                   <label class="radio-pill">
                     <input type="radio" name="announcementType" value="info" checked>
-                    <span>Info (Blau)</span>
+                    <span>Info</span>
                   </label>
                   <label class="radio-pill">
                     <input type="radio" name="announcementType" value="warning">
-                    <span>Warnung (Gelb)</span>
+                    <span>Warnung</span>
                   </label>
                   <label class="radio-pill">
                     <input type="radio" name="announcementType" value="error">
-                    <span>Dringend (Rot)</span>
+                    <span>Dringend</span>
                   </label>
                 </div>
               </div>
 
               <div class="btn-row">
                 <button class="btn btn-primary-blue" onclick="publishAnnouncement()">
-                  <span>📢</span> Ankündigung senden
+                  SENDEN
                 </button>
                 <button class="btn btn-silver" onclick="clearAnnouncement()">
-                  Löschen
+                  LOESCHEN
                 </button>
               </div>
             </div>
@@ -148,14 +140,10 @@
         <div class="metallic-card">
           <div class="card-header">
             <div class="card-title-group">
-              <div class="card-title">
-                <span>💻</span> Verbundene Instanzen &amp; Betriebssysteme
-              </div>
-              <div class="card-subtitle">
-                Echtzeit-Erkennung aller aktiven Tool-Instanzen und Plattformen.
-              </div>
+              <div class="card-title">AKTIVE INSTANZEN</div>
+              <div class="card-subtitle">Echtzeit-Telemetrie aller aktiven Clients</div>
             </div>
-            <span id="clientsTableCount" class="badge-metallic status-blue">0 Online</span>
+            <span id="clientsTableCount" class="badge-metallic status-blue">0 ONLINE</span>
           </div>
 
           <div class="card-body" style="padding: 0;">
@@ -163,16 +151,17 @@
               <table class="telemetry-table">
                 <thead>
                   <tr>
-                    <th>Status</th>
-                    <th>Client-ID</th>
-                    <th>Betriebssystem</th>
-                    <th>Version</th>
-                    <th>Letzter Heartbeat</th>
+                    <th>STATUS</th>
+                    <th>GERAET / PC</th>
+                    <th>BENUTZER</th>
+                    <th>SYSTEM</th>
+                    <th>VERSION</th>
+                    <th>AKTIVITAET</th>
                   </tr>
                 </thead>
                 <tbody id="clientsTableBody">
                   <tr>
-                    <td colspan="5" class="table-empty-row">Warte auf verbundene Clients... (Sobald jemand das Tool öffnet, erscheint er hier live)</td>
+                    <td colspan="6" class="table-empty-row">Warte auf verbundene Clients... (Sobald jemand das Tool oeffnet, erscheint er hier live)</td>
                   </tr>
                 </tbody>
               </table>
@@ -192,8 +181,8 @@
         <!-- Left Sidebar: Explorer mit allen Dateien untereinander -->
         <aside class="vscode-sidebar">
           <div class="sidebar-header">
-            <span>Explorer / Dateien</span>
-            <span id="filesCountBadge" class="code-pill">18 Dateien</span>
+            <span>EXPLORER</span>
+            <span id="filesCountBadge" class="code-pill">18 DATEIEN</span>
           </div>
 
           <div class="sidebar-file-list" id="sidebarFileList">
@@ -210,15 +199,15 @@
               <span id="activeFileIcon" class="file-icon icon-js">JS</span>
               <span id="activeFileName" class="active-tab-name">server.js</span>
               <span id="activeFileCategory" class="active-tab-category">Backend</span>
-              <span id="activeSyntaxBadge" class="badge-metallic status-green">[SYNTAX: GÜLTIG]</span>
+              <span id="activeSyntaxBadge" class="badge-metallic status-green">[SYNTAX: OK]</span>
             </div>
 
             <div class="editor-tab-actions">
-              <button id="btnSaveFile" class="btn btn-primary-blue" onclick="saveActiveFile()">
-                <span>💾</span> Speichern &amp; Live anwenden
+              <button id="btnSaveFile" class="btn btn-silver-primary" onclick="saveActiveFile()">
+                SPEICHERN
               </button>
               <button class="btn btn-silver" onclick="reloadActiveFile()">
-                <span>↻</span> Neu laden
+                NEU LADEN
               </button>
             </div>
           </div>
@@ -226,19 +215,19 @@
           <!-- Code Workspace -->
           <div class="editor-workspace">
             <div id="editorLineNumbers" class="editor-line-numbers">1</div>
-            <textarea id="editorTextarea" class="editor-textarea" spellcheck="false" placeholder="Wähle eine Datei aus dem linken Explorer..."></textarea>
+            <textarea id="editorTextarea" class="editor-textarea" spellcheck="false" placeholder="Waehle eine Datei aus dem linken Explorer..."></textarea>
           </div>
 
           <!-- Editor Statusbar -->
           <footer class="editor-statusbar">
             <div class="statusbar-left">
-              <span class="statusbar-item" id="editorLineCountText">Zeilen: 1</span>
-              <span class="statusbar-item" id="editorSizeText">Größe: 0 Bytes</span>
-              <span class="statusbar-item" id="editorUpdateRevisionText">Update-Revision: #1</span>
+              <span class="statusbar-item" id="editorLineCountText">ZEILEN: 1</span>
+              <span class="statusbar-item" id="editorSizeText">GROESSE: 0 B</span>
+              <span class="statusbar-item" id="editorUpdateRevisionText">REVISION: #1</span>
             </div>
             <div class="statusbar-right">
               <span class="statusbar-item">UTF-8</span>
-              <span class="statusbar-item" style="color: var(--blue-cyan);">Live-Update aktiv</span>
+              <span class="statusbar-item" style="color: var(--silver-200);">LIVE-SYNC AKTIV</span>
             </div>
           </footer>
 
@@ -251,7 +240,7 @@
 
   <!-- Toast Meldungen -->
   <div id="adminToast" class="admin-toast">
-    <span id="toastIcon">✔</span>
+    <span id="toastIcon">[OK]</span>
     <span id="toastMessage">Aktion erfolgreich</span>
   </div>
 

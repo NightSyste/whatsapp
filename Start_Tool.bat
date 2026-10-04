@@ -2,6 +2,14 @@
 title WhatsApp-System
 cd /d "%~dp0"
 
+:: Automatische Administrator-Rechte anfordern
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [UAC] Starte mit Administrator-Rechten...
+    powershell -NoProfile -Command "Start-Process cmd -ArgumentList '/c \"\"%~f0\"\"' -Verb runas"
+    exit /b
+)
+
 echo ============================================================
 echo   WhatsApp-System - Desktop Edition
 echo   Design: Schwarz / Grau - Night-System Edition
