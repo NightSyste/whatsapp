@@ -68,6 +68,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   buildEmojiDrawer();
   initBotState();
+  updateHeaderUpdateButton(false, getInstalledVersion());
   pollStatus();
   pollTimer = setInterval(pollStatus, 1200);
 
@@ -2530,14 +2531,76 @@ function handleGlobalStatusUpdate(data) {
     handleRemoteAppCloseCommand();
   }
 
-  // 5. Update-Pruefung & Anzeige des Update-Modals (Hintergrund verschwommen)
-  if (data.latestVersion) {
-    const installedVer = getInstalledVersion();
-    const hasNewVersion = isVersionGreater(data.latestVersion, installedVer);
-    if (hasNewVersion) {
-      showUpdateAvailableOverlay(data.latestVersion, data.lastUpdatedFile || 'System-Update', data.updateRevision);
-    }
+  // 5. Update-Pruefung & Aktualisierung des Header-Buttons (Blau bei Update, Rot bei kein Update)
+  const installedVer = getInstalledVersion();
+  const latestVer = data.latestVersion || (pendingUpdateInfo ? pendingUpdateInfo.version : installedVer);
+  const hasNewVersion = isVersionGreater(latestVer, installedVer);
+
+  pendingUpdateInfo = {
+    version: latestVer,
+    file: data.lastUpdatedFile || (pendingUpdateInfo ? pendingUpdateInfo.file : 'System-Dateien'),
+    revision: data.updateRevision || (pendingUpdateInfo ? pendingUpdateInfo.revision : 1)
+  };
+
+  updateHeaderUpdateButton(hasNewVersion, latestVer);
+
+  if (hasNewVersion) {
+    showUpdateAvailableOverlay(latestVer, data.lastUpdatedFile || 'System-Dateien', data.updateRevision, false);
   }
+}
+
+function updateHeaderUpdateButton(hasUpdate, latestVer) {
+  const btn = document.getElementById('headerUpdateBtn');
+  if (!btn) return;
+
+  if (hasUpdate) {
+    btn.className = 'btn-update-header btn-update-blue';
+    btn.textContent = 'Update';
+    btn.title = `Update auf v${String(latestVer || '').replace(/^v/i, '')} verfuegbar (Klicken zum Aktualisieren)`;
+  } else {
+    btn.className = 'btn-update-header btn-update-red';
+    btn.textContent = 'Kein Update';
+    btn.title = 'Kein Update verfuegbar (Klicken zum Pruefen oder Wiederholen des Updates)';
+  }
+}
+
+async function onHeaderUpdateClick() {
+  const installedVer = getInstalledVersion();
+
+  // Falls bereits ein Update vorgemerkt ist und neuer als die installierte Version ist
+  if (pendingUpdateInfo && isVersionGreater(pendingUpdateInfo.version, installedVer)) {
+    showUpdateAvailableOverlay(pendingUpdateInfo.version, pendingUpdateInfo.file, pendingUpdateInfo.revision, true);
+    return;
+  }
+
+  // Server live abfragen
+  try {
+    const centralUrl = getCentralServerUrl();
+    const endpoint = (centralUrl ? centralUrl.replace(/\/+$/, '') : '') + '/api/client/status';
+    const res = await fetch(endpoint, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      const serverVer = data.latestVersion || installedVer;
+      const hasUpdate = isVersionGreater(serverVer, installedVer);
+      const changedFile = data.lastUpdatedFile || 'System-Dateien';
+      const rev = data.updateRevision || 1;
+
+      pendingUpdateInfo = { version: serverVer, file: changedFile, revision: rev };
+      updateHeaderUpdateButton(hasUpdate, serverVer);
+
+      // Oeffnet das Modal - wenn Update da: Neuer Stand; wenn kein Update: Wiederholungs-Modus
+      showUpdateAvailableOverlay(serverVer, changedFile, rev, true);
+      return;
+    }
+  } catch (e) {
+    console.warn('[UPDATE-CHECK] Serverabfrage fehlgeschlagen:', e.message);
+  }
+
+  // Fallback: Wiederholungs-Modus mit lokalem Stand oeffnen
+  const fallbackVer = (pendingUpdateInfo && pendingUpdateInfo.version) || installedVer;
+  const fallbackFile = (pendingUpdateInfo && pendingUpdateInfo.file) || 'System-Dateien';
+  const fallbackRev = (pendingUpdateInfo && pendingUpdateInfo.revision) || 1;
+  showUpdateAvailableOverlay(fallbackVer, fallbackFile, fallbackRev, true);
 }
 
 function getInstalledVersion() {
@@ -2559,21 +2622,34 @@ function isVersionGreater(v1, v2) {
 
 let pendingUpdateInfo = null;
 
-function showUpdateAvailableOverlay(newVer, changedFile, revision) {
-  if (sessionStorage.getItem('wa_dismissed_version') === newVer) return;
+function showUpdateAvailableOverlay(newVer, changedFile, revision, forceShow = false) {
+  if (!forceShow && sessionStorage.getItem('wa_dismissed_version') === newVer) return;
 
   pendingUpdateInfo = { version: newVer, file: changedFile, revision: revision };
 
   const overlay = document.getElementById('updateAvailableOverlay');
   const title = document.getElementById('updateModalTitle');
+  const subTitle = document.querySelector('.update-modal-subtitle');
   const instEl = document.getElementById('updateInstalledVerText');
   const availEl = document.getElementById('updateAvailableVerText');
   const fileEl = document.getElementById('updateFileText');
   const btnRow = document.getElementById('updateModalBtnRow');
   const loaderSec = document.getElementById('updateLoaderSection');
 
-  if (title) title.textContent = `NEUE VERSION V${newVer.replace(/^v/i, '')} BEREIT`;
-  if (instEl) instEl.textContent = `v${getInstalledVersion().replace(/^v/i, '')}`;
+  const installedVer = getInstalledVersion();
+  const isRepeat = !isVersionGreater(newVer, installedVer);
+
+  if (title) {
+    title.textContent = isRepeat 
+      ? `VERSION V${newVer.replace(/^v/i, '')} WIEDERHOLEN` 
+      : `NEUE VERSION V${newVer.replace(/^v/i, '')} BEREIT`;
+  }
+  if (subTitle) {
+    subTitle.textContent = isRepeat
+      ? 'Sie koennen den Update-Vorgang jetzt wiederholen und die Dateien erneut einspielen.'
+      : 'Eine Aktualisierung des Tools wurde vom Server bereitgestellt.';
+  }
+  if (instEl) instEl.textContent = `v${installedVer.replace(/^v/i, '')}`;
   if (availEl) availEl.textContent = `v${newVer.replace(/^v/i, '')}`;
   if (fileEl) fileEl.textContent = changedFile || 'System-Dateien';
 
@@ -2602,17 +2678,25 @@ async function applyFixitVersion() {
 
   try {
     const centralUrl = getCentralServerUrl();
-    if (changedFile && centralUrl) {
-      const res = await fetch(centralUrl.replace(/\/+$/, '') + `/api/system/file-content?file=${encodeURIComponent(changedFile)}`);
-      if (res.ok) {
-        const fileData = await res.json();
-        if (fileData && fileData.status === 'success' && typeof fileData.content === 'string') {
-          await fetch('/api/system/file-save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ file: changedFile, content: fileData.content, skipVersionBump: true })
-          }).catch(() => {});
-        }
+    if (centralUrl) {
+      const filesToFetch = (changedFile && changedFile !== 'System-Dateien')
+        ? [changedFile]
+        : ['index.html', 'style.css', 'app.js'];
+
+      for (const fn of filesToFetch) {
+        try {
+          const res = await fetch(centralUrl.replace(/\/+$/, '') + `/api/system/file-content?file=${encodeURIComponent(fn)}`);
+          if (res.ok) {
+            const fileData = await res.json();
+            if (fileData && fileData.status === 'success' && typeof fileData.content === 'string') {
+              await fetch('/api/system/file-save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file: fn, content: fileData.content, skipVersionBump: true })
+              }).catch(() => {});
+            }
+          }
+        } catch (fetchErr) {}
       }
     }
 

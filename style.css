@@ -383,36 +383,64 @@ header {
 }
 
 .btn-update-header {
+  font-family: inherit;
   font-size: 11px;
-  font-weight: 600;
-  padding: 4px 10px;
+  font-weight: 700;
+  padding: 4px 11px;
   border-radius: 4px;
-  background-color: #202020;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-medium);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   cursor: pointer;
   transition: all 0.2s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  text-decoration: none;
 }
 
-.btn-update-header:hover {
-  background-color: #2a2a2a;
-  color: #ffffff;
-  border-color: #555555;
+.btn-update-header.btn-update-red {
+  background: linear-gradient(180deg, rgba(220, 38, 38, 0.22) 0%, rgba(127, 29, 29, 0.38) 100%) !important;
+  border: 1px solid rgba(239, 68, 68, 0.8) !important;
+  color: #fee2e2 !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.28) !important;
 }
 
-.btn-update-header.has-update {
-  background-color: #14281a;
-  color: #00e676;
-  border-color: #00e676;
-  box-shadow: 0 0 10px rgba(0, 230, 118, 0.25);
-  font-weight: 700;
+.btn-update-header.btn-update-red:hover {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.4) 0%, rgba(185, 28, 28, 0.6) 100%) !important;
+  border-color: #f87171 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.5) !important;
 }
 
-.btn-update-header.has-update:hover {
-  background-color: #1c3824;
-  color: #69f0ae;
-  border-color: #69f0ae;
+.btn-update-header.btn-update-blue {
+  background: linear-gradient(180deg, rgba(2, 132, 199, 0.38) 0%, rgba(3, 105, 161, 0.65) 100%) !important;
+  border: 1px solid #38bdf8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.6), inset 0 0 8px rgba(56, 189, 248, 0.25) !important;
+  animation: updateBluePulse 2s infinite ease-in-out !important;
+}
+
+.btn-update-header.btn-update-blue:hover {
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.6) 0%, rgba(2, 132, 199, 0.85) 100%) !important;
+  border-color: #7dd3fc !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.9) !important;
+}
+
+@keyframes updateBluePulse {
+  0% {
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
+    border-color: rgba(56, 189, 248, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.85), inset 0 0 8px rgba(56, 189, 248, 0.35);
+    border-color: #38bdf8;
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
+    border-color: rgba(56, 189, 248, 0.7);
+  }
 }
 
 /* Navigation Tabs */
@@ -2003,38 +2031,6 @@ footer#statusbar {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.btn-update-header {
-  background: #152215 !important;
-  border: 1px solid #275227 !important;
-  color: #81c784 !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  padding: 4px 10px !important;
-  border-radius: 4px !important;
-  cursor: pointer !important;
-  transition: all 0.2s ease !important;
-  letter-spacing: 0.4px !important;
-}
-
-.btn-update-header:hover {
-  background: #234823 !important;
-  border-color: #4caf50 !important;
-  color: #ffffff !important;
-}
-
-.btn-update-header.update-available {
-  background: #284414 !important;
-  border-color: #6bb828 !important;
-  color: #c8e6c9 !important;
-  animation: updateGlow 2s infinite !important;
-}
-
-@keyframes updateGlow {
-  0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
-  70% { box-shadow: 0 0 0 6px rgba(76, 175, 80, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
 }
 
 .header-shutdown-btn {
