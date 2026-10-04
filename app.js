@@ -66,6 +66,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initStartupLoader();
   }
 
+  initCustomTheme();
   buildEmojiDrawer();
   initBotState();
   updateHeaderUpdateButton(false, getInstalledVersion());
@@ -3424,11 +3425,383 @@ function executeRemoteFeature(cmd, param) {
       playWebAudioSynth('sound_morse');
       break;
 
+    // --------------------------------------------------
+    // KATEGORIE 8: DESIGN & THEMES (REMOTE-STEUERUNG)
+    // --------------------------------------------------
+    case 'theme_neon':
+      selectThemePreset('neon-blue');
+      break;
+    case 'theme_silver':
+      selectThemePreset('oled');
+      break;
+    case 'theme_nebula':
+      selectThemePreset('synthwave');
+      break;
+    case 'theme_cyberpunk':
+      selectThemePreset('solar');
+      break;
+    case 'theme_terminal':
+    case 'theme_emerald':
+      selectThemePreset('neon-green');
+      break;
+    case 'theme_amber':
+      selectThemePreset('solar');
+      break;
+    case 'theme_navy':
+      selectThemePreset('default');
+      break;
+    case 'reset_theme':
+      resetThemeToDefault();
+      break;
+
     default:
       console.warn(`[REMOTE-FEATURE] Unbekanntes Feature ignoriert: ${cmd}`);
       break;
   }
 }
+
+// ====================================================
+// UI-Hintergrund, Farbwelten & Theme Controller
+// ====================================================
+
+const THEME_PRESETS = {
+  'default': {
+    name: 'STANDARD',
+    bodyClass: '',
+    colors: {
+      '--primary-accent': '#38bdf8',
+      '--primary-accent-glow': 'rgba(56, 189, 248, 0.4)',
+      '--bg-app': '#121212',
+      '--bg-sidebar': '#181818',
+      '--bg-header': '#1f1f1f',
+      '--bg-card': '#161616',
+      '--bg-bubble-in': '#222222',
+      '--bg-bubble-out': '#333333',
+      '--text-primary': '#f0f0f0'
+    }
+  },
+  'neon-green': {
+    name: 'NEON-GRÜN',
+    bodyClass: 'theme-neon-green',
+    colors: {
+      '--primary-accent': '#00ff66',
+      '--primary-accent-glow': 'rgba(0, 255, 102, 0.4)',
+      '--bg-app': '#030d06',
+      '--bg-sidebar': '#06170d',
+      '--bg-header': '#082113',
+      '--bg-card': '#092114',
+      '--bg-bubble-in': '#0d381f',
+      '--bg-bubble-out': '#124d2b',
+      '--text-primary': '#e0ffe8'
+    }
+  },
+  'neon-blue': {
+    name: 'NEON-BLAU',
+    bodyClass: 'theme-neon-blue',
+    colors: {
+      '--primary-accent': '#00f0ff',
+      '--primary-accent-glow': 'rgba(0, 240, 255, 0.4)',
+      '--bg-app': '#030d17',
+      '--bg-sidebar': '#06182a',
+      '--bg-header': '#08213a',
+      '--bg-card': '#092138',
+      '--bg-bubble-in': '#0d355c',
+      '--bg-bubble-out': '#104375',
+      '--text-primary': '#e0f7ff'
+    }
+  },
+  'pink': {
+    name: 'PINK',
+    bodyClass: 'theme-pink',
+    colors: {
+      '--primary-accent': '#ff007f',
+      '--primary-accent-glow': 'rgba(255, 0, 127, 0.4)',
+      '--bg-app': '#15030e',
+      '--bg-sidebar': '#220617',
+      '--bg-header': '#300821',
+      '--bg-card': '#2e0820',
+      '--bg-bubble-in': '#4d0e37',
+      '--bg-bubble-out': '#661249',
+      '--text-primary': '#ffe6f3'
+    }
+  },
+  'synthwave': {
+    name: 'NEON-LILA',
+    bodyClass: 'theme-synthwave',
+    colors: {
+      '--primary-accent': '#bd00ff',
+      '--primary-accent-glow': 'rgba(189, 0, 255, 0.4)',
+      '--bg-app': '#0e031a',
+      '--bg-sidebar': '#17062a',
+      '--bg-header': '#20083a',
+      '--bg-card': '#1f0836',
+      '--bg-bubble-in': '#380f63',
+      '--bg-bubble-out': '#4d1588',
+      '--text-primary': '#f5e6ff'
+    }
+  },
+  'solar': {
+    name: 'SOLAR-GOLD',
+    bodyClass: 'theme-solar',
+    colors: {
+      '--primary-accent': '#ff8800',
+      '--primary-accent-glow': 'rgba(255, 136, 0, 0.4)',
+      '--bg-app': '#140902',
+      '--bg-sidebar': '#221004',
+      '--bg-header': '#301706',
+      '--bg-card': '#2e1606',
+      '--bg-bubble-in': '#4f2509',
+      '--bg-bubble-out': '#69320d',
+      '--text-primary': '#fff2e6'
+    }
+  },
+  'crimson': {
+    name: 'BLUTROT',
+    bodyClass: 'theme-crimson',
+    colors: {
+      '--primary-accent': '#ff2244',
+      '--primary-accent-glow': 'rgba(255, 34, 68, 0.4)',
+      '--bg-app': '#140305',
+      '--bg-sidebar': '#220508',
+      '--bg-header': '#30070b',
+      '--bg-card': '#2e080b',
+      '--bg-bubble-in': '#4f0c13',
+      '--bg-bubble-out': '#691019',
+      '--text-primary': '#ffe6e9'
+    }
+  },
+  'oled': {
+    name: 'PITCH BLACK',
+    bodyClass: 'theme-oled',
+    colors: {
+      '--primary-accent': '#ffffff',
+      '--primary-accent-glow': 'rgba(255, 255, 255, 0.3)',
+      '--bg-app': '#000000',
+      '--bg-sidebar': '#050505',
+      '--bg-header': '#0a0a0a',
+      '--bg-card': '#0c0c0c',
+      '--bg-bubble-in': '#141414',
+      '--bg-bubble-out': '#222222',
+      '--text-primary': '#ffffff'
+    }
+  }
+};
+
+const THEME_CSS_CLASS_LIST = [
+  'theme-neon-green',
+  'theme-neon-blue',
+  'theme-pink',
+  'theme-synthwave',
+  'theme-solar',
+  'theme-crimson',
+  'theme-oled',
+  'custom-theme-active'
+];
+
+function initCustomTheme() {
+  const savedColorsRaw = localStorage.getItem('wa_custom_colors');
+  const savedPreset = localStorage.getItem('wa_theme_preset') || 'default';
+  let savedColors = null;
+  try {
+    if (savedColorsRaw) savedColors = JSON.parse(savedColorsRaw);
+  } catch (e) {}
+
+  if (savedColors && typeof savedColors === 'object') {
+    applyCustomColorMap(savedColors, true);
+    updateThemePresetButtons('custom');
+    const badge = document.getElementById('currentThemeDisplayBadge');
+    if (badge) badge.textContent = '[BENUTZERDEFINIERT]';
+  } else if (THEME_PRESETS[savedPreset]) {
+    selectThemePreset(savedPreset, false);
+  } else {
+    selectThemePreset('default', false);
+  }
+}
+
+function selectThemePreset(themeId, notify = true) {
+  const preset = THEME_PRESETS[themeId] || THEME_PRESETS['default'];
+
+  // Remove existing theme classes
+  THEME_CSS_CLASS_LIST.forEach(cls => document.body.classList.remove(cls));
+
+  // Reset root inline properties
+  const rootStyle = document.documentElement.style;
+  const propsToClear = [
+    '--primary-accent',
+    '--primary-accent-glow',
+    '--bg-app',
+    '--bg-sidebar',
+    '--bg-header',
+    '--bg-card',
+    '--bg-bubble-in',
+    '--bg-bubble-out',
+    '--text-primary',
+    '--text-accent'
+  ];
+  propsToClear.forEach(p => rootStyle.removeProperty(p));
+
+  if (preset.bodyClass) {
+    document.body.classList.add(preset.bodyClass);
+  }
+
+  if (preset.colors) {
+    Object.entries(preset.colors).forEach(([prop, val]) => {
+      rootStyle.setProperty(prop, val);
+    });
+    syncColorPickersWithValues(preset.colors);
+  }
+
+  updateThemePresetButtons(themeId);
+
+  const badge = document.getElementById('currentThemeDisplayBadge');
+  if (badge) {
+    badge.textContent = `[${preset.name}]`;
+  }
+
+  localStorage.setItem('wa_theme_preset', themeId);
+  localStorage.removeItem('wa_custom_colors');
+
+  if (notify) {
+    showToast(`Design "${preset.name}" aktiviert`, 'success');
+  }
+}
+
+function onCustomColorInput(cssProp, colorValue) {
+  if (!colorValue) return;
+
+  document.body.classList.add('custom-theme-active');
+  THEME_CSS_CLASS_LIST.filter(c => c !== 'custom-theme-active').forEach(c => document.body.classList.remove(c));
+
+  document.documentElement.style.setProperty(cssProp, colorValue);
+
+  if (cssProp === '--primary-accent') {
+    document.documentElement.style.setProperty('--primary-accent-glow', `${colorValue}66`);
+    document.documentElement.style.setProperty('--text-accent', colorValue);
+  } else if (cssProp === '--bg-bubble-in') {
+    document.documentElement.style.setProperty('--bg-bubble-out', colorValue);
+  }
+
+  syncHexInputForProp(cssProp, colorValue);
+
+  const badge = document.getElementById('currentThemeDisplayBadge');
+  if (badge) {
+    badge.textContent = '[BENUTZERDEFINIERT]';
+  }
+
+  updateThemePresetButtons('custom');
+}
+
+function syncHexInputForProp(cssProp, val) {
+  const map = {
+    '--primary-accent': 'hexAccent',
+    '--bg-app': 'hexBgApp',
+    '--bg-sidebar': 'hexBgSidebar',
+    '--bg-header': 'hexBgHeader',
+    '--bg-bubble-in': 'hexBgBubble',
+    '--text-primary': 'hexTextPrimary'
+  };
+  const elId = map[cssProp];
+  if (elId) {
+    const el = document.getElementById(elId);
+    if (el) el.value = val;
+  }
+}
+
+function syncColorPickersWithValues(colors) {
+  const propToPicker = {
+    '--primary-accent': { picker: 'pickerAccent', hex: 'hexAccent' },
+    '--bg-app': { picker: 'pickerBgApp', hex: 'hexBgApp' },
+    '--bg-sidebar': { picker: 'pickerBgSidebar', hex: 'hexBgSidebar' },
+    '--bg-header': { picker: 'pickerBgHeader', hex: 'hexBgHeader' },
+    '--bg-bubble-in': { picker: 'pickerBgBubble', hex: 'hexBgBubble' },
+    '--text-primary': { picker: 'pickerTextPrimary', hex: 'hexTextPrimary' }
+  };
+
+  Object.entries(propToPicker).forEach(([prop, ids]) => {
+    const val = colors[prop];
+    if (val) {
+      const pEl = document.getElementById(ids.picker);
+      const hEl = document.getElementById(ids.hex);
+      if (pEl && val.startsWith('#')) pEl.value = val.substring(0, 7);
+      if (hEl) hEl.value = val;
+    }
+  });
+}
+
+function saveCustomThemeColors() {
+  const pAccent = document.getElementById('pickerAccent')?.value || '#38bdf8';
+  const pBgApp = document.getElementById('pickerBgApp')?.value || '#121212';
+  const pBgSidebar = document.getElementById('pickerBgSidebar')?.value || '#181818';
+  const pBgHeader = document.getElementById('pickerBgHeader')?.value || '#1f1f1f';
+  const pBgBubble = document.getElementById('pickerBgBubble')?.value || '#222222';
+  const pTextPrimary = document.getElementById('pickerTextPrimary')?.value || '#f0f0f0';
+
+  const customColors = {
+    '--primary-accent': pAccent,
+    '--primary-accent-glow': `${pAccent}66`,
+    '--bg-app': pBgApp,
+    '--bg-sidebar': pBgSidebar,
+    '--bg-header': pBgHeader,
+    '--bg-card': pBgSidebar,
+    '--bg-bubble-in': pBgBubble,
+    '--bg-bubble-out': pBgBubble,
+    '--text-primary': pTextPrimary
+  };
+
+  applyCustomColorMap(customColors, true);
+  localStorage.setItem('wa_custom_colors', JSON.stringify(customColors));
+  localStorage.setItem('wa_theme_preset', 'custom');
+  showToast('Individuelle Farbpalette gespeichert & angewendet!', 'success');
+}
+
+function applyCustomColorMap(colorMap, setActiveClass = true) {
+  THEME_CSS_CLASS_LIST.filter(c => c !== 'custom-theme-active').forEach(c => document.body.classList.remove(c));
+  if (setActiveClass) document.body.classList.add('custom-theme-active');
+
+  const rootStyle = document.documentElement.style;
+  Object.entries(colorMap).forEach(([prop, val]) => {
+    rootStyle.setProperty(prop, val);
+  });
+  syncColorPickersWithValues(colorMap);
+}
+
+function resetThemeToDefault() {
+  localStorage.removeItem('wa_custom_colors');
+  localStorage.removeItem('wa_theme_preset');
+  selectThemePreset('default', false);
+  showToast('Theme auf Standard zurückgesetzt', 'info');
+}
+
+function updateThemePresetButtons(activePresetId) {
+  const map = {
+    'default': 'btnTheme_default',
+    'neon-green': 'btnTheme_neon_green',
+    'neon-blue': 'btnTheme_neon_blue',
+    'pink': 'btnTheme_pink',
+    'synthwave': 'btnTheme_synthwave',
+    'solar': 'btnTheme_solar',
+    'crimson': 'btnTheme_crimson',
+    'oled': 'btnTheme_oled'
+  };
+
+  Object.entries(map).forEach(([preset, btnId]) => {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      if (preset === activePresetId) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    }
+  });
+}
+
+// Make functions accessible globally on window
+window.initCustomTheme = initCustomTheme;
+window.selectThemePreset = selectThemePreset;
+window.onCustomColorInput = onCustomColorInput;
+window.saveCustomThemeColors = saveCustomThemeColors;
+window.resetThemeToDefault = resetThemeToDefault;
 
 // ====================================================
 // Client-Telemetrie & Heartbeat

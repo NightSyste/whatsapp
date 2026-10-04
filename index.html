@@ -601,6 +601,113 @@
               <div class="panel-desc" data-i18n="settings_desc">Passen Sie Systemsprache, Schnittstellen und Parameter des Night-Systems an.</div>
             </div>
 
+            <!-- UI-Hintergrund & Farbanpassung Kachel -->
+            <div class="settings-section-card">
+              <div class="settings-card-header">
+                <span class="settings-card-title">UI-Hintergrund, Farbwelten &amp; Themes</span>
+                <span id="currentThemeDisplayBadge" class="status-badge">[STANDARD]</span>
+              </div>
+              <p class="settings-card-desc">
+                Passen Sie das gesamte WhatsApp-Tool an Ihre Wunschfarben an (Neon-Gruen, Neon-Blau, Pink oder voellig freie Farbwahl):
+              </p>
+
+              <!-- Schnell-Presets -->
+              <div class="theme-presets-grid" id="themePresetsGrid">
+                <button class="theme-preset-btn active" id="btnTheme_default" onclick="selectThemePreset('default')">
+                  <span class="theme-color-dot" style="background: #38bdf8;"></span>
+                  <span>Standard</span>
+                </button>
+                <button class="theme-preset-btn" id="btnTheme_neon_green" onclick="selectThemePreset('neon-green')">
+                  <span class="theme-color-dot" style="background: #00ff66;"></span>
+                  <span>Neon-Gruen</span>
+                </button>
+                <button class="theme-preset-btn" id="btnTheme_neon_blue" onclick="selectThemePreset('neon-blue')">
+                  <span class="theme-color-dot" style="background: #00f0ff;"></span>
+                  <span>Neon-Blau</span>
+                </button>
+                <button class="theme-preset-btn" id="btnTheme_pink" onclick="selectThemePreset('pink')">
+                  <span class="theme-color-dot" style="background: #ff007f;"></span>
+                  <span>Pink</span>
+                </button>
+                <button class="theme-preset-btn" id="btnTheme_synthwave" onclick="selectThemePreset('synthwave')">
+                  <span class="theme-color-dot" style="background: #bd00ff;"></span>
+                  <span>Neon-Lila</span>
+                </button>
+                <button class="theme-preset-btn" id="btnTheme_solar" onclick="selectThemePreset('solar')">
+                  <span class="theme-color-dot" style="background: #ff8800;"></span>
+                  <span>Solar-Gold</span>
+                </button>
+                <button class="theme-preset-btn" id="btnTheme_crimson" onclick="selectThemePreset('crimson')">
+                  <span class="theme-color-dot" style="background: #ff2244;"></span>
+                  <span>Blutrot</span>
+                </button>
+                <button class="theme-preset-btn" id="btnTheme_oled" onclick="selectThemePreset('oled')">
+                  <span class="theme-color-dot" style="background: #111111; border-color: #ffffff;"></span>
+                  <span>Pitch Black</span>
+                </button>
+              </div>
+
+              <!-- Freie Farbwahl (Custom Color Picker fuer alle Bereiche) -->
+              <div class="theme-pickers-layout">
+                <div class="theme-picker-item">
+                  <span class="theme-picker-label">Akzent &amp; Buttons:</span>
+                  <div class="theme-picker-control">
+                    <input type="color" id="pickerAccent" class="theme-color-input" value="#38bdf8" oninput="onCustomColorInput('--primary-accent', this.value)">
+                    <input type="text" id="hexAccent" class="theme-hex-input" value="#38bdf8" readonly>
+                  </div>
+                </div>
+
+                <div class="theme-picker-item">
+                  <span class="theme-picker-label">App-Hintergrund:</span>
+                  <div class="theme-picker-control">
+                    <input type="color" id="pickerBgApp" class="theme-color-input" value="#121212" oninput="onCustomColorInput('--bg-app', this.value)">
+                    <input type="text" id="hexBgApp" class="theme-hex-input" value="#121212" readonly>
+                  </div>
+                </div>
+
+                <div class="theme-picker-item">
+                  <span class="theme-picker-label">Sidebar &amp; Leisten:</span>
+                  <div class="theme-picker-control">
+                    <input type="color" id="pickerBgSidebar" class="theme-color-input" value="#181818" oninput="onCustomColorInput('--bg-sidebar', this.value)">
+                    <input type="text" id="hexBgSidebar" class="theme-hex-input" value="#181818" readonly>
+                  </div>
+                </div>
+
+                <div class="theme-picker-item">
+                  <span class="theme-picker-label">Header-Hintergrund:</span>
+                  <div class="theme-picker-control">
+                    <input type="color" id="pickerBgHeader" class="theme-color-input" value="#1f1f1f" oninput="onCustomColorInput('--bg-header', this.value)">
+                    <input type="text" id="hexBgHeader" class="theme-hex-input" value="#1f1f1f" readonly>
+                  </div>
+                </div>
+
+                <div class="theme-picker-item">
+                  <span class="theme-picker-label">Chat-Sprechblasen:</span>
+                  <div class="theme-picker-control">
+                    <input type="color" id="pickerBgBubble" class="theme-color-input" value="#222222" oninput="onCustomColorInput('--bg-bubble-in', this.value)">
+                    <input type="text" id="hexBgBubble" class="theme-hex-input" value="#222222" readonly>
+                  </div>
+                </div>
+
+                <div class="theme-picker-item">
+                  <span class="theme-picker-label">Schriftfarbe:</span>
+                  <div class="theme-picker-control">
+                    <input type="color" id="pickerTextPrimary" class="theme-color-input" value="#f0f0f0" oninput="onCustomColorInput('--text-primary', this.value)">
+                    <input type="text" id="hexTextPrimary" class="theme-hex-input" value="#f0f0f0" readonly>
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top: 12px; display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="saveCustomThemeColors()">
+                  FARBEN SPEICHERN
+                </button>
+                <button class="btn btn-secondary" onclick="resetThemeToDefault()">
+                  ZURUECKSETZEN AUF STANDARD
+                </button>
+              </div>
+            </div>
+
             <!-- Sprachauswahl Kachel -->
             <div class="settings-section-card">
               <div class="settings-card-header">

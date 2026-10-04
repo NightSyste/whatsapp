@@ -1120,7 +1120,7 @@ function getAdminState() {
     try {
         if (fs.existsSync(ADMIN_STATE_FILE)) {
             const parsed = JSON.parse(fs.readFileSync(ADMIN_STATE_FILE, 'utf8'));
-            if (!parsed.currentVersion) parsed.currentVersion = '1.0.0';
+            if (!parsed.currentVersion) parsed.currentVersion = '1.0.2';
             return parsed;
         }
     } catch (e) {}
@@ -1129,10 +1129,15 @@ function getAdminState() {
         lockReason: 'Wartungsarbeiten durch den Administrator. Bitte später erneut versuchen.',
         announcement: '',
         announcementType: 'info',
-        currentVersion: '1.0.0',
-        updateRevision: 1,
+        currentVersion: '1.0.2',
+        updateRevision: 3,
         lastUpdateTimestamp: Date.now(),
-        lastUpdatedFile: '',
+        lastUpdatedFile: 'index.html, style.css, app.js',
+        changelog: [
+            'v1.0.2: UI-Hintergrund & Farbanpassung in Settings (Neon-Grün, Neon-Blau, Pink, Pitch Black & freie Farbwahl)',
+            'v1.0.2: Vollstaendige Farbsteuerung aller Tool-Komponenten (Akzente, Hintergruende, Leisten, Chat-Blasen)',
+            'v1.0.2: Remote-Designsteuerung ueber Web-Dashboard integriert'
+        ],
         clients: {}
     };
 }
