@@ -749,6 +749,60 @@
     </div>
   </div>
 
+  <!-- ==================================================================== -->
+  <!-- MODAL: UPDATE VERFUEGBAR (FIXIT-VERSION / ALTE WEITERBENUTZEN)       -->
+  <!-- ==================================================================== -->
+  <div id="updateAvailableOverlay" class="update-modal-overlay" style="display: none;">
+    <div class="update-modal-card">
+      <div class="update-modal-header">
+        <span class="badge-metallic status-blue">[UPDATE VERFUEGBAR]</span>
+        <h2 class="update-modal-title" id="updateModalTitle">NEUE VERSION BEREIT</h2>
+        <p class="update-modal-subtitle">Eine Aktualisierung des Tools wurde vom Server bereitgestellt.</p>
+      </div>
+
+      <div class="update-modal-body">
+        <div class="update-version-row">
+          <div class="update-ver-box">
+            <span class="update-ver-lbl">INSTALLIERT:</span>
+            <span class="update-ver-val val-dim" id="updateInstalledVerText">v1.0.0</span>
+          </div>
+          <div class="update-ver-arrow">&rarr;</div>
+          <div class="update-ver-box">
+            <span class="update-ver-lbl">VERFUEGBAR:</span>
+            <span class="update-ver-val val-glow" id="updateAvailableVerText">v1.0.1</span>
+          </div>
+        </div>
+
+        <div class="update-file-row" id="updateFileRow">
+          <span class="update-file-lbl">GEAENDERTE DATEI:</span>
+          <span class="update-file-val" id="updateFileText">README.md</span>
+        </div>
+
+        <p class="update-modal-desc">
+          Sie koennen die neue Version jetzt automatisch anwenden und das Tool aktualisieren, oder die bisherige Version weiterbenutzen.
+        </p>
+
+        <!-- Animated Loader (wird waehrend der Aktualisierung eingeblendet) -->
+        <div id="updateLoaderSection" class="update-loader-section" style="display: none;">
+          <div class="update-spinner"></div>
+          <div class="update-loader-text-group">
+            <span class="update-loader-title">AKTUALISIERE DATEIEN...</span>
+            <span class="update-loader-desc">Version wird eingespielt. Tool startet gleich neu...</span>
+          </div>
+        </div>
+
+        <div id="updateModalBtnRow" class="update-modal-btn-row">
+          <button class="btn btn-primary-blue update-action-btn" onclick="applyFixitVersion()">
+            FIXIT-VERSION
+          </button>
+          <button class="btn btn-silver update-action-btn" onclick="keepOldVersion()">
+            ALTE WEITERBENUTZEN
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="translations.js"></script>
   <script src="app.js"></script>
 </body>

@@ -115,6 +115,14 @@ async function loadAdminOverview(showToastNotification = false) {
     const platBadge = document.getElementById('headerPlatformBadge');
     const headLockBadge = document.getElementById('headerLockBadge');
     const headClientsBadge = document.getElementById('headerClientsBadge');
+    const headVersionBadge = document.getElementById('headerVersionBadge');
+
+    if (data.latestVersion) {
+      latestAdminVersion = data.latestVersion;
+      if (headVersionBadge) {
+        headVersionBadge.textContent = `VERSION: v${data.latestVersion.replace(/^v/i, '')}`;
+      }
+    }
 
     if (platBadge) {
       platBadge.textContent = data.isCloud ? `RENDER CLOUD (${data.platform})` : `LOKAL (${data.platform})`;
@@ -315,6 +323,13 @@ function renderClientsTable(clients) {
     const isAllowed = c.allowed !== false;
     const hasPendingStart = c.pendingCommand === 'start_app';
 
+    const clientVer = c.version ? c.version.replace(/^v/i, '') : '1.0.0';
+    const latestVer = (latestAdminVersion ? latestAdminVersion.replace(/^v/i, '') : '1.0.0');
+    const isLatest = clientVer === latestVer;
+    const versionBadgeHtml = isLatest
+      ? `<span class="code-pill status-green-pill">v${escapeHtml(clientVer)} [AKTUELL]</span>`
+      : `<span class="code-pill status-yellow-pill" title="Update v${latestVer} verfuegbar">v${escapeHtml(clientVer)} [UPDATE BEREIT]</span>`;
+
     return `
       <tr>
         <td>
@@ -325,7 +340,7 @@ function renderClientsTable(clients) {
         <td><span class="code-pill bold-silver">${escapeHtml(pcName)}</span></td>
         <td><span class="user-pill">${escapeHtml(user)}</span></td>
         <td><strong style="color: #f1f5f9;">${escapeHtml(c.os)}</strong></td>
-        <td><span class="code-pill">v${escapeHtml(c.version)}</span></td>
+        <td>${versionBadgeHtml}</td>
         <td style="color: var(--silver-400); font-family: var(--font-mono); font-size: 11.5px;">${ago}</td>
         <td>
           <div class="table-btn-group">

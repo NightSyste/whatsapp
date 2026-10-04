@@ -2529,6 +2529,104 @@ function handleGlobalStatusUpdate(data) {
   } else if (data.command === 'close_app') {
     handleRemoteAppCloseCommand();
   }
+
+  // 5. Update-Pruefung & Anzeige des Update-Modals (Hintergrund verschwommen)
+  if (data.latestVersion) {
+    const installedVer = getInstalledVersion();
+    const hasNewVersion = isVersionGreater(data.latestVersion, installedVer);
+    if (hasNewVersion) {
+      showUpdateAvailableOverlay(data.latestVersion, data.lastUpdatedFile || 'System-Update', data.updateRevision);
+    }
+  }
+}
+
+function getInstalledVersion() {
+  return localStorage.getItem('wa_installed_version') || '1.0.0';
+}
+
+function isVersionGreater(v1, v2) {
+  if (!v1 || !v2) return false;
+  const p1 = String(v1).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+  const p2 = String(v2).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+    const n1 = p1[i] || 0;
+    const n2 = p2[i] || 0;
+    if (n1 > n2) return true;
+    if (n1 < n2) return false;
+  }
+  return false;
+}
+
+let pendingUpdateInfo = null;
+
+function showUpdateAvailableOverlay(newVer, changedFile, revision) {
+  if (sessionStorage.getItem('wa_dismissed_version') === newVer) return;
+
+  pendingUpdateInfo = { version: newVer, file: changedFile, revision: revision };
+
+  const overlay = document.getElementById('updateAvailableOverlay');
+  const title = document.getElementById('updateModalTitle');
+  const instEl = document.getElementById('updateInstalledVerText');
+  const availEl = document.getElementById('updateAvailableVerText');
+  const fileEl = document.getElementById('updateFileText');
+  const btnRow = document.getElementById('updateModalBtnRow');
+  const loaderSec = document.getElementById('updateLoaderSection');
+
+  if (title) title.textContent = `NEUE VERSION V${newVer.replace(/^v/i, '')} BEREIT`;
+  if (instEl) instEl.textContent = `v${getInstalledVersion().replace(/^v/i, '')}`;
+  if (availEl) availEl.textContent = `v${newVer.replace(/^v/i, '')}`;
+  if (fileEl) fileEl.textContent = changedFile || 'System-Dateien';
+
+  if (btnRow) btnRow.style.display = 'flex';
+  if (loaderSec) loaderSec.style.display = 'none';
+  if (overlay) overlay.style.display = 'flex';
+}
+
+function keepOldVersion() {
+  const overlay = document.getElementById('updateAvailableOverlay');
+  if (overlay) overlay.style.display = 'none';
+  if (pendingUpdateInfo && pendingUpdateInfo.version) {
+    sessionStorage.setItem('wa_dismissed_version', pendingUpdateInfo.version);
+  }
+  showToast('Alte Version wird weiterbenutzt.', 'info');
+}
+
+async function applyFixitVersion() {
+  const btnRow = document.getElementById('updateModalBtnRow');
+  const loaderSec = document.getElementById('updateLoaderSection');
+  if (btnRow) btnRow.style.display = 'none';
+  if (loaderSec) loaderSec.style.display = 'flex';
+
+  const newVersion = (pendingUpdateInfo && pendingUpdateInfo.version) || '1.0.1';
+  const changedFile = (pendingUpdateInfo && pendingUpdateInfo.file) || '';
+
+  try {
+    const centralUrl = getCentralServerUrl();
+    if (changedFile && centralUrl) {
+      const res = await fetch(centralUrl.replace(/\/+$/, '') + `/api/system/file-content?file=${encodeURIComponent(changedFile)}`);
+      if (res.ok) {
+        const fileData = await res.json();
+        if (fileData && fileData.status === 'success' && typeof fileData.content === 'string') {
+          await fetch('/api/system/file-save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file: changedFile, content: fileData.content, skipVersionBump: true })
+          }).catch(() => {});
+        }
+      }
+    }
+
+    localStorage.setItem('wa_installed_version', newVersion);
+    if (pendingUpdateInfo && pendingUpdateInfo.revision) {
+      localStorage.setItem('wa_installed_revision', String(pendingUpdateInfo.revision));
+    }
+
+    await new Promise(r => setTimeout(r, 1600));
+    window.location.reload();
+  } catch (err) {
+    localStorage.setItem('wa_installed_version', newVersion);
+    setTimeout(() => window.location.reload(), 1500);
+  }
 }
 
 function handleRemoteAppStartCommand() {
@@ -2590,7 +2688,7 @@ async function sendClientHeartbeat() {
     pcName,
     username,
     os,
-    version: '1.0.0'
+    version: getInstalledVersion()
   });
 
   let authoritativeData = null;

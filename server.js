@@ -1102,10 +1102,22 @@ const SUPPORT_CONFIG_FILE = path.join(BASE_DIR, 'support_config.json');
 const BLOCK_STATUS_FILE = path.join(BASE_DIR, 'block_status.json');
 const ADMIN_STATE_FILE = path.join(BASE_DIR, 'admin_state.json');
 
+function bumpSemanticVersion(v) {
+    if (!v || typeof v !== 'string') return '1.0.1';
+    const clean = v.replace(/^v/i, '').trim();
+    const parts = clean.split('.').map(n => parseInt(n, 10));
+    const major = isNaN(parts[0]) ? 1 : parts[0];
+    const minor = isNaN(parts[1]) ? 0 : parts[1];
+    const patch = isNaN(parts[2]) ? 0 : parts[2];
+    return `${major}.${minor}.${patch + 1}`;
+}
+
 function getAdminState() {
     try {
         if (fs.existsSync(ADMIN_STATE_FILE)) {
-            return JSON.parse(fs.readFileSync(ADMIN_STATE_FILE, 'utf8'));
+            const parsed = JSON.parse(fs.readFileSync(ADMIN_STATE_FILE, 'utf8'));
+            if (!parsed.currentVersion) parsed.currentVersion = '1.0.0';
+            return parsed;
         }
     } catch (e) {}
     return {
@@ -1113,6 +1125,7 @@ function getAdminState() {
         lockReason: 'Wartungsarbeiten durch den Administrator. Bitte später erneut versuchen.',
         announcement: '',
         announcementType: 'info',
+        currentVersion: '1.0.0',
         updateRevision: 1,
         lastUpdateTimestamp: Date.now(),
         lastUpdatedFile: '',
@@ -1424,7 +1437,7 @@ const MANAGED_FILES = {
     'support_config.json': {
         name: 'support_config.json',
         title: 'Support-Konfiguration',
-        description: 'Rufnummern und Chat-Zuweisung für Entwickler- und Nutzersupport',
+        description: 'Rufnummern und Chat-Zuweisung fuer Support',
         category: 'Konfiguration',
         type: 'json'
     },
@@ -1438,29 +1451,29 @@ const MANAGED_FILES = {
     'settings.json': {
         name: 'settings.json',
         title: 'Systemeinstellungen',
-        description: 'Sprache, Synchronisationsintervall und Anwendungsoptionen',
+        description: 'Sprache, Synchronisationsintervall und Optionen',
         category: 'Konfiguration',
         type: 'json'
     },
     'block_status.json': {
         name: 'block_status.json',
         title: 'Blockierungsstatus',
-        description: 'Aktive Blockierungen und Zeitlimits für Kontakte',
+        description: 'Aktive Blockierungen und Zeitlimits fuer Kontakte',
         category: 'Konfiguration',
         type: 'json'
     },
     // 2. Frontend / UI
     'index.html': {
         name: 'index.html',
-        title: 'Web-Dashboard UI',
-        description: 'Hauptstruktur und HTML-Layout des Tools',
+        title: 'Desktop Tool UI',
+        description: 'Hauptstruktur und HTML-Layout des Desktop Tools',
         category: 'Frontend',
         type: 'html'
     },
     'style.css': {
         name: 'style.css',
         title: 'Design & Themes',
-        description: 'CSS-Stylesheets & NightSystem Farbschema',
+        description: 'CSS-Stylesheets & Farbschemata',
         category: 'Frontend',
         type: 'css'
     },
@@ -1474,21 +1487,22 @@ const MANAGED_FILES = {
     'translations.js': {
         name: 'translations.js',
         title: 'Mehrsprachigkeit',
-        description: 'Wörterbuch für Deutsch, English, Русский, Shqip',
+        description: 'Woerterbuch fuer Deutsch, English, Russisch, Albanisch',
         category: 'Frontend',
         type: 'javascript'
     },
+    // 3. Admin Web-Control
     'admin.html': {
         name: 'admin.html',
         title: 'Admin Control Center UI',
-        description: 'Web-Dashboard Hauptoberfläche für Administrator',
+        description: 'Web-Dashboard Hauptoberflaeche fuer den Administrator',
         category: 'Admin-Web',
         type: 'html'
     },
     'admin.css': {
         name: 'admin.css',
         title: 'Blau-Silber Design',
-        description: 'Dunkles Blau-Silber Theme für das Admin-Dashboard',
+        description: 'Dunkles Blau-Silber Theme fuer das Admin-Dashboard',
         category: 'Admin-Web',
         type: 'css'
     },
@@ -1499,7 +1513,7 @@ const MANAGED_FILES = {
         category: 'Admin-Web',
         type: 'javascript'
     },
-    // 3. Backend & Cloud Deployment
+    // 4. Backend & Core-Logik
     'server.js': {
         name: 'server.js',
         title: 'Express Server & API',
@@ -1510,10 +1524,25 @@ const MANAGED_FILES = {
     'package.json': {
         name: 'package.json',
         title: 'Node Paketdefinition',
-        description: 'Node.js Abhängigkeiten & Skripte',
+        description: 'Node.js Abhaengigkeiten & Skripte',
         category: 'Backend',
         type: 'json'
     },
+    'app.py': {
+        name: 'app.py',
+        title: 'Python WhatsApp API',
+        description: 'Alternative Python-Backendkomponente fuer WhatsApp Automation',
+        category: 'Backend',
+        type: 'python'
+    },
+    'excel_helper.py': {
+        name: 'excel_helper.py',
+        title: 'Excel Kontakt-Helper',
+        description: 'Python Modul fuer Excel-Import & Kontakt-Synchronisation',
+        category: 'Backend',
+        type: 'python'
+    },
+    // 5. Cloud Deployment & Container
     'Dockerfile': {
         name: 'Dockerfile',
         title: 'Render Dockerfile',
@@ -1528,11 +1557,47 @@ const MANAGED_FILES = {
         category: 'Deployment',
         type: 'yaml'
     },
-    // 4. Downloader
+    '.dockerignore': {
+        name: '.dockerignore',
+        title: 'Docker Ausschlussliste',
+        description: 'Ausschlussregeln fuer den Docker Cloud Build',
+        category: 'Deployment',
+        type: 'text'
+    },
+    '.gitignore': {
+        name: '.gitignore',
+        title: 'Git Ausschlussliste',
+        description: 'Ausschlussregeln fuer Versionsverwaltung',
+        category: 'Deployment',
+        type: 'text'
+    },
+    // 6. Launcher (C#)
+    'launcher/Program.cs': {
+        name: 'Program.cs',
+        title: 'Launcher Entry Point (C#)',
+        description: 'C# Startmethode des Desktop Launchers mit UAC',
+        category: 'Launcher',
+        type: 'csharp'
+    },
+    'launcher/launcher.csproj': {
+        name: 'launcher.csproj',
+        title: 'Launcher Projektdatei',
+        description: '.NET 8 Projektkonfiguration fuer den Launcher',
+        category: 'Launcher',
+        type: 'xml'
+    },
+    'launcher/app.manifest': {
+        name: 'app.manifest',
+        title: 'Launcher Administrator-Manifest',
+        description: 'Windows UAC Administratorrechte Manifest fuer WhatsApp-System.exe',
+        category: 'Launcher',
+        type: 'xml'
+    },
+    // 7. Downloader (C#)
     'downloader/MainForm.cs': {
         name: 'MainForm.cs',
         title: 'Downloader GUI (C#)',
-        description: 'Quellcode des Windows Downloaders',
+        description: 'Quellcode des Windows Downloaders mit Clean Sweep',
         category: 'Downloader',
         type: 'csharp'
     },
@@ -1546,11 +1611,33 @@ const MANAGED_FILES = {
     'downloader/WhatsAppDownloader.csproj': {
         name: 'WhatsAppDownloader.csproj',
         title: 'Downloader Projektdatei',
-        description: '.NET 8 Projektkonfiguration',
+        description: '.NET 8 Projektkonfiguration fuer den Downloader',
         category: 'Downloader',
         type: 'xml'
     },
-    // 5. Dokumentation
+    'downloader/app.manifest': {
+        name: 'app.manifest',
+        title: 'Downloader Administrator-Manifest',
+        description: 'Windows UAC Administratorrechte Manifest fuer WhatsApp-Downloader.exe',
+        category: 'Downloader',
+        type: 'xml'
+    },
+    // 8. Start-Skripte
+    'Start_Tool.bat': {
+        name: 'Start_Tool.bat',
+        title: 'Windows Batch Starter',
+        description: 'Schnellstart-Batchdatei fuer lokale Ausfuehrung',
+        category: 'Skripte',
+        type: 'bat'
+    },
+    'START_CLOUDFLARE_SERVER.bat': {
+        name: 'START_CLOUDFLARE_SERVER.bat',
+        title: 'Cloudflare Tunnel Starter',
+        description: 'Batchdatei fuer Cloudflare Tunneling',
+        category: 'Skripte',
+        type: 'bat'
+    },
+    // 9. Dokumentation
     'README.md': {
         name: 'README.md',
         title: 'Dokumentation',
@@ -1588,6 +1675,7 @@ app.get('/api/admin/overview', (req, res) => {
         announcement: state.announcement,
         announcementType: state.announcementType,
         updateRevision: state.updateRevision,
+        latestVersion: state.currentVersion || '1.0.0',
         lastUpdateTimestamp: state.lastUpdateTimestamp,
         lastUpdatedFile: state.lastUpdatedFile,
         activeClients: activeClientsList,
@@ -1673,7 +1761,7 @@ app.post('/api/client/heartbeat', (req, res) => {
         pcName: finalPc,
         username: finalUser,
         os: String(clientOs || platform || (process.platform === 'win32' ? 'Windows' : 'Linux')).substring(0, 80),
-        version: String(version || '1.0.0').substring(0, 20),
+        version: String(version || prevClient.version || '1.0.0').substring(0, 20),
         lastSeen: Date.now(),
         ip: remoteIp,
         isLocal: isLocalReq,
@@ -1694,6 +1782,7 @@ app.post('/api/client/heartbeat', (req, res) => {
         announcement: state.announcement,
         announcementType: state.announcementType,
         updateRevision: state.updateRevision,
+        latestVersion: state.currentVersion || '1.0.0',
         lastUpdatedFile: state.lastUpdatedFile
     });
 });
@@ -1715,6 +1804,7 @@ app.get('/api/client/status', (req, res) => {
         announcement: state.announcement,
         announcementType: state.announcementType,
         updateRevision: state.updateRevision,
+        latestVersion: state.currentVersion || '1.0.0',
         lastUpdatedFile: state.lastUpdatedFile
     });
 });
@@ -1901,19 +1991,24 @@ app.post('/api/system/file-save', (req, res) => {
     try {
         fs.writeFileSync(fp, content, 'utf8');
         
-        // Admin-State Update-Revision erhöhen
+        // Admin-State Update-Revision erhöhen und automatische Version hochzählen
         const adminState = getAdminState();
+        if (req.body.skipVersionBump !== true) {
+            adminState.currentVersion = bumpSemanticVersion(adminState.currentVersion || '1.0.0');
+        }
         adminState.updateRevision = (adminState.updateRevision || 1) + 1;
         adminState.lastUpdateTimestamp = Date.now();
         adminState.lastUpdatedFile = fileName;
         saveAdminState(adminState);
 
-        logSystemEvent('success', `${fileName} gespeichert & Update Revision #${adminState.updateRevision} ausgelöst!`);
+        logSystemEvent('success', `${fileName} gespeichert & neue Version v${adminState.currentVersion} (Revision #${adminState.updateRevision}) generiert!`);
 
         res.json({
             status: 'success',
-            message: `${fileName} wurde erfolgreich gespeichert und als Update #${adminState.updateRevision} direkt an alle Clients übertragen!`,
-            revision: adminState.updateRevision
+            message: `${fileName} wurde erfolgreich gespeichert! Neue Version: v${adminState.currentVersion}`,
+            version: adminState.currentVersion,
+            revision: adminState.updateRevision,
+            file: fileName
         });
     } catch (e) {
         logSystemEvent('error', `Fehler beim Schreiben von ${fileName}: ${e.message}`);

@@ -226,6 +226,22 @@ body {
   box-shadow: 0 0 8px rgba(203, 213, 225, 0.15);
 }
 
+.code-pill.status-green-pill {
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.12);
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
+}
+
+.code-pill.status-yellow-pill {
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.14);
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.2);
+}
+
 .user-pill {
   font-family: var(--font-mono);
   font-size: 11.5px;
