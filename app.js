@@ -384,13 +384,15 @@ async function pollStatus(manual = false) {
         hideBlockOverlay();
       } else {
         showBlockOverlay(data.blockedReason, data.blockedRemainingSeconds);
-        hideGlobalLockOverlay();
+        if (!isToolGloballyLocked) hideGlobalLockOverlay();
       }
     } else {
       if (isAppBlocked) {
         hideBlockOverlay();
       }
-      hideGlobalLockOverlay();
+      if (!isToolGloballyLocked) {
+        hideGlobalLockOverlay();
+      }
     }
 
     const imgEl = document.getElementById('qrDisplayImg');
@@ -2379,7 +2381,11 @@ function escapeHtml(str) {
 // Client-seitige Sperre & Banner Handler (Desktop-Tool)
 // ====================================================
 
+let isToolGloballyLocked = false;
+let lastSeenAnnouncementText = '';
+
 function showGlobalLockOverlay(reason) {
+  isToolGloballyLocked = true;
   const overlay = document.getElementById('globalLockOverlay');
   if (overlay) overlay.style.display = 'flex';
   const reasonEl = document.getElementById('globalLockReasonDisplay');
@@ -2389,6 +2395,7 @@ function showGlobalLockOverlay(reason) {
 }
 
 function hideGlobalLockOverlay() {
+  isToolGloballyLocked = false;
   const overlay = document.getElementById('globalLockOverlay');
   if (overlay) overlay.style.display = 'none';
 }
@@ -2404,37 +2411,32 @@ function getCentralServerUrl() {
 }
 
 async function pollGlobalStatus(manual = false) {
-  let statusData = null;
-
-  try {
-    const res = await fetch('/api/client/status');
-    if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
-      const data = await res.json();
-      if (data && data.status === 'success') {
-        statusData = data;
-      }
-    }
-  } catch (err) {}
-
+  let authoritativeData = null;
   const centralUrl = getCentralServerUrl();
-  if (centralUrl && !window.location.origin.includes(centralUrl.replace(/^https?:\/\//, ''))) {
+  const isCloudHost = window.location.origin.includes(centralUrl.replace(/^https?:\/\//, ''));
+  const clientId = getOrCreateClientId();
+
+  // 1. Zuerst maßgeblichen Cloud-Server abfragen (falls konfiguriert)
+  if (centralUrl && !isCloudHost) {
     try {
-      const res = await fetch(centralUrl.replace(/\/+$/, '') + '/api/client/status', {
+      const res = await fetch(centralUrl.replace(/\/+$/, '') + `/api/client/status?clientId=${encodeURIComponent(clientId)}`, {
         headers: { 'Accept': 'application/json' }
       });
       if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
         const cData = await res.json();
         if (cData && cData.status === 'success') {
+          authoritativeData = cData;
           const badge = document.getElementById('centralServerStatusBadge');
           if (badge) {
             badge.textContent = '[VERBUNDEN]';
             badge.className = 'status-badge status-connected';
           }
-          if (cData.locked) {
-            statusData = cData;
-          } else if (!statusData || !statusData.locked) {
-            statusData = cData;
-          }
+          // Zentralen Zustand an lokalen Server uebertragen, damit kein Desync entsteht
+          fetch('/api/admin/sync-state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cData)
+          }).catch(() => {});
         }
       }
     } catch (err) {
@@ -2446,8 +2448,21 @@ async function pollGlobalStatus(manual = false) {
     }
   }
 
-  if (statusData) {
-    handleGlobalStatusUpdate(statusData);
+  // 2. Falls Cloud nicht erreichbar, lokale Instanz nutzen
+  if (!authoritativeData) {
+    try {
+      const res = await fetch(`/api/client/status?clientId=${encodeURIComponent(clientId)}`);
+      if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+        const data = await res.json();
+        if (data && data.status === 'success') {
+          authoritativeData = data;
+        }
+      }
+    } catch (err) {}
+  }
+
+  if (authoritativeData) {
+    handleGlobalStatusUpdate(authoritativeData);
     if (manual) {
       showToast('Systemstatus aktualisiert', 'info');
     }
@@ -2457,38 +2472,72 @@ async function pollGlobalStatus(manual = false) {
 }
 
 function handleGlobalStatusUpdate(data) {
-  // 1. Globale Remote-Sperre prüfen
-  if (data.locked) {
-    showGlobalLockOverlay(data.lockReason);
+  if (!data) return;
+
+  // 1. Sperre prüfen: Entweder globale Sperre ODER spezifische Sperre fuer dieses Geraet
+  const isGloballyLocked = Boolean(data.locked);
+  const isClientBlocked = Boolean(data.clientBlocked);
+  const shouldLock = isGloballyLocked || isClientBlocked;
+
+  let lockReason = 'Das Tool wurde vom Administrator voruebergehend gesperrt.';
+  if (isClientBlocked) {
+    lockReason = data.clientBlockReason || 'Die App-Nutzung wurde fuer dieses Geraet vom Administrator gesperrt.';
+  } else if (isGloballyLocked) {
+    lockReason = data.lockReason || lockReason;
+  }
+
+  if (shouldLock) {
+    showGlobalLockOverlay(lockReason);
   } else {
     hideGlobalLockOverlay();
   }
 
-  // 2. Globale Ankündigung prüfen
+  // 2. Globale Ankündigung prüfen - Banner nur aktualisieren und Toast NUR EINMALIG anzeigen
   const banner = document.getElementById('globalAnnouncementBanner');
   const bannerText = document.getElementById('announcementText');
   const bannerBadge = document.getElementById('announcementBadge');
 
-  if (data.announcement && data.announcement.trim()) {
+  const newAnnouncement = String(data.announcement || '').trim();
+  if (newAnnouncement) {
     if (banner) banner.style.display = 'block';
-    if (bannerText) bannerText.textContent = data.announcement;
+    if (bannerText) bannerText.textContent = newAnnouncement;
     if (bannerBadge) {
       bannerBadge.className = 'announcement-tag tag-' + (data.announcementType || 'info');
       const badgeLabels = { info: '[HINWEIS]', warning: '[WARNUNG]', error: '[DRINGEND]' };
       bannerBadge.textContent = badgeLabels[data.announcementType] || '[HINWEIS]';
     }
+
+    // Nur ein einziges Mal benachrichtigen, wenn sich der Ankündigungstext neu ändert (keine 50 Wiederholungen!)
+    if (newAnnouncement !== lastSeenAnnouncementText) {
+      lastSeenAnnouncementText = newAnnouncement;
+      const prefix = data.announcementType === 'error' ? '[DRINGEND] ' : (data.announcementType === 'warning' ? '[WARNUNG] ' : '[HINWEIS] ');
+      showToast(prefix + newAnnouncement, data.announcementType === 'error' ? 'error' : (data.announcementType === 'warning' ? 'warn' : 'info'));
+    }
   } else {
     if (banner) banner.style.display = 'none';
+    lastSeenAnnouncementText = '';
   }
 
-  // 3. Update-Revision
-  if (data.updateRevision && lastSeenUpdateRevision > 0 && data.updateRevision > lastSeenUpdateRevision) {
-    const updatedFile = data.lastUpdatedFile ? (' (' + data.lastUpdatedFile + ')') : '';
-    showToast('Live-Update empfangen: Revision #' + data.updateRevision + updatedFile + '!', 'success');
-  }
+  // 3. Update-Revision nachhalten (OHNE nervige Toast-Meldung, wie vom Benutzer gewuenscht)
   if (data.updateRevision) {
     lastSeenUpdateRevision = data.updateRevision;
   }
+
+  // 4. Admin-Befehl: Remote App-Start fuer diesen Client
+  if (data.command === 'start_app') {
+    handleRemoteAppStartCommand();
+  }
+}
+
+function handleRemoteAppStartCommand() {
+  console.log('[REMOTE-ADMIN] Startbefehl fuer App vom Dashboard erhalten.');
+  showToast('[ADMIN-BEFEHL] App-Start wurde vom Dashboard veranlasst.', 'info');
+  try {
+    fetch('/api/system/start-app', { method: 'POST' }).catch(() => {});
+    if (typeof loadAllStatus === 'function') {
+      loadAllStatus();
+    }
+  } catch (e) {}
 }
 
 // ====================================================
@@ -2528,40 +2577,50 @@ async function sendClientHeartbeat() {
     version: '1.0.0'
   });
 
-  try {
-    const res = await fetch('/api/client/heartbeat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: payload
-    });
-    if (res.ok) {
-      const ct = res.headers.get('content-type') || '';
-      if (ct.includes('application/json')) {
-        const data = await res.json();
-        if (data && data.status === 'success') {
-          handleGlobalStatusUpdate(data);
-        }
-      }
-    }
-  } catch (err) {}
-
+  let authoritativeData = null;
   const centralUrl = getCentralServerUrl();
-  if (centralUrl && !window.location.origin.includes(centralUrl.replace(/^https?:\/\//, ''))) {
+  const isCloudHost = window.location.origin.includes(centralUrl.replace(/^https?:\/\//, ''));
+
+  // 1. Zuerst Heartbeat an zentralen Cloud-Server
+  if (centralUrl && !isCloudHost) {
     try {
       const res = await fetch(centralUrl.replace(/\/+$/, '') + '/api/client/heartbeat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: payload
       });
-      if (res.ok) {
-        const ct = res.headers.get('content-type') || '';
-        if (ct.includes('application/json')) {
-          const data = await res.json();
-          if (data && data.status === 'success') {
-            handleGlobalStatusUpdate(data);
-          }
+      if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+        const cData = await res.json();
+        if (cData && cData.status === 'success') {
+          authoritativeData = cData;
+          // Lokalen Server im Hintergrund synchronisieren (verhindert Widersprueche)
+          fetch('/api/admin/sync-state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cData)
+          }).catch(() => {});
         }
       }
     } catch (err) {}
+  }
+
+  // 2. Lokalen Heartbeat senden
+  try {
+    const res = await fetch('/api/client/heartbeat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payload
+    });
+    if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+      const localData = await res.json();
+      if (localData && localData.status === 'success' && !authoritativeData) {
+        authoritativeData = localData;
+      }
+    }
+  } catch (err) {}
+
+  // 3. Status genau EINMAL mit der maßgeblichen Antwort anwenden (kein Flackern!)
+  if (authoritativeData) {
+    handleGlobalStatusUpdate(authoritativeData);
   }
 }

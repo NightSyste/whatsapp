@@ -300,7 +300,7 @@ function renderClientsTable(clients) {
   if (!clients || clients.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="6" class="table-empty-row">
+        <td colspan="7" class="table-empty-row">
           Keine Clients online. Sobald ein Nutzer das Tool startet, erscheint er hier in Echtzeit.
         </td>
       </tr>
@@ -312,6 +312,9 @@ function renderClientsTable(clients) {
     const ago = c.lastSeenAgo <= 4 ? 'Gerade eben' : `vor ${c.lastSeenAgo}s`;
     const pcName = c.pcName || c.id || 'Desktop-PC';
     const user = c.username || 'Benutzer';
+    const isAllowed = c.allowed !== false;
+    const hasPendingStart = c.pendingCommand === 'start_app';
+
     return `
       <tr>
         <td>
@@ -324,9 +327,62 @@ function renderClientsTable(clients) {
         <td><strong style="color: #f1f5f9;">${escapeHtml(c.os)}</strong></td>
         <td><span class="code-pill">v${escapeHtml(c.version)}</span></td>
         <td style="color: var(--silver-400); font-family: var(--font-mono); font-size: 11.5px;">${ago}</td>
+        <td>
+          <div class="table-btn-group">
+            <button class="btn-table-xs btn-table-blue" title="App auf diesem PC starten/initialisieren" onclick="triggerClientStartApp('${escapeHtml(c.id)}', '${escapeHtml(pcName)}')">
+              ${hasPendingStart ? 'STARTET...' : 'APP STARTEN'}
+            </button>
+            <button class="btn-table-xs ${isAllowed ? 'btn-table-green' : 'btn-table-red'}" title="${isAllowed ? 'Klicken um Start fuer diesen PC zu sperren' : 'Klicken um Start fuer diesen PC freizugeben'}" onclick="toggleClientAllowed('${escapeHtml(c.id)}', ${!isAllowed})">
+              ${isAllowed ? 'START ERLAUBT' : 'START GESPERRT'}
+            </button>
+          </div>
+        </td>
       </tr>
     `;
   }).join('');
+}
+
+// Admin: Befehl zum Starten der App fuer den Client senden
+async function triggerClientStartApp(clientId, pcName) {
+  try {
+    showAdminToast(`Sende Startbefehl an ${pcName}...`, 'info');
+    const res = await safeFetchJson('/api/admin/client-start-app', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`Startbefehl an ${pcName} erfolgreich uebermittelt!`, 'success');
+      loadAdminOverview(false);
+    } else {
+      showAdminToast(res.message || 'Fehler beim Senden des Startbefehls', 'error');
+    }
+  } catch (err) {
+    showAdminToast(`Startbefehl fehlgeschlagen: ${err.message}`, 'error');
+  }
+}
+
+// Admin: Entscheiden, ob die App auf diesem PC gestartet werden darf
+async function toggleClientAllowed(clientId, shouldAllow) {
+  try {
+    const actionText = shouldAllow ? 'Freigabe' : 'Sperre';
+    const res = await safeFetchJson('/api/admin/client-toggle-allow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId, allowed: shouldAllow })
+    });
+    if (res.status === 'success') {
+      const msg = shouldAllow
+        ? 'App-Start fuer diesen PC freigegeben!'
+        : 'App-Start fuer diesen PC gesperrt!';
+      showAdminToast(msg, shouldAllow ? 'success' : 'error');
+      loadAdminOverview(false);
+    } else {
+      showAdminToast(res.message || 'Aktion fehlgeschlagen', 'error');
+    }
+  } catch (err) {
+    showAdminToast(`Fehler bei ${actionText}: ${err.message}`, 'error');
+  }
 }
 
 // ==========================================================================

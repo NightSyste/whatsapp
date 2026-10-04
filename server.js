@@ -1574,7 +1574,9 @@ app.get('/api/admin/overview', (req, res) => {
             version: c.version || '1.0.0',
             ip: c.ip || 'Lokal',
             lastSeenAgo: Math.max(0, Math.floor((now - (c.lastSeen || now)) / 1000)),
-            isOnline: (now - (c.lastSeen || 0)) < 120000
+            isOnline: (now - (c.lastSeen || 0)) < 120000,
+            allowed: c.allowed !== false,
+            pendingCommand: c.pendingCommand || null
         }))
         .filter(c => c.isOnline)
         .sort((a, b) => a.lastSeenAgo - b.lastSeenAgo);
@@ -1661,7 +1663,12 @@ app.post('/api/client/heartbeat', (req, res) => {
     const state = getAdminState();
 
     if (!state.clients) state.clients = {};
+    const prevClient = state.clients[cId] || {};
+    const isAllowed = prevClient.allowed !== false;
+    const pendingCmd = prevClient.pendingCommand || null;
+
     state.clients[cId] = {
+        ...prevClient,
         id: cId,
         pcName: finalPc,
         username: finalUser,
@@ -1669,7 +1676,9 @@ app.post('/api/client/heartbeat', (req, res) => {
         version: String(version || '1.0.0').substring(0, 20),
         lastSeen: Date.now(),
         ip: remoteIp,
-        isLocal: isLocalReq
+        isLocal: isLocalReq,
+        allowed: isAllowed,
+        pendingCommand: null // Beim Abholen verbraucht
     };
 
     saveAdminState(state);
@@ -1678,6 +1687,10 @@ app.post('/api/client/heartbeat', (req, res) => {
         status: 'success',
         locked: state.globalLock,
         lockReason: state.lockReason,
+        clientAllowed: isAllowed,
+        clientBlocked: !isAllowed,
+        clientBlockReason: !isAllowed ? 'Die App-Nutzung wurde fuer dieses Geraet vom Administrator gesperrt.' : '',
+        command: pendingCmd,
         announcement: state.announcement,
         announcementType: state.announcementType,
         updateRevision: state.updateRevision,
@@ -1687,16 +1700,97 @@ app.post('/api/client/heartbeat', (req, res) => {
 
 // Client Status (Quick Check)
 app.get('/api/client/status', (req, res) => {
+    const cId = req.query.clientId || '';
     const state = getAdminState();
+    const client = cId && state.clients ? state.clients[cId] : null;
+    const isAllowed = client ? client.allowed !== false : true;
+
     res.json({
         status: 'success',
         locked: state.globalLock,
         lockReason: state.lockReason,
+        clientAllowed: isAllowed,
+        clientBlocked: !isAllowed,
+        clientBlockReason: !isAllowed ? 'Die App-Nutzung wurde fuer dieses Geraet vom Administrator gesperrt.' : '',
         announcement: state.announcement,
         announcementType: state.announcementType,
         updateRevision: state.updateRevision,
         lastUpdatedFile: state.lastUpdatedFile
     });
+});
+
+// Admin: Befehl zum Starten der App fuer einen Client senden
+app.post('/api/admin/client-start-app', (req, res) => {
+    const { clientId } = req.body || {};
+    if (!clientId) {
+        return res.status(400).json({ status: 'error', message: 'Keine clientId angegeben' });
+    }
+    const state = getAdminState();
+    if (!state.clients) state.clients = {};
+    if (!state.clients[clientId]) {
+        state.clients[clientId] = { id: clientId, lastSeen: Date.now(), allowed: true };
+    }
+    state.clients[clientId].pendingCommand = 'start_app';
+    state.clients[clientId].commandTimestamp = Date.now();
+    saveAdminState(state);
+
+    logSystemEvent('info', `Admin hat App-Startbefehl fuer Client '${clientId}' ausgeloest.`);
+    res.json({
+        status: 'success',
+        message: 'Startbefehl registriert',
+        clientId
+    });
+});
+
+// Admin: Entscheiden, ob die App auf diesem PC gestartet/genutzt werden darf
+app.post('/api/admin/client-toggle-allow', (req, res) => {
+    const { clientId, allowed } = req.body || {};
+    if (!clientId) {
+        return res.status(400).json({ status: 'error', message: 'Keine clientId angegeben' });
+    }
+    const state = getAdminState();
+    if (!state.clients) state.clients = {};
+    if (!state.clients[clientId]) {
+        state.clients[clientId] = { id: clientId, lastSeen: Date.now() };
+    }
+    state.clients[clientId].allowed = Boolean(allowed !== false);
+    saveAdminState(state);
+
+    const logMsg = state.clients[clientId].allowed
+        ? `App-Nutzung fuer Client '${clientId}' freigegeben (Start erlaubt).`
+        : `App-Nutzung fuer Client '${clientId}' gesperrt (Start verboten).`;
+    logSystemEvent('info', logMsg);
+
+    res.json({
+        status: 'success',
+        allowed: state.clients[clientId].allowed,
+        clientId
+    });
+});
+
+// Lokaler Abgleich des zentralen Status (verhindert Abweichungen zwischen Cloud und Lokal)
+app.post('/api/admin/sync-state', (req, res) => {
+    const { locked, lockReason, announcement, announcementType, updateRevision } = req.body || {};
+    const state = getAdminState();
+    if (typeof locked === 'boolean') state.globalLock = locked;
+    if (typeof lockReason === 'string') state.lockReason = lockReason;
+    if (typeof announcement === 'string') state.announcement = announcement;
+    if (typeof announcementType === 'string') state.announcementType = announcementType;
+    if (typeof updateRevision === 'number') state.updateRevision = updateRevision;
+    saveAdminState(state);
+    res.json({ status: 'success', synced: true });
+});
+
+// Lokale Initialisierung / Start der WhatsApp-Komponente
+app.post('/api/system/start-app', (req, res) => {
+    try {
+        if (!client && typeof initWhatsApp === 'function') {
+            initWhatsApp();
+        }
+        res.json({ status: 'success', message: 'App initialisiert' });
+    } catch (e) {
+        res.json({ status: 'error', message: e?.message || String(e) });
+    }
 });
 
 // Dateien API Endpoints
