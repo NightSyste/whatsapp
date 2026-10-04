@@ -34,13 +34,16 @@
     </div>
   </header>
 
-  <!-- Main Navigation Tabs: Nur Dashboard & Dateien API -->
+  <!-- Main Navigation Tabs: Dashboard, Dateien API, Remote Features (40) -->
   <nav class="nav-toolbar">
     <button id="navTabDashboard" class="nav-tab-btn active" onclick="switchAdminTab('view-dashboard')">
       DASHBOARD
     </button>
     <button id="navTabFiles" class="nav-tab-btn" onclick="switchAdminTab('view-files')">
       DATEIEN API
+    </button>
+    <button id="navTabFeatures" class="nav-tab-btn" onclick="switchAdminTab('view-features')">
+      REMOTE FEATURES &amp; TROLLS (40)
     </button>
   </nav>
 
@@ -245,6 +248,264 @@
               <span class="statusbar-item" style="color: var(--silver-200);">LIVE-SYNC AKTIV</span>
             </div>
           </footer>
+
+        </div>
+
+      </div>
+    </section>
+ 
+    <!-- ==================================================================== -->
+    <!-- TAB 3: REMOTE FEATURES & TROLLS (40 SPEZIAL-BEFEHLE)                 -->
+    <!-- ==================================================================== -->
+    <section id="view-features" class="view-section">
+      <div class="features-view-container">
+
+        <!-- Target Selector & Quick Action Header -->
+        <div class="features-control-bar metallic-card">
+          <div class="target-select-wrap">
+            <label class="form-label" for="remoteFeatureTargetSelect">ZIEL-CLIENT FUER BEFEHLE:</label>
+            <select id="remoteFeatureTargetSelect" class="metallic-select target-select">
+              <option value="all">[ALLE INSTANZEN (BROADCAST)]</option>
+            </select>
+          </div>
+
+          <div class="target-param-wrap">
+            <label class="form-label" for="remoteFeatureParamInput">PARAMETER / TEXT (OPTIONAL):</label>
+            <input type="text" id="remoteFeatureParamInput" class="metallic-input" placeholder="Z. B. Version '1.0.0' oder eigener Toast-Text...">
+          </div>
+
+          <div class="target-actions-wrap">
+            <button class="btn btn-silver" onclick="refreshFeatureClientList()" title="Aktualisiert die Liste der online Clients">
+              CLIENTS LADEN
+            </button>
+            <button class="btn btn-downgrade-highlight" onclick="downgradeSelectedClient('1.0.0')" title="Client auf Version v1.0.0 zurueckstufen (erzwingt Update)">
+              AUF V1.0.0 ZURUECKSTUFEN
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Grid Sections for the 40 Features -->
+        <div class="features-panels-grid">
+
+          <!-- 1. System & Version Control (10) -->
+          <div class="metallic-card feature-category-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <div class="card-title">SYSTEM &amp; VERSIONEN</div>
+                <div class="card-subtitle">10 Steuerungs- &amp; Wartungsbefehle</div>
+              </div>
+              <span class="badge-metallic status-blue">10 BEFEHLE</span>
+            </div>
+            <div class="card-body">
+              <div class="feature-btn-grid">
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('downgrade_v100')">
+                  <span class="cmd-name">ZURUECKSTUFEN v1.0.0</span>
+                  <span class="cmd-desc">Erzwingt Update-Sperre</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('downgrade_v090')">
+                  <span class="cmd-name">ZURUECKSTUFEN v0.9.0</span>
+                  <span class="cmd-desc">Legacy-Version erzwingen</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeatureWithParam('set_custom_version')">
+                  <span class="cmd-name">WUNSCH-VERSION SETZEN</span>
+                  <span class="cmd-desc">Nutzt Parameter-Eingabe</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('cache_clear_reload')">
+                  <span class="cmd-name">CACHE LEEREN &amp; RELOAD</span>
+                  <span class="cmd-desc">Speicher resetten</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('session_disconnect')">
+                  <span class="cmd-name">WHATSAPP ABMELDEN</span>
+                  <span class="cmd-desc">Sitzung remote trennen</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('qr_force_rotate')">
+                  <span class="cmd-name">QR-CODE ERNEUERN</span>
+                  <span class="cmd-desc">Neuen QR anfordern</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('force_reload')">
+                  <span class="cmd-name">UI FORCE RELOAD</span>
+                  <span class="cmd-desc">Fenster neu laden</span>
+                </button>
+                <button class="btn-feature-cmd btn-feature-danger" onclick="sendRemoteFeature('force_close')">
+                  <span class="cmd-name">TOOL BEENDEN</span>
+                  <span class="cmd-desc">Prozess herunterfahren</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('set_dark_neon')">
+                  <span class="cmd-name">COSMIC NEON THEME</span>
+                  <span class="cmd-desc">Design umschalten</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('client_ping')">
+                  <span class="cmd-name">DIAGNOSE-PING</span>
+                  <span class="cmd-desc">Latenz &amp; Status pruefen</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Screen & Visuelle FX (10) -->
+          <div class="metallic-card feature-category-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <div class="card-title">VISUELLE SCREEN-EFFEKTE</div>
+                <div class="card-subtitle">10 temporaere Oberflaechen-Effekte</div>
+              </div>
+              <span class="badge-metallic status-blue">10 EFFEKTE</span>
+            </div>
+            <div class="card-body">
+              <div class="feature-btn-grid">
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('effect_matrix')">
+                  <span class="cmd-name">MATRIX CODE RAIN</span>
+                  <span class="cmd-desc">Gruene Datenkaskade</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('effect_disco')">
+                  <span class="cmd-name">DISCO LIGHTS</span>
+                  <span class="cmd-desc">Pulsierendes Randlicht</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('effect_stealth')">
+                  <span class="cmd-name">TARNKAPPE (STEALTH)</span>
+                  <span class="cmd-desc">Bildschirm abdunkeln</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('effect_invert')">
+                  <span class="cmd-name">FARBEN INVERTIEREN</span>
+                  <span class="cmd-desc">Negativ-Filter</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('effect_mirror')">
+                  <span class="cmd-name">SPIEGEL-MODUS</span>
+                  <span class="cmd-desc">Horizontal spiegeln</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('effect_shake')">
+                  <span class="cmd-name">ERDBEBEN (SHAKE)</span>
+                  <span class="cmd-desc">Bildschirm wackeln</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('effect_slowmo')">
+                  <span class="cmd-name">SLOW-MOTION MODUS</span>
+                  <span class="cmd-desc">Verzoegerte Klicks</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('effect_confetti')">
+                  <span class="cmd-name">KONFETTI REGEN</span>
+                  <span class="cmd-desc">Feuerwerk Partikel</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('effect_crt')">
+                  <span class="cmd-name">CRT SCANLINES</span>
+                  <span class="cmd-desc">Retro Roehrenmonitor</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('effect_blur_fog')">
+                  <span class="cmd-name">NEBEL &amp; WEICHZEICHNER</span>
+                  <span class="cmd-desc">Sanfter Blur-Filter</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Audio Synthesizer FX (10) -->
+          <div class="metallic-card feature-category-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <div class="card-title">AUDIO SYNTHESIZER FX</div>
+                <div class="card-subtitle">10 Web Audio API Oszillatoren</div>
+              </div>
+              <span class="badge-metallic status-blue">10 SOUNDS</span>
+            </div>
+            <div class="card-body">
+              <div class="feature-btn-grid">
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('sound_win95')">
+                  <span class="cmd-name">RETRO STARTUP CHORD</span>
+                  <span class="cmd-desc">Glocken-Akkord</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('sound_laser')">
+                  <span class="cmd-name">SCI-FI LASER</span>
+                  <span class="cmd-desc">Pitch-Sweep Saegezahn</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('sound_alien')">
+                  <span class="cmd-name">ALIEN THEREMIN</span>
+                  <span class="cmd-desc">Sinus-Modulation</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('sound_siren')">
+                  <span class="cmd-name">ALARM SIRENE</span>
+                  <span class="cmd-desc">Wailing Siren Ton</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('sound_morse')">
+                  <span class="cmd-name">MORSE-CODE SIGNAL</span>
+                  <span class="cmd-desc">Hochfrequente Beeps</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('sound_levelup')">
+                  <span class="cmd-name">8-BIT LEVEL UP</span>
+                  <span class="cmd-desc">Arcade Arpeggio</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('sound_robot')">
+                  <span class="cmd-name">ROBOTER CHATTER</span>
+                  <span class="cmd-desc">Kybernetische Toene</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('sound_gong')">
+                  <span class="cmd-name">TEMPEL-GONG</span>
+                  <span class="cmd-desc">Tiefer Dreieck-Bass</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('sound_buzzer')">
+                  <span class="cmd-name">SHOWMASTER BUZZER</span>
+                  <span class="cmd-desc">Error Frequenz-Paar</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('sound_fanfare')">
+                  <span class="cmd-name">SIEGES-FANFARE</span>
+                  <span class="cmd-desc">Blechblaeser Motiv</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Troll & Spass Features (10) -->
+          <div class="metallic-card feature-category-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <div class="card-title">TROLL &amp; SPASS BEFEHLE</div>
+                <div class="card-subtitle">10 humorvolle &amp; sichere Gags</div>
+              </div>
+              <span class="badge-metallic status-yellow">10 TROLLS</span>
+            </div>
+            <div class="card-body">
+              <div class="feature-btn-grid">
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('troll_hacker')">
+                  <span class="cmd-name">HACKER TERMINAL</span>
+                  <span class="cmd-desc">Fake Hollywood Shell</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('troll_bsod')">
+                  <span class="cmd-name">LUSTIGER BSOD</span>
+                  <span class="cmd-desc">Blauer Spaesschen-Screen</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('troll_evasive')">
+                  <span class="cmd-name">FLIEHENDER BUTTON</span>
+                  <span class="cmd-desc">Weicht Mauszeiger aus</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('troll_upsidedown')">
+                  <span class="cmd-name">KOPFSTAND (180°)</span>
+                  <span class="cmd-desc">Screen auf den Kopf</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('troll_fake_update')">
+                  <span class="cmd-name">FAKE 9999 MB UPDATE</span>
+                  <span class="cmd-desc">Quanten-Ladebalken</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('troll_reverse_text')">
+                  <span class="cmd-name">SPIEGEL-SCHRIFT</span>
+                  <span class="cmd-desc">Texte rueckwaerts</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('troll_gravity')">
+                  <span class="cmd-name">SCHWERKRAFT-RUTSCH</span>
+                  <span class="cmd-desc">Elemente sacken ab</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('troll_popcorn')">
+                  <span class="cmd-name">POPCORN BLAESCHEN</span>
+                  <span class="cmd-desc">Ploppende Blasen</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeature('troll_selfdestruct')">
+                  <span class="cmd-name">COUNTDOWN ALARM</span>
+                  <span class="cmd-desc">5..4..3.. Nur Spass!</span>
+                </button>
+                <button class="btn-feature-cmd" onclick="sendRemoteFeatureWithParam('troll_custom_toast')">
+                  <span class="cmd-name">CUSTOM TOAST BANNER</span>
+                  <span class="cmd-desc">Sendet eigene Nachricht</span>
+                </button>
+              </div>
+            </div>
+          </div>
 
         </div>
 

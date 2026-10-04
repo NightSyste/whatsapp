@@ -3677,5 +3677,163 @@ footer#statusbar {
   box-shadow: 0 0 20px rgba(56, 189, 248, 0.6) !important;
 }
 
+/* ==========================================================================
+   REMOTE FEATURES & VISUAL FX (SANDBOXED & SAFE)
+   ========================================================================== */
+
+/* Shake Effect */
+@keyframes remoteShakeAnim {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  15% { transform: translate(-6px, 4px) rotate(-0.8deg); }
+  30% { transform: translate(6px, -4px) rotate(0.8deg); }
+  45% { transform: translate(-5px, -3px) rotate(-0.5deg); }
+  60% { transform: translate(5px, 3px) rotate(0.5deg); }
+  75% { transform: translate(-3px, 2px) rotate(-0.3deg); }
+  90% { transform: translate(3px, -2px) rotate(0.3deg); }
+}
+.remote-effect-shake {
+  animation: remoteShakeAnim 0.35s infinite !important;
+}
+
+/* Disco Border & Glow Pulse */
+@keyframes remoteDiscoPulse {
+  0% { box-shadow: inset 0 0 60px rgba(14, 165, 233, 0.45), 0 0 40px rgba(14, 165, 233, 0.35); }
+  25% { box-shadow: inset 0 0 60px rgba(168, 85, 247, 0.45), 0 0 40px rgba(168, 85, 247, 0.35); }
+  50% { box-shadow: inset 0 0 60px rgba(236, 72, 153, 0.45), 0 0 40px rgba(236, 72, 153, 0.35); }
+  75% { box-shadow: inset 0 0 60px rgba(34, 197, 94, 0.45), 0 0 40px rgba(34, 197, 94, 0.35); }
+  100% { box-shadow: inset 0 0 60px rgba(14, 165, 233, 0.45), 0 0 40px rgba(14, 165, 233, 0.35); }
+}
+.remote-effect-disco {
+  animation: remoteDiscoPulse 1.2s infinite ease-in-out !important;
+}
+
+/* Stealth Dim Mode */
+.remote-effect-stealth {
+  filter: brightness(0.18) contrast(1.15) !important;
+  transition: filter 0.5s ease !important;
+}
+
+/* Invert Colors */
+.remote-effect-invert {
+  filter: invert(1) hue-rotate(180deg) !important;
+  transition: filter 0.4s ease !important;
+}
+
+/* Mirror Mode */
+.remote-effect-mirror {
+  transform: scaleX(-1) !important;
+  transform-origin: center center !important;
+  transition: transform 0.4s ease !important;
+}
+
+/* Upside Down */
+.remote-effect-upsidedown {
+  transform: rotate(180deg) !important;
+  transform-origin: center center !important;
+  transition: transform 0.6s ease !important;
+}
+
+/* Slow-Mo CSS transitions */
+.remote-effect-slowmo,
+.remote-effect-slowmo * {
+  transition-duration: 1.2s !important;
+  transition-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1) !important;
+}
+
+/* Blur & Fog Effect */
+.remote-effect-blur {
+  filter: blur(4.5px) !important;
+  transition: filter 0.5s ease !important;
+}
+
+/* Gravity Dip & Bounce */
+@keyframes remoteGravityBounce {
+  0% { transform: translateY(0); }
+  40% { transform: translateY(35px); }
+  70% { transform: translateY(-12px); }
+  85% { transform: translateY(6px); }
+  100% { transform: translateY(0); }
+}
+.remote-effect-gravity {
+  animation: remoteGravityBounce 1.4s cubic-bezier(0.25, 1, 0.5, 1) !important;
+}
+
+/* Reverse text */
+.remote-effect-reverse-text button,
+.remote-effect-reverse-text h1,
+.remote-effect-reverse-text h2,
+.remote-effect-reverse-text h3,
+.remote-effect-reverse-text p,
+.remote-effect-reverse-text span {
+  direction: rtl !important;
+  unicode-bidi: bidi-override !important;
+}
+
+/* Neon Theme */
+body.theme-dark-neon {
+  --primary-accent: #00f0ff !important;
+  --secondary-accent: #bd00ff !important;
+}
+body.theme-dark-neon .app-header {
+  border-bottom: 1px solid #00f0ff !important;
+  box-shadow: 0 0 25px rgba(0, 240, 255, 0.25) !important;
+}
+
+/* Overlays */
+.remote-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.remote-crt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999998;
+  pointer-events: none;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%),
+              linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.04));
+  background-size: 100% 3px, 4px 100%;
+}
+
+.remote-hacker-modal {
+  background: rgba(3, 8, 15, 0.95);
+  border: 1px solid #00ff66;
+  box-shadow: 0 0 35px rgba(0, 255, 102, 0.3);
+  border-radius: 8px;
+  width: 90%;
+  max-width: 650px;
+  padding: 24px;
+  color: #00ff66;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+}
+
+.remote-bsod-screen {
+  background: #0078d7;
+  color: #ffffff;
+  width: 100vw;
+  height: 100vh;
+  padding: 8vw 10vw;
+  font-family: 'Segoe UI', sans-serif;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.remote-countdown-modal {
+  background: rgba(10, 15, 30, 0.96);
+  border: 2px solid #ef4444;
+  box-shadow: 0 0 45px rgba(239, 68, 68, 0.5);
+  border-radius: 10px;
+  padding: 32px 40px;
+  text-align: center;
+  color: #ffffff;
+  font-family: 'Segoe UI', monospace;
+}
+
+
 
 

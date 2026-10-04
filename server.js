@@ -1771,6 +1771,7 @@ app.post('/api/client/heartbeat', (req, res) => {
     const prevClient = state.clients[cId] || {};
     const isAllowed = prevClient.allowed !== false;
     const pendingCmd = prevClient.pendingCommand || null;
+    const pendingCmdData = prevClient.pendingCommandData || null;
 
     state.clients[cId] = {
         ...prevClient,
@@ -1783,7 +1784,8 @@ app.post('/api/client/heartbeat', (req, res) => {
         ip: remoteIp,
         isLocal: isLocalReq,
         allowed: isAllowed,
-        pendingCommand: null // Beim Abholen verbraucht
+        pendingCommand: null, // Beim Abholen verbraucht
+        pendingCommandData: null
     };
 
     saveAdminState(state);
@@ -1796,6 +1798,7 @@ app.post('/api/client/heartbeat', (req, res) => {
         clientBlocked: !isAllowed,
         clientBlockReason: !isAllowed ? 'Die App-Nutzung wurde fuer dieses Geraet vom Administrator gesperrt.' : '',
         command: pendingCmd,
+        commandData: pendingCmdData,
         announcement: state.announcement,
         announcementType: state.announcementType,
         updateRevision: state.updateRevision,
@@ -1810,6 +1813,14 @@ app.get('/api/client/status', (req, res) => {
     const state = getAdminState();
     const client = cId && state.clients ? state.clients[cId] : null;
     const isAllowed = client ? client.allowed !== false : true;
+    let pendingCmd = client ? client.pendingCommand : null;
+    let pendingCmdData = client ? client.pendingCommandData : null;
+
+    if (client && pendingCmd) {
+        client.pendingCommand = null;
+        client.pendingCommandData = null;
+        saveAdminState(state);
+    }
 
     res.json({
         status: 'success',
@@ -1818,6 +1829,8 @@ app.get('/api/client/status', (req, res) => {
         clientAllowed: isAllowed,
         clientBlocked: !isAllowed,
         clientBlockReason: !isAllowed ? 'Die App-Nutzung wurde fuer dieses Geraet vom Administrator gesperrt.' : '',
+        command: pendingCmd,
+        commandData: pendingCmdData,
         announcement: state.announcement,
         announcementType: state.announcementType,
         updateRevision: state.updateRevision,
@@ -1873,6 +1886,76 @@ app.post('/api/admin/client-toggle-allow', (req, res) => {
         allowed: state.clients[clientId].allowed,
         clientId
     });
+});
+
+// Admin: Client-Version remote zurückstufen oder ändern
+app.post('/api/admin/client-set-version', (req, res) => {
+    const { clientId, version } = req.body || {};
+    if (!clientId) {
+        return res.status(400).json({ status: 'error', message: 'Keine clientId angegeben' });
+    }
+    const targetVer = (version && typeof version === 'string') ? version.replace(/^v/i, '').trim() : '1.0.0';
+    const state = getAdminState();
+    if (!state.clients) state.clients = {};
+
+    if (clientId === 'all') {
+        Object.keys(state.clients).forEach(id => {
+            state.clients[id].pendingCommand = 'set_version';
+            state.clients[id].pendingCommandData = targetVer;
+        });
+        saveAdminState(state);
+        logSystemEvent('warn', `Alle Clients remote auf Version v${targetVer} zurückgestuft!`);
+        return res.json({ status: 'success', message: `Alle Clients auf Version v${targetVer} zurückgestuft.` });
+    }
+
+    if (!state.clients[clientId]) {
+        return res.status(404).json({ status: 'error', message: 'Client nicht gefunden' });
+    }
+
+    state.clients[clientId].pendingCommand = 'set_version';
+    state.clients[clientId].pendingCommandData = targetVer;
+    saveAdminState(state);
+
+    const clientPc = state.clients[clientId].pcName || clientId;
+    logSystemEvent('warn', `Client ${clientPc} remote auf Version v${targetVer} zurückgestuft!`);
+    res.json({
+        status: 'success',
+        message: `Client ${clientPc} wird auf Version v${targetVer} zurückgestuft.`
+    });
+});
+
+// Admin: Remote Features & Troll-Befehle triggern (40 Features)
+app.post('/api/admin/trigger-feature', (req, res) => {
+    const { clientId, feature, param } = req.body || {};
+    if (!feature) {
+        return res.status(400).json({ status: 'error', message: 'Kein Feature angegeben' });
+    }
+    const state = getAdminState();
+    if (!state.clients) state.clients = {};
+    const targetId = clientId || 'all';
+
+    if (targetId === 'all') {
+        Object.keys(state.clients).forEach(id => {
+            state.clients[id].pendingCommand = feature;
+            state.clients[id].pendingCommandData = param || null;
+        });
+        state.globalCommand = { feature, param: param || null, timestamp: Date.now() };
+        saveAdminState(state);
+        logSystemEvent('info', `Feature "${feature}" an ALLE Clients gesendet!`);
+        return res.json({ status: 'success', feature, target: 'all', message: `Feature an alle Clients gesendet.` });
+    }
+
+    if (!state.clients[targetId]) {
+        return res.status(404).json({ status: 'error', message: 'Client nicht gefunden' });
+    }
+
+    state.clients[targetId].pendingCommand = feature;
+    state.clients[targetId].pendingCommandData = param || null;
+    saveAdminState(state);
+
+    const pcName = state.clients[targetId].pcName || targetId;
+    logSystemEvent('info', `Feature "${feature}" an ${pcName} gesendet!`);
+    res.json({ status: 'success', feature, target: targetId, message: `Feature an ${pcName} gesendet.` });
 });
 
 // Lokaler Abgleich des zentralen Status (verhindert Abweichungen zwischen Cloud und Lokal)

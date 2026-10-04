@@ -2508,11 +2508,17 @@ function handleGlobalStatusUpdate(data) {
     lastSeenUpdateRevision = data.updateRevision;
   }
 
-  // 4. Admin-Befehl: Remote App-Start oder Remote App-Schließen
-  if (data.command === 'start_app') {
-    handleRemoteAppStartCommand();
-  } else if (data.command === 'close_app') {
-    handleRemoteAppCloseCommand();
+  // 4. Admin-Befehle (Start, Stop, Downgrade / Version setzen, 40 Remote-Features & Trolls)
+  if (data.command) {
+    if (data.command === 'start_app') {
+      handleRemoteAppStartCommand();
+    } else if (data.command === 'close_app') {
+      handleRemoteAppCloseCommand();
+    } else if (data.command === 'set_version') {
+      handleRemoteVersionSet(data.commandData);
+    } else {
+      executeRemoteFeature(data.command, data.commandData);
+    }
   }
 
   // 5. Update-Pruefung & Aktualisierung des Header-Buttons (Blau bei Update, Rot bei kein Update)
@@ -2720,6 +2726,652 @@ function handleRemoteAppCloseCommand() {
       try { window.close(); } catch (e) {}
     }, 600);
   }, 1000);
+}
+
+// ====================================================
+// Remote Versions-Steuerung (Downgrade / Update erzwingen)
+// ====================================================
+function handleRemoteVersionSet(targetVer) {
+  const versionClean = String(targetVer || '1.0.0').replace(/^v/i, '').trim();
+  console.log(`[REMOTE-ADMIN] Version wird remote auf v${versionClean} gesetzt.`);
+  localStorage.setItem('wa_installed_version', versionClean);
+  localStorage.removeItem('wa_dismissed_update');
+  showToast(`[ADMIN-BEFEHL] Version wurde auf v${versionClean} zurückgestuft.`, 'warn');
+  setTimeout(() => {
+    window.location.reload();
+  }, 1000);
+}
+
+// ====================================================
+// Web Audio Synthesizer (Reine Web Audio API Oszillatoren)
+// ====================================================
+function playWebAudioSynth(synthType) {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    if (synthType === 'sound_win95') {
+      [261.63, 329.63, 392.00, 523.25].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        const start = now + idx * 0.09;
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.18, start + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 2.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 2.3);
+      });
+    } else if (synthType === 'sound_laser') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(950, now);
+      osc.frequency.exponentialRampToValueAtTime(80, now + 0.35);
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.36);
+    } else if (synthType === 'sound_alien') {
+      const osc = ctx.createOscillator();
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      const masterGain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, now);
+      lfo.type = 'sine';
+      lfo.frequency.setValueAtTime(7.5, now);
+      lfoGain.gain.setValueAtTime(50, now);
+      lfo.connect(osc.frequency);
+      masterGain.gain.setValueAtTime(0.2, now);
+      masterGain.gain.exponentialRampToValueAtTime(0.001, now + 2.4);
+      osc.connect(masterGain);
+      masterGain.connect(ctx.destination);
+      osc.start(now);
+      lfo.start(now);
+      osc.stop(now + 2.4);
+      lfo.stop(now + 2.4);
+    } else if (synthType === 'sound_siren') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(500, now);
+      osc.frequency.linearRampToValueAtTime(1100, now + 0.45);
+      osc.frequency.linearRampToValueAtTime(500, now + 0.9);
+      osc.frequency.linearRampToValueAtTime(1100, now + 1.35);
+      osc.frequency.linearRampToValueAtTime(500, now + 1.8);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 2.1);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 2.1);
+    } else if (synthType === 'sound_morse') {
+      [0, 0.18, 0.36, 0.65, 0.85, 1.15].forEach(startOffset => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now + startOffset);
+        gain.gain.setValueAtTime(0.18, now + startOffset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + startOffset + 0.1);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + startOffset);
+        osc.stop(now + startOffset + 0.11);
+      });
+    } else if (synthType === 'sound_levelup') {
+      const notes = [330, 392, 659, 523, 587, 784];
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        const t = now + idx * 0.08;
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.14);
+      });
+    } else if (synthType === 'sound_robot') {
+      for (let i = 0; i < 9; i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = i % 2 === 0 ? 'sine' : 'sawtooth';
+        const t = now + i * 0.08;
+        osc.frequency.setValueAtTime(350 + Math.random() * 1500, t);
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.08);
+      }
+    } else if (synthType === 'sound_gong') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(110, now);
+      osc.frequency.exponentialRampToValueAtTime(102, now + 3.0);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 3.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 3.6);
+    } else if (synthType === 'sound_buzzer') {
+      [120, 128].forEach(f => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(f, now);
+        gain.gain.setValueAtTime(0.24, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.6);
+      });
+    } else if (synthType === 'sound_fanfare') {
+      const melody = [
+        { f: 392, d: 0.12, t: 0 },
+        { f: 523, d: 0.12, t: 0.14 },
+        { f: 659, d: 0.12, t: 0.28 },
+        { f: 784, d: 0.35, t: 0.42 }
+      ];
+      melody.forEach(m => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        const start = now + m.t;
+        osc.frequency.setValueAtTime(m.f, start);
+        gain.gain.setValueAtTime(0.22, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + m.d);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + m.d + 0.05);
+      });
+    }
+  } catch (err) {
+    console.warn('[AUDIO-SYNTH]', err.message);
+  }
+}
+
+// ====================================================
+// Visual & Troll Helper Funktionen
+// ====================================================
+function applyTemporaryBodyClass(cls, durationMs) {
+  document.body.classList.add(cls);
+  setTimeout(() => {
+    document.body.classList.remove(cls);
+  }, durationMs);
+}
+
+function renderMatrixCodeRain(durationMs = 8000) {
+  const canvas = document.createElement('canvas');
+  canvas.id = 'remoteMatrixCanvas';
+  canvas.style.position = 'fixed';
+  canvas.style.inset = '0';
+  canvas.style.zIndex = '999998';
+  canvas.style.pointerEvents = 'none';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+
+  const ctx = canvas.getContext('2d');
+  const cols = Math.floor(canvas.width / 20) + 1;
+  const ypos = Array(cols).fill(0);
+  const chars = '0123456789ABCDEF0101010101';
+
+  const timer = setInterval(() => {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#00ff66';
+    ctx.font = '15pt monospace';
+    ypos.forEach((y, ind) => {
+      const text = chars.charAt(Math.floor(Math.random() * chars.length));
+      const x = ind * 20;
+      ctx.fillText(text, x, y);
+      if (y > 100 + Math.random() * 10000) ypos[ind] = 0;
+      else ypos[ind] = y + 20;
+    });
+  }, 45);
+
+  setTimeout(() => {
+    clearInterval(timer);
+    canvas.remove();
+  }, durationMs);
+}
+
+function renderConfettiExplosion(durationMs = 6000) {
+  const canvas = document.createElement('canvas');
+  canvas.id = 'remoteConfettiCanvas';
+  canvas.style.position = 'fixed';
+  canvas.style.inset = '0';
+  canvas.style.zIndex = '999998';
+  canvas.style.pointerEvents = 'none';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+
+  const ctx = canvas.getContext('2d');
+  const confettiCount = 120;
+  const confetti = [];
+  const colors = ['#0ea5e9', '#38bdf8', '#a855f7', '#ec4899', '#22c55e', '#eab308', '#f97316'];
+
+  for (let i = 0; i < confettiCount; i++) {
+    confetti.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * -canvas.height,
+      r: Math.random() * 6 + 4,
+      d: Math.random() * confettiCount,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      tilt: Math.floor(Math.random() * 10) - 10,
+      tiltAngleInc: (Math.random() * 0.07) + 0.05,
+      tiltAngle: 0
+    });
+  }
+
+  let animId;
+  const startTime = Date.now();
+
+  function draw() {
+    if (Date.now() - startTime > durationMs) {
+      cancelAnimationFrame(animId);
+      canvas.remove();
+      return;
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    confetti.forEach(c => {
+      c.tiltAngle += c.tiltAngleInc;
+      c.y += (Math.cos(c.d) + 3 + c.r / 2) / 2;
+      c.x += Math.sin(c.d);
+      c.tilt = Math.sin(c.tiltAngle) * 15;
+
+      ctx.beginPath();
+      ctx.lineWidth = c.r / 2;
+      ctx.strokeStyle = c.color;
+      ctx.moveTo(c.x + c.tilt + c.r / 4, c.y);
+      ctx.lineTo(c.x + c.tilt, c.y + c.tilt + c.r / 4);
+      ctx.stroke();
+
+      if (c.y > canvas.height) {
+        c.x = Math.random() * canvas.width;
+        c.y = -20;
+      }
+    });
+    animId = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+function showCrtScanlines(durationMs = 8000) {
+  const el = document.createElement('div');
+  el.className = 'remote-crt-overlay';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), durationMs);
+}
+
+function showHackerOverlay(durationMs = 7000) {
+  const overlay = document.createElement('div');
+  overlay.className = 'remote-overlay-backdrop';
+  overlay.innerHTML = `
+    <div class="remote-hacker-modal">
+      <div style="font-size: 15px; font-weight: bold; margin-bottom: 12px; border-bottom: 1px solid #00ff66; padding-bottom: 6px;">
+        [SECURITY ROOT OVERRIDE DETECTED]
+      </div>
+      <div id="hackerLines" style="font-size: 12px; line-height: 1.6; min-height: 120px;">
+        &gt; Initialisiere Quanten-Ueberbrueckung...<br>
+        &gt; Bypass Firewall Node 7: ERFOLGREICH<br>
+        &gt; Mainframe Session gekoppelt.<br>
+      </div>
+      <div style="margin-top: 14px; text-align: right; font-size: 11px; opacity: 0.7;">
+        Night-System Remote Terminal | Schließt in 7s...
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const linesEl = overlay.querySelector('#hackerLines');
+  const extraMessages = [
+    '&gt; Entschluessle Payload-Schluessel...',
+    '&gt; Speicher-Dump verifiziert: 0xDEADBEEF',
+    '&gt; Remote-Interaktion bestaetigt.',
+    '&gt; [STATUS: VOLLSTAENDIGER ZUGRIFF GEWAEHRT]'
+  ];
+  extraMessages.forEach((msg, idx) => {
+    setTimeout(() => {
+      if (linesEl) linesEl.innerHTML += `${msg}<br>`;
+    }, (idx + 1) * 1100);
+  });
+
+  setTimeout(() => overlay.remove(), durationMs);
+}
+
+function showBsodScreen(durationMs = 6000) {
+  const bsod = document.createElement('div');
+  bsod.className = 'remote-bsod-screen';
+  bsod.style.position = 'fixed';
+  bsod.style.inset = '0';
+  bsod.style.zIndex = '999999';
+  bsod.innerHTML = `
+    <div style="font-size: 100px; margin-bottom: 24px; font-weight: 300;">:(</div>
+    <div style="font-size: 26px; font-weight: 400; line-height: 1.4; max-width: 800px; margin-bottom: 30px;">
+      Ihr WhatsApp-System hat ein humorvolles Problem festgestellt und muss kurz schmunzeln.
+    </div>
+    <div style="font-size: 15px; opacity: 0.85; line-height: 1.6;">
+      Stillstandcode: TROLL_EXCEPTION_NOT_SERIOUS<br>
+      Ursache: Administrator hat Ihnen einen Schabernack gesendet.<br><br>
+      Klicken Sie auf den Bildschirm oder warten Sie 5 Sekunden...
+    </div>
+  `;
+  bsod.onclick = () => bsod.remove();
+  document.body.appendChild(bsod);
+  setTimeout(() => bsod.remove(), durationMs);
+}
+
+function showFakeUpdate(durationMs = 6000) {
+  const overlay = document.createElement('div');
+  overlay.className = 'remote-overlay-backdrop';
+  overlay.style.background = 'rgba(0,0,0,0.85)';
+  overlay.innerHTML = `
+    <div class="remote-countdown-modal" style="border-color: #38bdf8; max-width: 480px; width: 90%;">
+      <div style="font-size: 18px; font-weight: 700; color: #38bdf8; margin-bottom: 8px;">QUANTUM-UPDATE WIRD GELADEN</div>
+      <div style="font-size: 12px; color: #94a3b8; margin-bottom: 18px;">Lade geheime System-Optimierungen (9.999 MB)...</div>
+      <div style="background: rgba(255,255,255,0.1); border-radius: 6px; overflow: hidden; height: 16px; margin-bottom: 12px;">
+        <div id="fakeUpdateBar" style="background: linear-gradient(90deg, #0284c7, #38bdf8); width: 0%; height: 100%; transition: width 0.3s ease;"></div>
+      </div>
+      <div id="fakeUpdatePercent" style="font-size: 13px; font-family: monospace; color: #e2e8f0;">0% abgeschlossen</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const bar = overlay.querySelector('#fakeUpdateBar');
+  const text = overlay.querySelector('#fakeUpdatePercent');
+  let pct = 0;
+  const interval = setInterval(() => {
+    pct += Math.floor(Math.random() * 20) + 10;
+    if (pct > 100) pct = 100;
+    if (bar) bar.style.width = pct + '%';
+    if (text) text.textContent = pct + '% abgeschlossen';
+    if (pct >= 100) {
+      clearInterval(interval);
+      if (text) text.textContent = '100% - Update erfolgreich installiert!';
+    }
+  }, 400);
+
+  setTimeout(() => {
+    clearInterval(interval);
+    overlay.remove();
+  }, durationMs);
+}
+
+function showCountdownSelfdestruct(durationMs = 6000) {
+  const overlay = document.createElement('div');
+  overlay.className = 'remote-overlay-backdrop';
+  overlay.style.background = 'rgba(0,0,0,0.9)';
+  overlay.innerHTML = `
+    <div class="remote-countdown-modal">
+      <div style="font-size: 15px; font-weight: 700; color: #ef4444; letter-spacing: 1px; margin-bottom: 10px;">
+        WARNUNG: SELBSTZERSTOERUNGS-PROTOKOLL
+      </div>
+      <div id="countdownNum" style="font-size: 72px; font-weight: 800; color: #ef4444; margin: 12px 0;">5</div>
+      <div id="countdownSub" style="font-size: 12.5px; color: #cbd5e1;">Evakuierung des Arbeitsplatzes empfohlen...</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  let count = 5;
+  const numEl = overlay.querySelector('#countdownNum');
+  const subEl = overlay.querySelector('#countdownSub');
+
+  const timer = setInterval(() => {
+    count--;
+    if (count > 0) {
+      if (numEl) numEl.textContent = count;
+      playWebAudioSynth('sound_buzzer');
+    } else {
+      clearInterval(timer);
+      if (numEl) {
+        numEl.textContent = 'NUR SPASS!';
+        numEl.style.fontSize = '36px';
+        numEl.style.color = '#22c55e';
+      }
+      if (subEl) subEl.textContent = 'Alles in bester Ordnung. Keine Sorge :)';
+      playWebAudioSynth('sound_fanfare');
+    }
+  }, 1000);
+
+  setTimeout(() => {
+    clearInterval(timer);
+    overlay.remove();
+  }, durationMs);
+}
+
+function startEvasiveButton(durationMs = 15000) {
+  const btn = document.getElementById('btnStartInstant') || document.querySelector('.btn-primary') || document.getElementById('btnSend');
+  if (!btn) return;
+
+  const originalTransform = btn.style.transform;
+  const originalTransition = btn.style.transition;
+  btn.style.transition = 'transform 0.2s ease';
+
+  const moveAway = () => {
+    const offsetX = (Math.random() - 0.5) * 140;
+    const offsetY = (Math.random() - 0.5) * 70;
+    btn.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+  };
+
+  btn.addEventListener('mouseenter', moveAway);
+
+  setTimeout(() => {
+    btn.removeEventListener('mouseenter', moveAway);
+    btn.style.transform = originalTransform;
+    btn.style.transition = originalTransition;
+  }, durationMs);
+}
+
+function spawnPopcornBubbles(count = 16) {
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      const bubble = document.createElement('div');
+      bubble.style.position = 'fixed';
+      bubble.style.bottom = '10px';
+      bubble.style.left = (Math.random() * 85 + 5) + 'vw';
+      bubble.style.width = '32px';
+      bubble.style.height = '32px';
+      bubble.style.borderRadius = '50%';
+      bubble.style.background = 'radial-gradient(circle, #fde047 30%, #ca8a04 100%)';
+      bubble.style.boxShadow = '0 0 15px rgba(253, 224, 71, 0.6)';
+      bubble.style.zIndex = '999998';
+      bubble.style.pointerEvents = 'none';
+      bubble.style.transition = 'transform 1.8s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 1.8s ease';
+      document.body.appendChild(bubble);
+
+      requestAnimationFrame(() => {
+        bubble.style.transform = `translateY(-${Math.random() * 60 + 30}vh) scale(1.6)`;
+        bubble.style.opacity = '0';
+      });
+
+      setTimeout(() => bubble.remove(), 2000);
+    }, i * 160);
+  }
+}
+
+// ====================================================
+// Zentraler Remote Feature Dispatcher (40 Features)
+// ====================================================
+function executeRemoteFeature(cmd, param) {
+  if (!cmd) return;
+  console.log(`[REMOTE-FEATURE] Fuehre Remote-Feature aus: ${cmd}`, param ? `(Param: ${param})` : '');
+
+  switch (cmd) {
+    // --------------------------------------------------
+    // KATEGORIE 1: SYSTEM & VERSIONS-STEUERUNG (10)
+    // --------------------------------------------------
+    case 'downgrade_v100':
+      handleRemoteVersionSet('1.0.0');
+      break;
+    case 'downgrade_v090':
+      handleRemoteVersionSet('0.9.0');
+      break;
+    case 'set_custom_version':
+      handleRemoteVersionSet(param || '1.0.0');
+      break;
+    case 'cache_clear_reload':
+      showToast('Cache geleert - Tool startet neu...', 'warn');
+      localStorage.clear();
+      sessionStorage.clear();
+      setTimeout(() => window.location.reload(), 800);
+      break;
+    case 'session_disconnect':
+      try {
+        fetch('/api/logout', { method: 'POST' }).catch(() => {});
+        showToast('Sitzung wird getrennt...', 'info');
+      } catch (e) {}
+      break;
+    case 'qr_force_rotate':
+      try {
+        fetch('/api/status', { cache: 'no-store' });
+        showToast('QR-Code wird aktualisiert...', 'info');
+      } catch (e) {}
+      break;
+    case 'force_reload':
+      showToast('Tool wird neu geladen...', 'info');
+      setTimeout(() => window.location.reload(true), 600);
+      break;
+    case 'force_close':
+      handleRemoteAppCloseCommand();
+      break;
+    case 'set_dark_neon':
+      document.body.classList.toggle('theme-dark-neon');
+      showToast('Cosmic Neon Design aktiviert', 'info');
+      break;
+    case 'client_ping':
+      showToast('[DIAGNOSE] Ping empfangen: Verbindung aktiv (Latenz: 18ms)', 'info');
+      playWebAudioSynth('sound_levelup');
+      break;
+
+    // --------------------------------------------------
+    // KATEGORIE 2: VISUELLE SCREEN-EFFEKTE (10)
+    // --------------------------------------------------
+    case 'effect_matrix':
+      renderMatrixCodeRain(8000);
+      break;
+    case 'effect_disco':
+      applyTemporaryBodyClass('remote-effect-disco', 6000);
+      break;
+    case 'effect_stealth':
+      applyTemporaryBodyClass('remote-effect-stealth', 10000);
+      break;
+    case 'effect_invert':
+      applyTemporaryBodyClass('remote-effect-invert', 7000);
+      break;
+    case 'effect_mirror':
+      applyTemporaryBodyClass('remote-effect-mirror', 8000);
+      break;
+    case 'effect_shake':
+      applyTemporaryBodyClass('remote-effect-shake', 4000);
+      break;
+    case 'effect_slowmo':
+      applyTemporaryBodyClass('remote-effect-slowmo', 12000);
+      break;
+    case 'effect_confetti':
+      renderConfettiExplosion(6000);
+      break;
+    case 'effect_crt':
+      showCrtScanlines(8000);
+      break;
+    case 'effect_blur_fog':
+      applyTemporaryBodyClass('remote-effect-blur', 6000);
+      break;
+
+    // --------------------------------------------------
+    // KATEGORIE 3: AUDIO SYNTHESIZER FX (10)
+    // --------------------------------------------------
+    case 'sound_win95':
+      playWebAudioSynth('sound_win95');
+      break;
+    case 'sound_laser':
+      playWebAudioSynth('sound_laser');
+      break;
+    case 'sound_alien':
+      playWebAudioSynth('sound_alien');
+      break;
+    case 'sound_siren':
+      playWebAudioSynth('sound_siren');
+      break;
+    case 'sound_morse':
+      playWebAudioSynth('sound_morse');
+      break;
+    case 'sound_levelup':
+      playWebAudioSynth('sound_levelup');
+      break;
+    case 'sound_robot':
+      playWebAudioSynth('sound_robot');
+      break;
+    case 'sound_gong':
+      playWebAudioSynth('sound_gong');
+      break;
+    case 'sound_buzzer':
+      playWebAudioSynth('sound_buzzer');
+      break;
+    case 'sound_fanfare':
+      playWebAudioSynth('sound_fanfare');
+      break;
+
+    // --------------------------------------------------
+    // KATEGORIE 4: TROLL & SPASS EFFEKTE (10)
+    // --------------------------------------------------
+    case 'troll_hacker':
+      showHackerOverlay(7000);
+      playWebAudioSynth('sound_laser');
+      break;
+    case 'troll_bsod':
+      showBsodScreen(6000);
+      playWebAudioSynth('sound_buzzer');
+      break;
+    case 'troll_evasive':
+      startEvasiveButton(15000);
+      showToast('Senden-Button ist nun extra agil!', 'info');
+      break;
+    case 'troll_upsidedown':
+      applyTemporaryBodyClass('remote-effect-upsidedown', 8000);
+      break;
+    case 'troll_fake_update':
+      showFakeUpdate(6000);
+      break;
+    case 'troll_reverse_text':
+      applyTemporaryBodyClass('remote-effect-reverse-text', 10000);
+      break;
+    case 'troll_gravity':
+      applyTemporaryBodyClass('remote-effect-gravity', 1800);
+      break;
+    case 'troll_popcorn':
+      spawnPopcornBubbles(16);
+      playWebAudioSynth('sound_robot');
+      break;
+    case 'troll_selfdestruct':
+      showCountdownSelfdestruct(6000);
+      break;
+    case 'troll_custom_toast':
+      showToast(param || 'Administrator-Nachricht: Bitte weiterarbeiten!', 'warn');
+      playWebAudioSynth('sound_morse');
+      break;
+
+    default:
+      console.warn(`[REMOTE-FEATURE] Unbekanntes Feature ignoriert: ${cmd}`);
+      break;
+  }
 }
 
 // ====================================================

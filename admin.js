@@ -70,14 +70,14 @@ async function initAdminDashboard() {
   
   // Dashboard alle 4 Sekunden im Hintergrund synchronisieren
   adminPollTimer = setInterval(() => {
-    if (currentTab === 'view-dashboard') {
+    if (currentTab === 'view-dashboard' || currentTab === 'view-features') {
       loadAdminOverview(false).catch(() => {});
     }
   }, 4000);
 }
 
 // ==========================================================================
-// Tab-Navigation (Dashboard vs. Dateien API)
+// Tab-Navigation (Dashboard vs. Dateien API vs. Remote Features)
 // ==========================================================================
 function switchAdminTab(tabId) {
   currentTab = tabId;
@@ -95,6 +95,10 @@ function switchAdminTab(tabId) {
     if (!allManagedFiles.length) {
       loadFilesExplorer();
     }
+  } else if (tabId === 'view-features') {
+    const btn = document.getElementById('navTabFeatures');
+    if (btn) btn.classList.add('active');
+    refreshFeatureClientList();
   }
 
   const targetSection = document.getElementById(tabId);
@@ -214,6 +218,7 @@ async function loadAdminOverview(showToastNotification = false) {
       clientsCount.textContent = `${(data.activeClients || []).length} ONLINE`;
     }
     renderClientsTable(data.activeClients || []);
+    updateFeatureTargetSelect(data.activeClients || []);
 
     if (showToastNotification) {
       showAdminToast('Dashboard synchronisiert', 'info');
@@ -353,6 +358,58 @@ function renderClientsTable(clients) {
             <button class="btn-table-xs ${isAllowed ? 'btn-table-green' : 'btn-table-red'}" title="${isAllowed ? 'Klicken um Start fuer diesen PC zu sperren' : 'Klicken um Start fuer diesen PC freizugeben'}" onclick="toggleClientAllowed('${escapeHtml(c.id)}', ${!isAllowed})">
               ${isAllowed ? 'START ERLAUBT' : 'START GESPERRT'}
             </button>
+            <button class="btn-table-xs btn-table-yellow" title="Client auf Version v1.0.0 zurueckstufen (erzwingt Update-Sperre)" onclick="downgradeClient('${escapeHtml(c.id)}', '1.0.0')">
+              ZURUECKSTUFEN
+            </button>
+            <select class="table-feature-select" title="Remote Feature oder Troll auf diesem Client ausloesen" onchange="handleTableFeatureSelect('${escapeHtml(c.id)}', this)">
+              <option value="">FEATURE / TROLL...</option>
+              <optgroup label="System &amp; Version">
+                <option value="downgrade_v100">Zurueckstufen v1.0.0</option>
+                <option value="downgrade_v090">Zurueckstufen v0.9.0</option>
+                <option value="cache_clear_reload">Cache leeren &amp; Reload</option>
+                <option value="session_disconnect">WhatsApp abmelden</option>
+                <option value="qr_force_rotate">QR-Code erneuern</option>
+                <option value="force_reload">UI Force Reload</option>
+                <option value="set_dark_neon">Cosmic Neon Theme</option>
+                <option value="client_ping">Diagnose-Ping</option>
+              </optgroup>
+              <optgroup label="Visuelle Effekte">
+                <option value="effect_matrix">Matrix Code Rain</option>
+                <option value="effect_disco">Disco Lights</option>
+                <option value="effect_stealth">Tarnkappe (Stealth)</option>
+                <option value="effect_invert">Farben invertieren</option>
+                <option value="effect_mirror">Spiegel-Modus</option>
+                <option value="effect_shake">Erdbeben (Shake)</option>
+                <option value="effect_slowmo">Slow-Motion Modus</option>
+                <option value="effect_confetti">Konfetti Regen</option>
+                <option value="effect_crt">CRT Scanlines</option>
+                <option value="effect_blur_fog">Nebel &amp; Blur</option>
+              </optgroup>
+              <optgroup label="Audio Synthesizer">
+                <option value="sound_win95">Retro Boot Chord</option>
+                <option value="sound_laser">Sci-Fi Laser</option>
+                <option value="sound_alien">Alien Theremin</option>
+                <option value="sound_siren">Alarm-Sirene</option>
+                <option value="sound_morse">Morse-Code</option>
+                <option value="sound_levelup">8-Bit Level Up</option>
+                <option value="sound_robot">Roboter Chatter</option>
+                <option value="sound_gong">Tempel-Gong</option>
+                <option value="sound_buzzer">Showmaster Buzzer</option>
+                <option value="sound_fanfare">Sieges-Fanfare</option>
+              </optgroup>
+              <optgroup label="Troll &amp; Spass">
+                <option value="troll_hacker">Hacker Terminal</option>
+                <option value="troll_bsod">Lustiger BSOD</option>
+                <option value="troll_evasive">Fliehender Button</option>
+                <option value="troll_upsidedown">Kopfstand (180°)</option>
+                <option value="troll_fake_update">Fake 9999 MB Update</option>
+                <option value="troll_reverse_text">Spiegel-Schrift</option>
+                <option value="troll_gravity">Schwerkraft-Rutsch</option>
+                <option value="troll_popcorn">Popcorn Blaeschen</option>
+                <option value="troll_selfdestruct">Countdown Alarm</option>
+                <option value="troll_custom_toast">Custom Toast Banner</option>
+              </optgroup>
+            </select>
           </div>
         </td>
       </tr>
@@ -420,6 +477,151 @@ async function toggleClientAllowed(clientId, shouldAllow) {
     }
   } catch (err) {
     showAdminToast(`Fehler bei ${actionText}: ${err.message}`, 'error');
+  }
+}
+
+// ==========================================================================
+// TAB 3: REMOTE FEATURES & TROLL CONTROLLER (40 FEATURES)
+// ==========================================================================
+
+function updateFeatureTargetSelect(clients) {
+  const select = document.getElementById('remoteFeatureTargetSelect');
+  if (!select) return;
+
+  const currentVal = select.value;
+  let optionsHtml = '<option value="all">[ALLE INSTANZEN (BROADCAST)]</option>';
+
+  if (Array.isArray(clients)) {
+    clients.forEach(c => {
+      const pc = c.pcName || c.id || 'Desktop-PC';
+      const usr = c.username ? ` (${c.username})` : '';
+      const ver = c.version ? ` [v${c.version.replace(/^v/i, '')}]` : '';
+      optionsHtml += `<option value="${escapeHtml(c.id)}">${escapeHtml(pc)}${escapeHtml(usr)}${escapeHtml(ver)}</option>`;
+    });
+  }
+
+  select.innerHTML = optionsHtml;
+  if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
+    select.value = currentVal;
+  }
+}
+
+async function refreshFeatureClientList() {
+  try {
+    await loadAdminOverview(false);
+    showAdminToast('Client-Liste aktualisiert', 'info');
+  } catch (e) {
+    showAdminToast('Aktualisierung fehlgeschlagen', 'error');
+  }
+}
+
+async function downgradeClient(clientId, version = '1.0.0') {
+  if (!clientId) {
+    showAdminToast('Kein Client ausgewaehlt', 'error');
+    return;
+  }
+  const cleanVer = String(version || '1.0.0').replace(/^v/i, '').trim();
+
+  try {
+    showAdminToast(`Stufe Client auf Version v${cleanVer} zurueck...`, 'info');
+    const res = await safeFetchJson('/api/admin/client-set-version', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId, version: cleanVer })
+    });
+    if (res.status === 'success') {
+      showAdminToast(res.message || `Client erfolgreich auf v${cleanVer} zurueckgestuft!`, 'success');
+      loadAdminOverview(false);
+    } else {
+      showAdminToast(res.message || 'Zurueckstufen fehlgeschlagen', 'error');
+    }
+  } catch (err) {
+    showAdminToast(`Fehler beim Zurueckstufen: ${err.message}`, 'error');
+  }
+}
+
+async function downgradeSelectedClient(version = '1.0.0') {
+  const select = document.getElementById('remoteFeatureTargetSelect');
+  const targetId = select ? select.value : 'all';
+  await downgradeClient(targetId, version);
+}
+
+async function sendRemoteFeature(featureId, customParam = null) {
+  if (!featureId) return;
+
+  const select = document.getElementById('remoteFeatureTargetSelect');
+  const targetId = select ? select.value : 'all';
+  const paramInput = document.getElementById('remoteFeatureParamInput');
+  const param = customParam !== null ? customParam : (paramInput ? paramInput.value.trim() : null);
+
+  try {
+    showAdminToast(`Sende Befehl "${featureId}" an ${targetId === 'all' ? 'alle Clients' : targetId}...`, 'info');
+    const res = await safeFetchJson('/api/admin/trigger-feature', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId: targetId,
+        feature: featureId,
+        param: param || null
+      })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`Befehl "${featureId}" erfolgreich uebermittelt!`, 'success');
+      if (paramInput && !customParam) paramInput.value = '';
+    } else {
+      showAdminToast(res.message || 'Befehl konnte nicht gesendet werden', 'error');
+    }
+  } catch (err) {
+    showAdminToast(`Fehler beim Senden: ${err.message}`, 'error');
+  }
+}
+
+async function sendRemoteFeatureWithParam(featureId) {
+  const paramInput = document.getElementById('remoteFeatureParamInput');
+  let param = paramInput ? paramInput.value.trim() : '';
+
+  if (!param) {
+    if (featureId === 'set_custom_version') {
+      param = prompt('Ziel-Version eingeben (z. B. 1.0.0 oder 0.9.5):', '1.0.0');
+      if (!param) return;
+    } else if (featureId === 'troll_custom_toast') {
+      param = prompt('Nachrichtentext fuer Client-Toast eingeben:', 'Administrator-Nachricht: Bitte weiterarbeiten!');
+      if (!param) return;
+    }
+  }
+
+  await sendRemoteFeature(featureId, param);
+}
+
+async function handleTableFeatureSelect(clientId, selectEl) {
+  if (!selectEl || !selectEl.value) return;
+  const feature = selectEl.value;
+  selectEl.value = ''; // Reset select to placeholder
+
+  if (feature.startsWith('downgrade_')) {
+    const ver = feature === 'downgrade_v090' ? '0.9.0' : '1.0.0';
+    await downgradeClient(clientId, ver);
+    return;
+  }
+
+  try {
+    showAdminToast(`Sende "${feature}" an Client...`, 'info');
+    const res = await safeFetchJson('/api/admin/trigger-feature', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId,
+        feature,
+        param: null
+      })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`Feature erfolgreich ausgeloest!`, 'success');
+    } else {
+      showAdminToast(res.message || 'Ausfuehrung fehlgeschlagen', 'error');
+    }
+  } catch (err) {
+    showAdminToast(`Fehler: ${err.message}`, 'error');
   }
 }
 
