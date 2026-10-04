@@ -91,9 +91,9 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => selectTab(savedTab), 60);
   }
 
-  setInterval(sendClientHeartbeat, 6000);
+  setInterval(sendClientHeartbeat, 5000);
   pollGlobalStatus();
-  setInterval(pollGlobalStatus, 4000);
+  setInterval(pollGlobalStatus, 1500);
 
   activeMsgSyncTimer = setInterval(() => {
     if (lastKnownStatus === 'connected') {
@@ -2544,7 +2544,7 @@ function updateHeaderUpdateButton(hasUpdate, latestVer) {
   } else {
     btn.className = 'btn-update-header btn-update-red';
     btn.textContent = 'Kein Update';
-    btn.title = 'Kein Update verfuegbar (Klicken zum Pruefen oder Wiederholen des Updates)';
+    btn.title = 'Sie nutzen die neueste Version. Kein Update moeglich.';
   }
 }
 
@@ -2572,19 +2572,20 @@ async function onHeaderUpdateClick() {
       pendingUpdateInfo = { version: serverVer, file: changedFile, revision: rev };
       updateHeaderUpdateButton(hasUpdate, serverVer);
 
-      // Oeffnet das Modal - wenn Update da: Neuer Stand; wenn kein Update: Wiederholungs-Modus
-      showUpdateAvailableOverlay(serverVer, changedFile, rev, true);
+      if (hasUpdate) {
+        showUpdateAvailableOverlay(serverVer, changedFile, rev, true);
+      } else {
+        // Neueste Version aktiv: Tool gibt vor, dass man nicht updaten kann!
+        showToast(`Sie nutzen bereits die neueste Version (v${installedVer.replace(/^v/i, '')}). Kein Update moeglich.`, 'info');
+      }
       return;
     }
   } catch (e) {
     console.warn('[UPDATE-CHECK] Serverabfrage fehlgeschlagen:', e.message);
   }
 
-  // Fallback: Wiederholungs-Modus mit lokalem Stand oeffnen
-  const fallbackVer = (pendingUpdateInfo && pendingUpdateInfo.version) || installedVer;
-  const fallbackFile = (pendingUpdateInfo && pendingUpdateInfo.file) || 'System-Dateien';
-  const fallbackRev = (pendingUpdateInfo && pendingUpdateInfo.revision) || 1;
-  showUpdateAvailableOverlay(fallbackVer, fallbackFile, fallbackRev, true);
+  // Wenn keine neuere Version vorliegt, stets vorgaukeln, dass man nicht updaten kann
+  showToast(`Sie nutzen bereits die neueste Version (v${installedVer.replace(/^v/i, '')}). Kein Update moeglich.`, 'info');
 }
 
 function getInstalledVersion() {
@@ -2607,7 +2608,8 @@ function isVersionGreater(v1, v2) {
 let pendingUpdateInfo = null;
 
 function showUpdateAvailableOverlay(newVer, changedFile, revision, forceShow = false) {
-  if (!forceShow && sessionStorage.getItem('wa_dismissed_version') === newVer) return;
+  const updateKey = `${newVer}_${revision || 1}`;
+  if (!forceShow && sessionStorage.getItem('wa_dismissed_update') === updateKey) return;
 
   pendingUpdateInfo = { version: newVer, file: changedFile, revision: revision };
 
@@ -2621,17 +2623,12 @@ function showUpdateAvailableOverlay(newVer, changedFile, revision, forceShow = f
   const loaderSec = document.getElementById('updateLoaderSection');
 
   const installedVer = getInstalledVersion();
-  const isRepeat = !isVersionGreater(newVer, installedVer);
 
   if (title) {
-    title.textContent = isRepeat 
-      ? `VERSION V${newVer.replace(/^v/i, '')} WIEDERHOLEN` 
-      : `NEUE VERSION V${newVer.replace(/^v/i, '')} BEREIT`;
+    title.textContent = `NEUESTE VERSION V${newVer.replace(/^v/i, '')} VERFUEGBAR`;
   }
   if (subTitle) {
-    subTitle.textContent = isRepeat
-      ? 'Sie koennen den Update-Vorgang jetzt wiederholen und die Dateien erneut einspielen.'
-      : 'Eine Aktualisierung des Tools wurde vom Server bereitgestellt.';
+    subTitle.textContent = 'Eine Aktualisierung des Tools wurde bereitgestellt (Empfohlen: Neueste Version installieren).';
   }
   if (instEl) instEl.textContent = `v${installedVer.replace(/^v/i, '')}`;
   if (availEl) availEl.textContent = `v${newVer.replace(/^v/i, '')}`;
@@ -2646,7 +2643,8 @@ function keepOldVersion() {
   const overlay = document.getElementById('updateAvailableOverlay');
   if (overlay) overlay.style.display = 'none';
   if (pendingUpdateInfo && pendingUpdateInfo.version) {
-    sessionStorage.setItem('wa_dismissed_version', pendingUpdateInfo.version);
+    const updateKey = `${pendingUpdateInfo.version}_${pendingUpdateInfo.revision || 1}`;
+    sessionStorage.setItem('wa_dismissed_update', updateKey);
   }
   showToast('Alte Version wird weiterbenutzt.', 'info');
 }
@@ -2688,11 +2686,13 @@ async function applyFixitVersion() {
     if (pendingUpdateInfo && pendingUpdateInfo.revision) {
       localStorage.setItem('wa_installed_revision', String(pendingUpdateInfo.revision));
     }
+    sessionStorage.removeItem('wa_dismissed_update');
 
     await new Promise(r => setTimeout(r, 1600));
     window.location.reload();
   } catch (err) {
     localStorage.setItem('wa_installed_version', newVersion);
+    sessionStorage.removeItem('wa_dismissed_update');
     setTimeout(() => window.location.reload(), 1500);
   }
 }
