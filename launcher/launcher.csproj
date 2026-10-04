@@ -14,6 +14,7 @@
     <Version>1.0.0</Version>
     <Company>NightSystem</Company>
     <Product>WhatsApp Night-System</Product>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
 </Project>

@@ -1793,6 +1793,41 @@ app.post('/api/system/start-app', (req, res) => {
     }
 });
 
+// Admin: Befehl zum Schließen der App fuer einen Client senden
+app.post('/api/admin/client-close-app', (req, res) => {
+    const { clientId } = req.body || {};
+    if (!clientId) {
+        return res.status(400).json({ status: 'error', message: 'Keine clientId angegeben' });
+    }
+    const state = getAdminState();
+    if (!state.clients) state.clients = {};
+    if (!state.clients[clientId]) {
+        state.clients[clientId] = { id: clientId, lastSeen: Date.now() };
+    }
+    state.clients[clientId].pendingCommand = 'close_app';
+    state.clients[clientId].commandTimestamp = Date.now();
+    saveAdminState(state);
+
+    logSystemEvent('info', `Admin hat Schließbefehl fuer Client '${clientId}' ausgeloest.`);
+    res.json({
+        status: 'success',
+        message: 'Schließbefehl registriert',
+        clientId
+    });
+});
+
+// Lokaler System-Endpunkt: App sauber beenden (aufgerufen durch Client-Befehl)
+app.post('/api/system/shutdown', async (req, res) => {
+    res.json({ status: 'success', message: 'App wird beendet' });
+    setTimeout(() => {
+        try {
+            cleanupSessionLocks();
+            if (fs.existsSync(ACTIVE_PORT_FILE)) fs.unlinkSync(ACTIVE_PORT_FILE);
+        } catch (e) {}
+        process.exit(0);
+    }, 400);
+});
+
 // Dateien API Endpoints
 app.get('/api/system/files', (req, res) => {
     const list = Object.keys(MANAGED_FILES).map(k => {

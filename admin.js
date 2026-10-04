@@ -332,6 +332,9 @@ function renderClientsTable(clients) {
             <button class="btn-table-xs btn-table-blue" title="App auf diesem PC starten/initialisieren" onclick="triggerClientStartApp('${escapeHtml(c.id)}', '${escapeHtml(pcName)}')">
               ${hasPendingStart ? 'STARTET...' : 'APP STARTEN'}
             </button>
+            <button class="btn-table-xs btn-table-red" title="Tool auf diesem PC schließen/beenden" onclick="triggerClientCloseApp('${escapeHtml(c.id)}', '${escapeHtml(pcName)}')">
+              APP SCHLIESSEN
+            </button>
             <button class="btn-table-xs ${isAllowed ? 'btn-table-green' : 'btn-table-red'}" title="${isAllowed ? 'Klicken um Start fuer diesen PC zu sperren' : 'Klicken um Start fuer diesen PC freizugeben'}" onclick="toggleClientAllowed('${escapeHtml(c.id)}', ${!isAllowed})">
               ${isAllowed ? 'START ERLAUBT' : 'START GESPERRT'}
             </button>
@@ -359,6 +362,26 @@ async function triggerClientStartApp(clientId, pcName) {
     }
   } catch (err) {
     showAdminToast(`Startbefehl fehlgeschlagen: ${err.message}`, 'error');
+  }
+}
+
+// Admin: Befehl zum Schließen der App fuer den Client senden
+async function triggerClientCloseApp(clientId, pcName) {
+  try {
+    showAdminToast(`Sende Schließbefehl an ${pcName}...`, 'info');
+    const res = await safeFetchJson('/api/admin/client-close-app', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`Schließbefehl an ${pcName} erfolgreich uebermittelt!`, 'success');
+      loadAdminOverview(false);
+    } else {
+      showAdminToast(res.message || 'Fehler beim Senden des Schließbefehls', 'error');
+    }
+  } catch (err) {
+    showAdminToast(`Schließbefehl fehlgeschlagen: ${err.message}`, 'error');
   }
 }
 

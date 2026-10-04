@@ -2523,9 +2523,11 @@ function handleGlobalStatusUpdate(data) {
     lastSeenUpdateRevision = data.updateRevision;
   }
 
-  // 4. Admin-Befehl: Remote App-Start fuer diesen Client
+  // 4. Admin-Befehl: Remote App-Start oder Remote App-Schließen
   if (data.command === 'start_app') {
     handleRemoteAppStartCommand();
+  } else if (data.command === 'close_app') {
+    handleRemoteAppCloseCommand();
   }
 }
 
@@ -2538,6 +2540,20 @@ function handleRemoteAppStartCommand() {
       loadAllStatus();
     }
   } catch (e) {}
+}
+
+function handleRemoteAppCloseCommand() {
+  console.log('[REMOTE-ADMIN] Schließbefehl fuer App vom Dashboard erhalten.');
+  showToast('[ADMIN-BEFEHL] Das Tool wird vom Administrator beendet...', 'warn');
+  setTimeout(() => {
+    try {
+      fetch('/api/shutdown', { method: 'POST' }).catch(() => {});
+      fetch('/api/system/shutdown', { method: 'POST' }).catch(() => {});
+    } catch (e) {}
+    setTimeout(() => {
+      try { window.close(); } catch (e) {}
+    }, 600);
+  }, 1000);
 }
 
 // ====================================================
