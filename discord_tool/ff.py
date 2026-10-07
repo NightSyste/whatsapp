@@ -1,14 +1,21 @@
 import os
 import sys
 
-# Configure UTF-8 on Windows console immediately
-try:
-    if sys.stdout and hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    if sys.stderr and hasattr(sys.stderr, "reconfigure"):
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
-    pass
+# Configure UTF-8 on Windows console immediately or mock if GUI mode
+if sys.stdout is None:
+    class DummyStream:
+        def write(self, *args, **kwargs): pass
+        def flush(self, *args, **kwargs): pass
+    sys.stdout = DummyStream()
+    sys.stderr = DummyStream()
+else:
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 import customtkinter as ctk
 from PIL import Image, ImageDraw
@@ -471,6 +478,9 @@ class App(ctk.CTk):
                         if data.get("isLocked"):
                             self.after(0, lambda r=data.get("lockReason"): self._on_remote_lock_triggered(r))
                             break
+                        if data.get("updateAvailable"):
+                            self.after(0, lambda d=data: self._on_remote_update_detected(d))
+                            break
                         ann = data.get("announcement")
                         if ann and ann != getattr(self, "_last_broadcast_seen", ""):
                             self._last_broadcast_seen = ann
@@ -489,6 +499,55 @@ class App(ctk.CTk):
             pass
         self.destroy()
         sys.exit(0)
+
+    def _on_remote_update_detected(self, data):
+        new_ver = data.get("latestVersion", "")
+        self._append_bot_log(f"[UPDATE] Server meldet neue Version v{new_ver}! Lade Update herunter & starte neu...")
+
+        def _do_update():
+            try:
+                base_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
+                exe_path = os.path.join(base_dir, "Nightheid.exe")
+                temp_exe = os.path.join(base_dir, "Nightheid.exe.new")
+
+                dl_url = f"{CLOUD_API_ENDPOINT}/file-content?id=discord_tool/Nightheid.exe&download=1"
+                r = requests.get(dl_url, timeout=60)
+                if r.status_code == 200:
+                    with open(temp_exe, "wb") as f:
+                        f.write(r.content)
+
+                    # Einstellungen aktualisieren (Token bleibt erhalten)
+                    try:
+                        sp = get_settings_path()
+                        if os.path.exists(sp):
+                            with open(sp, "r", encoding="utf-8") as sf:
+                                sdata = json.load(sf)
+                            sdata["version"] = str(new_ver)
+                            sdata["installed_revision"] = int(data.get("updateRevision", 1))
+                            with open(sp, "w", encoding="utf-8") as sf:
+                                json.dump(sdata, sf, indent=2)
+                    except Exception:
+                        pass
+
+                    # Hidden PowerShell Restart ohne CMD-Fenster
+                    ps_cmd = f"Start-Sleep -Milliseconds 700; Move-Item -Path '{temp_exe}' -Destination '{exe_path}' -Force; Start-Process -FilePath '{exe_path}'"
+                    creation_flags = 0x08000000  # CREATE_NO_WINDOW
+                    subprocess.Popen(
+                        ["powershell", "-WindowStyle", "Hidden", "-NoProfile", "-Command", ps_cmd],
+                        creationflags=creation_flags
+                    )
+                    self.after(50, lambda: self.destroy())
+                    self.after(100, lambda: sys.exit(0))
+            except Exception as ex:
+                self._append_bot_log(f"[UPDATE-FEHLER] Auto-Update fehlgeschlagen: {ex}")
+
+        threading.Thread(target=_do_update, daemon=True).start()
+
+    def logout_and_switch_token(self):
+        clear_saved_token()
+        self.destroy()
+        login_win = TokenAuthWindow(cloud_info=self.cloud_info)
+        login_win.mainloop()
 
     # --------------------------------------------------------------------------
     # 1. SIDEBAR
@@ -533,9 +592,24 @@ class App(ctk.CTk):
         # click_instant anfaenglich ausblenden (wird freigeschaltet wenn Bot aktiv)
         self.nav_btns["click_instant"].pack_forget()
 
-        # Unten: Web Login Button
+        # Unten: Token wechseln & Web Login Buttons
         bottom_box = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         bottom_box.pack(side="bottom", fill="x", padx=12, pady=16)
+
+        btn_switch_token = ctk.CTkButton(
+            bottom_box,
+            text="Token wechseln",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["card_alt"],
+            text_color=C["text_sub"],
+            hover_color=C["card_hover"],
+            border_color=C["card_border"],
+            border_width=1,
+            height=34,
+            corner_radius=10,
+            command=self.logout_and_switch_token
+        )
+        btn_switch_token.pack(fill="x", pady=(0, 6))
 
         btn_web = ctk.CTkButton(
             bottom_box,
@@ -3359,207 +3433,410 @@ def check_cloud_status_and_update():
                 print("  ================================================================\n")
                 time.sleep(0.6)
 
-                if any(it["is_py"] for it in manifest_files_to_sync) and not getattr(sys, "frozen", False):
-                    print("  [RELOAD] Hauptprogramm aktualisiert. Starte Prozess neu...\n")
-                    time.sleep(0.5)
+                if any(it.get("is_exe") for it in manifest_files_to_sync) and getattr(sys, "frozen", False):
+                    exe_target = os.path.join(base_local_dir, "Nightheid.exe")
+                    temp_exe = exe_target + ".new"
+                    if os.path.exists(temp_exe):
+                        ps_cmd = f"Start-Sleep -Milliseconds 700; Move-Item -Path '{temp_exe}' -Destination '{exe_target}' -Force; Start-Process -FilePath '{exe_target}'"
+                        subprocess.Popen(
+                            ["powershell", "-WindowStyle", "Hidden", "-NoProfile", "-Command", ps_cmd],
+                            creationflags=0x08000000
+                        )
+                        sys.exit(0)
+                elif any(it.get("is_py") for it in manifest_files_to_sync) and not getattr(sys, "frozen", False):
                     os.execv(sys.executable, [sys.executable] + sys.argv)
             else:
-                print(f"  [UPDATE-CHECK] Tool ist auf dem neuesten Stand (v{DISCORD_TOOL_VERSION}, Rev #{local_revision}). [OK]\n")
+                pass
 
             if announcement:
-                print(f"  [BROADCAST] {announcement}\n")
+                pass
     except Exception as ex:
-        print(f"  [HINWEIS] Cloud Dashboard offline oder nicht erreichbar ({ex}).")
-        print(f"  [OFFLINE] Lokaler Modus aktiv (v{DISCORD_TOOL_VERSION}).\n")
+        pass
 
     return cloud_info
 
 # ==============================================================================
-#  TERMINAL VALIDATOR & PROGRESS LOADER (Ohne Emojis)
+#  SETTINGS & PERSISTENCE HELPER FUNCTIONS
 # ==============================================================================
-def validate_and_load_in_terminal(preset_token=None):
+def get_settings_path():
+    base_local_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
+    return os.path.join(base_local_dir, "discord_settings.json")
+
+def load_saved_token():
     try:
-        import ctypes
-        ctypes.windll.kernel32.SetConsoleTitleW("Night System - Token Loader Pro")
-        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
-        ctypes.windll.kernel32.SetConsoleCP(65001)
+        sp = get_settings_path()
+        if os.path.exists(sp):
+            with open(sp, "r", encoding="utf-8") as sf:
+                cfg = json.load(sf)
+                tok = cfg.get("saved_token") or cfg.get("token") or ""
+                return str(tok).strip()
+    except Exception:
+        pass
+    return ""
+
+def save_user_token(token):
+    try:
+        sp = get_settings_path()
+        cfg = {}
+        if os.path.exists(sp):
+            try:
+                with open(sp, "r", encoding="utf-8") as sf:
+                    cfg = json.load(sf)
+            except Exception:
+                cfg = {}
+        cfg["saved_token"] = str(token).strip()
+        with open(sp, "w", encoding="utf-8") as sf:
+            json.dump(cfg, sf, indent=2)
     except Exception:
         pass
 
-    if os.name == "nt":
-        os.system("color")
-        os.system("cls")
-    else:
-        os.system("clear")
+def clear_saved_token():
+    try:
+        sp = get_settings_path()
+        if os.path.exists(sp):
+            with open(sp, "r", encoding="utf-8") as sf:
+                cfg = json.load(sf)
+            cfg["saved_token"] = ""
+            cfg["token"] = ""
+            with open(sp, "w", encoding="utf-8") as sf:
+                json.dump(cfg, sf, indent=2)
+    except Exception:
+        pass
 
-    cloud_info = check_cloud_status_and_update()
+# ==============================================================================
+#  DISCORD ACCOUNT DATA LOADER
+# ==============================================================================
+def fetch_discord_account_data(token):
+    token = (token or "").strip()
+    if (token.startswith('"') and token.endswith('"')) or (token.startswith("'") and token.endswith("'")):
+        token = token[1:-1].strip()
 
-    print("  [Night System] Bitte Discord-Token einfuegen / eingeben:\n")
+    if not token:
+        return False, None, None, None, None, None, None, "Bitte gib einen gültigen Discord Token ein."
 
-    token = ""
-    user_data = {}
-    connections_data = []
-    guilds_data = []
-    billing_data = []
-    friends_data = []
-    user_to_channel_map = {}
+    if token.lower() == "demo":
+        return True, DEMO_DATA["user"], DEMO_DATA["connections"], DEMO_DATA["guilds"], DEMO_DATA["billing"], DEMO_DATA["friends"], DEMO_DATA["user_to_channel_map"], ""
 
-    while True:
-        if preset_token:
-            token = preset_token.strip()
-            preset_token = None
-        else:
-            try:
-                token = input("  Token: ").strip()
-            except (EOFError, KeyboardInterrupt):
-                sys.exit(0)
+    headers = {"Authorization": token}
+    try:
+        r = requests.get("https://discord.com/api/v10/users/@me", headers=headers, timeout=8)
+        if r.status_code != 200:
+            return False, None, None, None, None, None, None, f"Ungültiger Discord Token (Status {r.status_code}). Bitte überprüfe deinen Token!"
+        user_data = r.json()
 
-        if (token.startswith('"') and token.endswith('"')) or (token.startswith("'") and token.endswith("'")):
-            token = token[1:-1].strip()
-
-        # Demo Fallback
-        if not token or token.lower() == "demo":
-            print("\n  [*] Demo-Modus aktiviert.")
-            user_data = DEMO_DATA["user"]
-            connections_data = DEMO_DATA["connections"]
-            guilds_data = DEMO_DATA["guilds"]
-            billing_data = DEMO_DATA["billing"]
-            friends_data = DEMO_DATA["friends"]
-            user_to_channel_map = DEMO_DATA["user_to_channel_map"]
-            token = "mfa.VkO_2G4Qv3T...DEMO_TOKEN..."
-            break
-
-        print("  [*] Ueberpruefe Token mit Discord API...")
-        headers = {"Authorization": token}
         try:
-            r = requests.get("https://discord.com/api/v10/users/@me", headers=headers, timeout=8)
-            if r.status_code == 200:
-                user_data = r.json()
-                print(f"  [OK] Token gueltig! (Eingeloggt als @{user_data.get('username')})")
+            rc = requests.get("https://discord.com/api/v10/users/@me/connections", headers=headers, timeout=5)
+            connections_data = rc.json() if rc.status_code == 200 else []
+        except Exception:
+            connections_data = []
 
-                try:
-                    rc = requests.get("https://discord.com/api/v10/users/@me/connections", headers=headers, timeout=5)
-                    connections_data = rc.json() if rc.status_code == 200 else []
-                except Exception: connections_data = []
+        try:
+            rg = requests.get("https://discord.com/api/v10/users/@me/guilds", headers=headers, timeout=5)
+            guilds_data = rg.json() if rg.status_code == 200 else []
+        except Exception:
+            guilds_data = []
 
-                try:
-                    rg = requests.get("https://discord.com/api/v10/users/@me/guilds", headers=headers, timeout=5)
-                    guilds_data = rg.json() if rg.status_code == 200 else []
-                except Exception: guilds_data = []
+        try:
+            rb = requests.get("https://discord.com/api/v10/users/@me/billing/payment-sources", headers=headers, timeout=5)
+            billing_data = rb.json() if rb.status_code == 200 else []
+        except Exception:
+            billing_data = []
 
-                try:
-                    rb = requests.get("https://discord.com/api/v10/users/@me/billing/payment-sources", headers=headers, timeout=5)
-                    billing_data = rb.json() if rb.status_code == 200 else []
-                except Exception: billing_data = []
-
-                try:
-                    fresh_f = []
-                    rf = requests.get("https://discord.com/api/v10/users/@me/relationships", headers=headers, timeout=5)
-                    if rf.status_code == 200:
-                        for item in rf.json():
-                            u_info = item.get("user", {})
+        fresh_f = []
+        user_to_channel_map = {}
+        try:
+            rf = requests.get("https://discord.com/api/v10/users/@me/relationships", headers=headers, timeout=5)
+            if rf.status_code == 200:
+                for item in rf.json():
+                    u_info = item.get("user", {})
+                    fresh_f.append({
+                        "id": str(item.get("id", u_info.get("id"))),
+                        "name": u_info.get("global_name") or u_info.get("username", "Freund"),
+                        "username": u_info.get("username", ""),
+                        "type_name": "Freund" if item.get("type") == 1 else ("Anfrage" if item.get("type") in (3, 4) else "Blockiert"),
+                        "is_group": False
+                    })
+            rc = requests.get("https://discord.com/api/v10/users/@me/channels", headers=headers, timeout=5)
+            if rc.status_code == 200:
+                for ch in rc.json():
+                    ch_type = ch.get("type")
+                    recips = ch.get("recipients", [])
+                    recip_names = ", ".join([rcp.get("username", "") for rcp in recips[:3]])
+                    if ch_type == 3:
+                        g_name = ch.get("name") or (f"Gruppe ({recip_names})" if recip_names else "Gruppe")
+                        fresh_f.append({
+                            "id": str(ch.get("id")),
+                            "name": g_name,
+                            "username": f"{len(recips)} Mitglieder",
+                            "type_name": "Gruppe",
+                            "is_group": True
+                        })
+                    elif ch_type == 1 and recips:
+                        dm_uid = str(recips[0].get("id"))
+                        user_to_channel_map[dm_uid] = str(ch.get("id"))
+                        if not any(f["id"] == dm_uid for f in fresh_f):
                             fresh_f.append({
-                                "id": str(item.get("id", u_info.get("id"))),
-                                "name": u_info.get("global_name") or u_info.get("username", "Freund"),
-                                "username": u_info.get("username", ""),
-                                "type_name": "Freund" if item.get("type") == 1 else ("Anfrage" if item.get("type") in (3, 4) else "Blockiert"),
-                                "is_group": False
+                                "id": str(ch.get("id")),
+                                "name": recips[0].get("global_name") or recips[0].get("username", "DM"),
+                                "username": recips[0].get("username", ""),
+                                "type_name": "DM",
+                                "is_group": True
                             })
-                    rc = requests.get("https://discord.com/api/v10/users/@me/channels", headers=headers, timeout=5)
-                    if rc.status_code == 200:
-                        for ch in rc.json():
-                            ch_type = ch.get("type")
-                            recips = ch.get("recipients", [])
-                            recip_names = ", ".join([rcp.get("username", "") for rcp in recips[:3]])
-                            if ch_type == 3:
-                                g_name = ch.get("name") or (f"Gruppe ({recip_names})" if recip_names else "Gruppe")
-                                fresh_f.append({
-                                    "id": str(ch.get("id")),
-                                    "name": g_name,
-                                    "username": f"{len(recips)} Mitglieder",
-                                    "type_name": "Gruppe",
-                                    "is_group": True
-                                })
-                            elif ch_type == 1 and recips:
-                                dm_uid = str(recips[0].get("id"))
-                                user_to_channel_map[dm_uid] = str(ch.get("id"))
-                                if not any(f["id"] == dm_uid for f in fresh_f):
-                                    fresh_f.append({
-                                        "id": str(ch.get("id")),
-                                        "name": recips[0].get("global_name") or recips[0].get("username", "DM"),
-                                        "username": recips[0].get("username", ""),
-                                        "type_name": "DM",
-                                        "is_group": True
-                                    })
-                    friends_data = fresh_f
-                except Exception:
-                    friends_data = []
+            friends_data = fresh_f
+        except Exception:
+            friends_data = []
 
-                break
-            else:
-                print(f"  [FEHLER] Token ist ungueltig (Status {r.status_code})! Bitte erneut versuchen.\n")
-        except Exception as e:
-            print(f"  [FEHLER] Verbindungsfehler ({e})! Bitte erneut versuchen.\n")
-
-    # Loader im Terminal
-    print("\n  " + "-" * 55)
-    loader_steps = [
-        "Verifiziere Discord-Sitzung...",
-        "Lade Benutzerprofil & Badges...",
-        "Synchronisiere Server, Freunde & DMs...",
-        "Initialisiere Glassmorphism UI..."
-    ]
-    for step in loader_steps:
-        print(f"  [>] {step:<42} [OK]")
-        time.sleep(0.3)
-
-    print("  [OK] Bereit! Oeffne Benutzeroberflaeche...\n")
-    time.sleep(0.4)
-
-    return user_data, connections_data, guilds_data, billing_data, friends_data, user_to_channel_map, token, cloud_info
-
+        return True, user_data, connections_data, guilds_data, billing_data, friends_data, user_to_channel_map, ""
+    except Exception as e:
+        return False, None, None, None, None, None, None, f"Verbindungsfehler zur Discord API: {e}"
 
 # ==============================================================================
-#  ENTRY POINT
+#  TOKEN AUTH GUI (OHNE CMD / KONSOLEN-FENSTER)
 # ==============================================================================
-if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--browser":
+class TokenAuthWindow(ctk.CTk):
+    def __init__(self, initial_error="", cloud_info=None):
+        super().__init__()
+        self.cloud_info = cloud_info or {}
+        self.title("Night System • Discord Login")
+        self.geometry("540x520")
+        self.resizable(False, False)
+        self.configure(fg_color=C["bg"])
+
+        # Center on screen
+        self.update_idletasks()
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        x = (sw - 540) // 2
+        y = (sh - 520) // 2
+        self.geometry(f"540x520+{x}+{y}")
+
+        # Set Window Icon if exists
         try:
-            import ctypes
-            hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-            if hwnd:
-                ctypes.windll.user32.ShowWindow(hwnd, 0)
+            base_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
+            ico_path = os.path.join(base_dir, "assets", "icon.ico")
+            if os.path.exists(ico_path):
+                self.iconbitmap(ico_path)
         except Exception:
             pass
+
+        self._build_ui(initial_error)
+
+    def _build_ui(self, initial_error):
+        container = ctk.CTkFrame(self, fg_color="transparent")
+        container.pack(fill="both", expand=True, padx=28, pady=28)
+
+        # Header badge & title
+        badge_frame = ctk.CTkFrame(container, width=54, height=54, fg_color=C["card_alt"], corner_radius=27, border_width=1.5, border_color=C["blue"])
+        badge_frame.pack(pady=(0, 10))
+        badge_frame.pack_propagate(False)
+        lbl_n = ctk.CTkLabel(badge_frame, text="N", font=("Segoe UI", 24, "bold"), text_color=C["blue"])
+        lbl_n.pack(expand=True)
+
+        lbl_title = ctk.CTkLabel(container, text="NIGHT SYSTEM", font=("Segoe UI", 20, "bold"), text_color=C["text"])
+        lbl_title.pack()
+
+        lbl_sub = ctk.CTkLabel(container, text="Discord Account Authentifizierung", font=("Segoe UI", 11.5), text_color=C["text_sub"])
+        lbl_sub.pack(pady=(2, 16))
+
+        # Card Frame
+        card = ctk.CTkFrame(container, fg_color=C["card"], corner_radius=16, border_width=1, border_color=C["card_border"])
+        card.pack(fill="x", pady=(0, 14))
+
+        card_inner = ctk.CTkFrame(card, fg_color="transparent")
+        card_inner.pack(fill="x", padx=20, pady=18)
+
+        lbl_t_prompt = ctk.CTkLabel(card_inner, text="DISCORD USER TOKEN", font=("Segoe UI", 10, "bold"), text_color=C["text_muted"])
+        lbl_t_prompt.pack(anchor="w", pady=(0, 6))
+
+        self.entry_token = ctk.CTkEntry(
+            card_inner,
+            placeholder_text="Füge hier deinen Discord User Token ein...",
+            show="*",
+            height=42,
+            font=("Consolas", 11),
+            fg_color=C["card_alt"],
+            border_color=C["card_border_hi"],
+            text_color=C["text"],
+            corner_radius=10
+        )
+        self.entry_token.pack(fill="x", pady=(0, 10))
+        self.entry_token.bind("<Return>", lambda e: self._on_submit())
+
+        # Options row
+        opts_row = ctk.CTkFrame(card_inner, fg_color="transparent")
+        opts_row.pack(fill="x", pady=(0, 6))
+
+        self.var_show = ctk.BooleanVar(value=False)
+        self.chk_show = ctk.CTkCheckBox(
+            opts_row,
+            text="Token anzeigen",
+            variable=self.var_show,
+            command=self._toggle_show,
+            font=("Segoe UI", 10.5),
+            text_color=C["text_sub"],
+            fg_color=C["blue"],
+            checkbox_width=18,
+            checkbox_height=18,
+            corner_radius=4
+        )
+        self.chk_show.pack(side="left")
+
+        self.var_save = ctk.BooleanVar(value=True)
+        self.chk_save = ctk.CTkCheckBox(
+            opts_row,
+            text="Token auf PC speichern",
+            variable=self.var_save,
+            font=("Segoe UI", 10.5),
+            text_color=C["text_sub"],
+            fg_color=C["blue"],
+            checkbox_width=18,
+            checkbox_height=18,
+            corner_radius=4
+        )
+        self.chk_save.pack(side="right")
+
+        # Status / Error Label
+        self.lbl_status = ctk.CTkLabel(
+            card_inner,
+            text=initial_error or "",
+            font=("Segoe UI", 10.5, "bold" if initial_error else "normal"),
+            text_color=C["red"] if initial_error else C["text_muted"],
+            wraplength=440
+        )
+        self.lbl_status.pack(fill="x", pady=(8, 0))
+
+        # Submit Button
+        self.btn_submit = ctk.CTkButton(
+            container,
+            text="ANMELDEN & TOOL STARTEN",
+            font=("Segoe UI", 12, "bold"),
+            height=44,
+            corner_radius=12,
+            fg_color=C["blue"],
+            hover_color=C["blue_hover"],
+            command=self._on_submit
+        )
+        self.btn_submit.pack(fill="x", pady=(6, 10))
+
+        # Bottom subtle hint
+        lbl_hint = ctk.CTkLabel(
+            container,
+            text="Sichere Ende-zu-Ende Verbindung direkt zur Discord API v10.\nDein Token wird nur lokal auf deinem Computer verwendet.",
+            font=("Segoe UI", 9.5),
+            text_color=C["text_dim"],
+            justify="center"
+        )
+        lbl_hint.pack()
+
+    def _toggle_show(self):
+        if self.var_show.get():
+            self.entry_token.configure(show="")
+        else:
+            self.entry_token.configure(show="*")
+
+    def _on_submit(self):
+        tok = self.entry_token.get().strip()
+        if (tok.startswith('"') and tok.endswith('"')) or (tok.startswith("'") and tok.endswith("'")):
+            tok = tok[1:-1].strip()
+
+        if not tok:
+            self.lbl_status.configure(text="Bitte füge zuerst deinen Discord Token ein!", text_color=C["red"])
+            return
+
+        self.btn_submit.configure(state="disabled", text="Verifiziere Token...")
+        self.lbl_status.configure(text="Prüfe Token bei Discord API...", text_color=C["blue"])
+
+        def _worker():
+            ok, u_data, c_data, g_data, b_data, f_data, u_ch_map, err = fetch_discord_account_data(tok)
+            if ok:
+                if self.var_save.get():
+                    save_user_token(tok)
+                else:
+                    clear_saved_token()
+
+                self.after(0, lambda: self._launch_main(u_data, c_data, g_data, b_data, f_data, u_ch_map, tok))
+            else:
+                self.after(0, lambda: self._show_error(err or "Ungültiger Token! Bitte neuen Token eingeben."))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _show_error(self, msg):
+        self.btn_submit.configure(state="normal", text="ANMELDEN & TOOL STARTEN")
+        self.lbl_status.configure(text=msg, text_color=C["red"])
+
+    def _launch_main(self, u_data, c_data, g_data, b_data, f_data, u_ch_map, token):
+        self.destroy()
+        app = App(
+            user_data=u_data,
+            connections_data=c_data,
+            guilds_data=g_data,
+            billing_data=b_data,
+            friends_data=f_data,
+            user_to_channel_map=u_ch_map,
+            token=token,
+            cloud_info=self.cloud_info
+        )
+        app.mainloop()
+
+# ==============================================================================
+#  MAIN ENTRY POINT (KEIN CMD / REIN GUI-BASIERT)
+# ==============================================================================
+def start_night_system():
+    # Hide any console window on Windows
+    try:
+        import ctypes
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 0)
+    except Exception:
+        pass
+
+    # Check for CLI arguments: --browser
+    if len(sys.argv) > 1 and sys.argv[1] == "--browser":
         t = sys.argv[2] if len(sys.argv) > 2 else ""
         u = sys.argv[3] if len(sys.argv) > 3 else ""
         run_browser_session(t, u)
         sys.exit(0)
-    elif len(sys.argv) > 1 and sys.argv[1] == "--token":
-        t = sys.argv[2] if len(sys.argv) > 2 else ""
-        u_data, c_data, g_data, b_data, f_data, u_ch_map, active_token, c_info = validate_and_load_in_terminal(preset_token=t)
-        app = App(
-            user_data=u_data,
-            connections_data=c_data,
-            guilds_data=g_data,
-            billing_data=b_data,
-            friends_data=f_data,
-            user_to_channel_map=u_ch_map,
-            token=active_token,
-            cloud_info=c_info
-        )
-        app.mainloop()
-    else:
-        u_data, c_data, g_data, b_data, f_data, u_ch_map, active_token, c_info = validate_and_load_in_terminal()
 
-        app = App(
-            user_data=u_data,
-            connections_data=c_data,
-            guilds_data=g_data,
-            billing_data=b_data,
-            friends_data=f_data,
-            user_to_channel_map=u_ch_map,
-            token=active_token,
-            cloud_info=c_info
-        )
-        app.mainloop()
+    cloud_info = check_cloud_status_and_update()
+
+    # Check saved token or CLI preset
+    saved_tok = ""
+    if len(sys.argv) > 1 and sys.argv[1] == "--token":
+        saved_tok = sys.argv[2].strip() if len(sys.argv) > 2 else ""
+    else:
+        saved_tok = load_saved_token()
+
+    if saved_tok:
+        # Validate saved token silently with Discord API
+        ok, u_data, c_data, g_data, b_data, f_data, u_ch_map, err = fetch_discord_account_data(saved_tok)
+        if ok:
+            # Token is valid -> launch main app immediately!
+            app = App(
+                user_data=u_data,
+                connections_data=c_data,
+                guilds_data=g_data,
+                billing_data=b_data,
+                friends_data=f_data,
+                user_to_channel_map=u_ch_map,
+                token=saved_tok,
+                cloud_info=cloud_info
+            )
+            app.mainloop()
+            return
+        else:
+            # Token failed / expired -> clear invalid token and prompt user in GUI
+            clear_saved_token()
+            err_msg = f"Gespeicherter Token ungültig oder abgelaufen. Bitte neuen Token eingeben."
+            login_win = TokenAuthWindow(initial_error=err_msg, cloud_info=cloud_info)
+            login_win.mainloop()
+            return
+
+    # No saved token -> prompt user with TokenAuthWindow
+    login_win = TokenAuthWindow(cloud_info=cloud_info)
+    login_win.mainloop()
+
+
+if __name__ == "__main__":
+    start_night_system()
+

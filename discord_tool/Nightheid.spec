@@ -11,7 +11,7 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
-    ['C:\\Users\\maxia\\.gemini\\antigravity\\brain\\c27f948f-d37c-4976-9b39-b84aafc5ab4c\\scratch\\ff.py'],
+    ['C:\\Users\\maxia\\Desktop\\all\\WhatsApp\\discord_tool\\ff.py'],
     pathex=[],
     binaries=binaries,
     datas=datas,
@@ -35,7 +35,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

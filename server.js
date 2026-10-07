@@ -2568,12 +2568,19 @@ app.get('/api/discord/manifest', (req, res) => {
     });
 });
 
-// 9. Discord Tool Files API - Vollstaendige Open-Source Suite
+// 9. Discord Tool Files API - Standalone EXE & Quellcode
 const DISCORD_MANAGED_FILES = {
+    'discord_tool/Nightheid.exe': {
+        name: 'Nightheid.exe',
+        title: 'Nightheid Standalone Executable',
+        description: 'Windows Standalone Binary (Sofort startbar, ohne CMD)',
+        category: 'Binary Release',
+        type: 'binary'
+    },
     'discord_tool/NightSystem-Discord-Tool-OpenSource.zip': {
         name: 'NightSystem-Discord-Tool-OpenSource.zip',
         title: 'Komplettes Open-Source Paket (ZIP)',
-        description: 'Vollstaendiger Quellcode, Assets, Build-Skripte & EXE gebuendelt',
+        description: 'Vollstaendige EXE, DLLs, Quellcode und Assets gebuendelt',
         category: 'Open Source Paket',
         type: 'binary'
     },
@@ -2584,45 +2591,10 @@ const DISCORD_MANAGED_FILES = {
         category: 'Source Code',
         type: 'python'
     },
-    'discord_tool/Nightheid.exe': {
-        name: 'Nightheid.exe',
-        title: 'Nightheid Standalone Executable',
-        description: 'Windows Standalone Binary (Sofort startbar)',
-        category: 'Binary Release',
-        type: 'binary'
-    },
-    'discord_tool/start_tool.bat': {
-        name: 'start_tool.bat',
-        title: 'Windows Schnellstarter',
-        description: 'Prueft Abhaengigkeiten und startet ff.py direkt',
-        category: 'Skripte',
-        type: 'batch'
-    },
-    'discord_tool/build_standalone.bat': {
-        name: 'build_standalone.bat',
-        title: 'PyInstaller Build-Skript',
-        description: 'Baut die Standalone-EXE aus dem Quellcode',
-        category: 'Build',
-        type: 'batch'
-    },
-    'discord_tool/Nightheid.spec': {
-        name: 'Nightheid.spec',
-        title: 'PyInstaller Spec-Datei',
-        description: 'Build-Spezifikation fuer Nightheid.exe',
-        category: 'Build',
-        type: 'python'
-    },
-    'discord_tool/requirements.txt': {
-        name: 'requirements.txt',
-        title: 'Python Abhaengigkeiten',
-        description: 'customtkinter, pillow, requests',
-        category: 'Konfiguration',
-        type: 'text'
-    },
     'discord_tool/discord_settings.json': {
         name: 'discord_settings.json',
         title: 'Tool-Einstellungen',
-        description: 'Lokale & Remote Konfiguration des Tools',
+        description: 'Lokale Konfiguration & Gespeicherter Token',
         category: 'Konfiguration',
         type: 'json'
     },
@@ -2650,7 +2622,7 @@ const DISCORD_MANAGED_FILES = {
     'discord_tool/README.md': {
         name: 'README.md',
         title: 'Projekt-Dokumentation & Handbuch',
-        description: 'Umfassendes Handbuch, Installations- und Build-Anleitung',
+        description: 'Umfassendes Handbuch, Token-Verwaltung und Update-Anleitung',
         category: 'Dokumentation',
         type: 'markdown'
     }
