@@ -615,6 +615,21 @@ class App(ctk.CTk):
         bottom_box = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         bottom_box.pack(side="bottom", fill="x", padx=12, pady=16)
 
+        btn_web_login = ctk.CTkButton(
+            bottom_box,
+            text="Web Login",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["blurple_btn"],
+            text_color="#ffffff",
+            hover_color=C["blurple_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=34,
+            corner_radius=10,
+            command=self.launch_browser_login
+        )
+        btn_web_login.pack(fill="x", pady=(0, 6))
+
         btn_switch_token = ctk.CTkButton(
             bottom_box,
             text="Token wechseln",
@@ -3214,7 +3229,7 @@ def check_cloud_status_and_update():
 
     # Lokales Verzeichnis bestimmen
     base_local_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
-    settings_file = os.path.join(base_local_dir, "discord_settings.json")
+    settings_file = get_settings_path()
     local_revision = 1
     local_version = DISCORD_TOOL_VERSION
 
@@ -3295,6 +3310,8 @@ def check_cloud_status_and_update():
 
                         if fn in ("icon.ico", "logo.png"):
                             target_local = os.path.join(base_local_dir, "assets", fn)
+                        elif fn == "discord_settings.json":
+                            target_local = get_settings_path()
                         else:
                             target_local = os.path.join(base_local_dir, fn)
 
@@ -3415,6 +3432,22 @@ def check_cloud_status_and_update():
 # ==============================================================================
 def get_settings_path():
     base_local_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
+    dll_dir = os.path.join(base_local_dir, "dll")
+    if os.path.exists(dll_dir) and os.path.isdir(dll_dir):
+        target_p = os.path.join(dll_dir, "discord_settings.json")
+        old_root_p = os.path.join(base_local_dir, "discord_settings.json")
+        if os.path.exists(old_root_p) and not os.path.exists(target_p):
+            try:
+                import shutil
+                shutil.move(old_root_p, target_p)
+            except Exception:
+                pass
+        elif os.path.exists(old_root_p) and os.path.exists(target_p):
+            try:
+                os.remove(old_root_p)
+            except Exception:
+                pass
+        return target_p
     return os.path.join(base_local_dir, "discord_settings.json")
 
 def load_saved_token():
