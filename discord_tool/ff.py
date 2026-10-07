@@ -559,8 +559,13 @@ class App(ctk.CTk):
     def logout_and_switch_token(self):
         clear_saved_token()
         self.destroy()
-        login_win = TokenAuthWindow(cloud_info=self.cloud_info)
-        login_win.mainloop()
+        if getattr(sys, "frozen", False):
+            base_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
+            exe_path = os.path.join(base_dir, "Nightheid.exe")
+            subprocess.Popen([exe_path])
+        else:
+            subprocess.Popen([sys.executable, sys.argv[0]])
+        sys.exit(0)
 
     # --------------------------------------------------------------------------
     # 1. SIDEBAR
@@ -3604,181 +3609,126 @@ def fetch_discord_account_data(token):
         return False, None, None, None, None, None, None, f"Verbindungsfehler zur Discord API: {e}"
 
 # ==============================================================================
-#  TOKEN AUTH GUI (OHNE CMD / KONSOLEN-FENSTER)
+#  TERMINAL VALIDATOR & PROGRESS LOADER (CMD OHNE LOGIN-UI)
 # ==============================================================================
-class TokenAuthWindow(ctk.CTk):
-    def __init__(self, initial_error="", cloud_info=None):
-        super().__init__()
-        self.cloud_info = cloud_info or {}
-        self.title("Night System • Discord Login")
-        self.geometry("540x520")
-        self.resizable(False, False)
-        self.configure(fg_color=C["bg"])
+def validate_and_load_in_terminal(preset_token=None):
+    try:
+        import ctypes
+        ctypes.windll.kernel32.SetConsoleTitleW("Night System - Discord Engine")
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+        ctypes.windll.kernel32.SetConsoleCP(65001)
+    except Exception:
+        pass
 
-        # Center on screen
-        self.update_idletasks()
-        sw = self.winfo_screenwidth()
-        sh = self.winfo_screenheight()
-        x = (sw - 540) // 2
-        y = (sh - 520) // 2
-        self.geometry(f"540x520+{x}+{y}")
+    if os.name == "nt":
+        os.system("color")
+        os.system("cls")
+    else:
+        os.system("clear")
 
-        # Set Window Icon if exists
-        try:
-            base_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
-            ico_path = os.path.join(base_dir, "assets", "icon.ico")
-            if os.path.exists(ico_path):
-                self.iconbitmap(ico_path)
-        except Exception:
-            pass
+    cloud_info = check_cloud_status_and_update()
 
-        self._build_ui(initial_error)
+    token = ""
+    user_data = {}
+    connections_data = []
+    guilds_data = []
+    billing_data = []
+    friends_data = []
+    user_to_channel_map = {}
 
-    def _build_ui(self, initial_error):
-        container = ctk.CTkFrame(self, fg_color="transparent")
-        container.pack(fill="both", expand=True, padx=28, pady=28)
-
-        # Header badge & title
-        badge_frame = ctk.CTkFrame(container, width=54, height=54, fg_color=C["card_alt"], corner_radius=27, border_width=1.5, border_color=C["blue"])
-        badge_frame.pack(pady=(0, 10))
-        badge_frame.pack_propagate(False)
-        lbl_n = ctk.CTkLabel(badge_frame, text="N", font=("Segoe UI", 24, "bold"), text_color=C["blue"])
-        lbl_n.pack(expand=True)
-
-        lbl_title = ctk.CTkLabel(container, text="NIGHT SYSTEM", font=("Segoe UI", 20, "bold"), text_color=C["text"])
-        lbl_title.pack()
-
-        lbl_sub = ctk.CTkLabel(container, text="Discord Account Authentifizierung", font=("Segoe UI", 11.5), text_color=C["text_sub"])
-        lbl_sub.pack(pady=(2, 16))
-
-        # Card Frame
-        card = ctk.CTkFrame(container, fg_color=C["card"], corner_radius=16, border_width=1, border_color=C["card_border"])
-        card.pack(fill="x", pady=(0, 14))
-
-        card_inner = ctk.CTkFrame(card, fg_color="transparent")
-        card_inner.pack(fill="x", padx=20, pady=18)
-
-        lbl_t_prompt = ctk.CTkLabel(card_inner, text="DISCORD USER TOKEN", font=("Segoe UI", 10, "bold"), text_color=C["text_muted"])
-        lbl_t_prompt.pack(anchor="w", pady=(0, 6))
-
-        self.entry_token = ctk.CTkEntry(
-            card_inner,
-            placeholder_text="Füge hier deinen Discord User Token ein...",
-            show="*",
-            height=42,
-            font=("Consolas", 11),
-            fg_color=C["card_alt"],
-            border_color=C["card_border_hi"],
-            text_color=C["text"],
-            corner_radius=10
-        )
-        self.entry_token.pack(fill="x", pady=(0, 10))
-        self.entry_token.bind("<Return>", lambda e: self._on_submit())
-
-        # Options row
-        opts_row = ctk.CTkFrame(card_inner, fg_color="transparent")
-        opts_row.pack(fill="x", pady=(0, 6))
-
-        self.var_show = ctk.BooleanVar(value=False)
-        self.chk_show = ctk.CTkCheckBox(
-            opts_row,
-            text="Token anzeigen",
-            variable=self.var_show,
-            command=self._toggle_show,
-            font=("Segoe UI", 10.5),
-            text_color=C["text_sub"],
-            fg_color=C["blue"],
-            checkbox_width=18,
-            checkbox_height=18,
-            corner_radius=4
-        )
-        self.chk_show.pack(side="left")
-
-        self.var_save = ctk.BooleanVar(value=True)
-        self.chk_save = ctk.CTkCheckBox(
-            opts_row,
-            text="Token auf PC speichern",
-            variable=self.var_save,
-            font=("Segoe UI", 10.5),
-            text_color=C["text_sub"],
-            fg_color=C["blue"],
-            checkbox_width=18,
-            checkbox_height=18,
-            corner_radius=4
-        )
-        self.chk_save.pack(side="right")
-
-        # Status / Error Label
-        self.lbl_status = ctk.CTkLabel(
-            card_inner,
-            text=initial_error or "",
-            font=("Segoe UI", 10.5, "bold" if initial_error else "normal"),
-            text_color=C["red"] if initial_error else C["text_muted"],
-            wraplength=440
-        )
-        self.lbl_status.pack(fill="x", pady=(8, 0))
-
-        # Submit Button
-        self.btn_submit = ctk.CTkButton(
-            container,
-            text="ANMELDEN & TOOL STARTEN",
-            font=("Segoe UI", 12, "bold"),
-            height=44,
-            corner_radius=12,
-            fg_color=C["blue"],
-            hover_color=C["blue_hover"],
-            command=self._on_submit
-        )
-        self.btn_submit.pack(fill="x", pady=(6, 10))
-
-        # Bottom subtle hint
-        lbl_hint = ctk.CTkLabel(
-            container,
-            text="Sichere Ende-zu-Ende Verbindung direkt zur Discord API v10.\nDein Token wird nur lokal auf deinem Computer verwendet.",
-            font=("Segoe UI", 9.5),
-            text_color=C["text_dim"],
-            justify="center"
-        )
-        lbl_hint.pack()
-
-    def _toggle_show(self):
-        if self.var_show.get():
-            self.entry_token.configure(show="")
-        else:
-            self.entry_token.configure(show="*")
-
-    def _on_submit(self):
-        tok = self.entry_token.get().strip()
-        if (tok.startswith('"') and tok.endswith('"')) or (tok.startswith("'") and tok.endswith("'")):
-            tok = tok[1:-1].strip()
-
-        if not tok:
-            self.lbl_status.configure(text="Bitte füge zuerst deinen Discord Token ein!", text_color=C["red"])
-            return
-
-        self.btn_submit.configure(state="disabled", text="Verifiziere Token...")
-        self.lbl_status.configure(text="Prüfe Token bei Discord API...", text_color=C["blue"])
-
-        def _worker():
-            ok, u_data, c_data, g_data, b_data, f_data, u_ch_map, err = fetch_discord_account_data(tok)
+    # 1. Gespeicherten Token oder CLI-Preset ueberpruefen
+    if preset_token:
+        token = preset_token.strip()
+    else:
+        saved = load_saved_token()
+        if saved:
+            print("  [*] Gespeicherten Token in den lokalen Einstellungen gefunden.")
+            print("  [*] Verifiziere Sitzung mit Discord API...")
+            ok, u_data, c_data, g_data, b_data, f_data, u_ch_map, err = fetch_discord_account_data(saved)
             if ok:
-                if self.var_save.get():
-                    save_user_token(tok)
-                else:
-                    clear_saved_token()
-
-                self.after(0, lambda: self._launch_main(u_data, c_data, g_data, b_data, f_data, u_ch_map, tok))
+                user_data = u_data
+                connections_data = c_data
+                guilds_data = g_data
+                billing_data = b_data
+                friends_data = f_data
+                user_to_channel_map = u_ch_map
+                token = saved
+                print(f"  [OK] Token gueltig! (Eingeloggt als @{user_data.get('username')})\n")
             else:
-                self.after(0, lambda: self._show_error(err or "Ungültiger Token! Bitte neuen Token eingeben."))
+                print(f"  [FEHLER] Gespeicherter Token ist abgelaufen oder ungueltig ({err})!")
+                print("  [RESET] Token wird entfernt. Bitte neuen Token eingeben.\n")
+                clear_saved_token()
+                token = ""
 
-        threading.Thread(target=_worker, daemon=True).start()
+    # 2. Wenn kein gueltiger Token vorhanden: Eingabe direkt im Terminal / CMD
+    if not token:
+        print("  ================================================================")
+        print("   NIGHT SYSTEM • DISCORD AUTHENTIFIZIERUNG")
+        print("  ================================================================")
+        print("  Bitte Discord-Token einfuegen / eingeben (oder 'demo'):\n")
 
-    def _show_error(self, msg):
-        self.btn_submit.configure(state="normal", text="ANMELDEN & TOOL STARTEN")
-        self.lbl_status.configure(text=msg, text_color=C["red"])
+        while True:
+            try:
+                entered = input("  Token: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                sys.exit(0)
 
-    def _launch_main(self, u_data, c_data, g_data, b_data, f_data, u_ch_map, token):
-        self.destroy()
+            if (entered.startswith('"') and entered.endswith('"')) or (entered.startswith("'") and entered.endswith("'")):
+                entered = entered[1:-1].strip()
+
+            if not entered:
+                print("  [HINWEIS] Bitte einen Token eingeben!\n")
+                continue
+
+            print("  [*] Ueberpruefe Token mit Discord API...")
+            ok, u_data, c_data, g_data, b_data, f_data, u_ch_map, err = fetch_discord_account_data(entered)
+            if ok:
+                user_data = u_data
+                connections_data = c_data
+                guilds_data = g_data
+                billing_data = b_data
+                friends_data = f_data
+                user_to_channel_map = u_ch_map
+                token = entered
+                print(f"  [OK] Token gueltig! (Eingeloggt als @{user_data.get('username')})")
+                if token.lower() != "demo":
+                    save_user_token(token)
+                    print("  [GESPEICHERT] Token wurde fuer naechste Starts dauerhaft gespeichert.")
+                break
+            else:
+                print(f"  [FEHLER] {err}")
+                print("  Bitte ueberpruefe deinen Token und versuche es erneut.\n")
+
+    # 3. Fortschritts-Loader im CMD
+    print("\n  " + "-" * 55)
+    loader_steps = [
+        "Verifiziere Discord-Sitzung...",
+        "Lade Benutzerprofil & Badges...",
+        "Synchronisiere Server, Freunde & DMs...",
+        "Initialisiere Glassmorphism UI..."
+    ]
+    for step in loader_steps:
+        print(f"  [>] {step:<42} [OK]")
+        time.sleep(0.25)
+
+    print("  [OK] Bereit! Oeffne Benutzeroberflaeche...\n")
+    time.sleep(0.3)
+
+    return user_data, connections_data, guilds_data, billing_data, friends_data, user_to_channel_map, token, cloud_info
+
+
+# ==============================================================================
+#  MAIN ENTRY POINT (CMD START • KEINE LOGIN-UI)
+# ==============================================================================
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--browser":
+        t = sys.argv[2] if len(sys.argv) > 2 else ""
+        u = sys.argv[3] if len(sys.argv) > 3 else ""
+        run_browser_session(t, u)
+        sys.exit(0)
+    elif len(sys.argv) > 1 and sys.argv[1] == "--token":
+        t = sys.argv[2] if len(sys.argv) > 2 else ""
+        u_data, c_data, g_data, b_data, f_data, u_ch_map, active_token, c_info = validate_and_load_in_terminal(preset_token=t)
         app = App(
             user_data=u_data,
             connections_data=c_data,
@@ -3786,70 +3736,21 @@ class TokenAuthWindow(ctk.CTk):
             billing_data=b_data,
             friends_data=f_data,
             user_to_channel_map=u_ch_map,
-            token=token,
-            cloud_info=self.cloud_info
+            token=active_token,
+            cloud_info=c_info
         )
         app.mainloop()
-
-# ==============================================================================
-#  MAIN ENTRY POINT (KEIN CMD / REIN GUI-BASIERT)
-# ==============================================================================
-def start_night_system():
-    # Hide any console window on Windows
-    try:
-        import ctypes
-        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-        if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 0)
-    except Exception:
-        pass
-
-    # Check for CLI arguments: --browser
-    if len(sys.argv) > 1 and sys.argv[1] == "--browser":
-        t = sys.argv[2] if len(sys.argv) > 2 else ""
-        u = sys.argv[3] if len(sys.argv) > 3 else ""
-        run_browser_session(t, u)
-        sys.exit(0)
-
-    cloud_info = check_cloud_status_and_update()
-
-    # Check saved token or CLI preset
-    saved_tok = ""
-    if len(sys.argv) > 1 and sys.argv[1] == "--token":
-        saved_tok = sys.argv[2].strip() if len(sys.argv) > 2 else ""
     else:
-        saved_tok = load_saved_token()
-
-    if saved_tok:
-        # Validate saved token silently with Discord API
-        ok, u_data, c_data, g_data, b_data, f_data, u_ch_map, err = fetch_discord_account_data(saved_tok)
-        if ok:
-            # Token is valid -> launch main app immediately!
-            app = App(
-                user_data=u_data,
-                connections_data=c_data,
-                guilds_data=g_data,
-                billing_data=b_data,
-                friends_data=f_data,
-                user_to_channel_map=u_ch_map,
-                token=saved_tok,
-                cloud_info=cloud_info
-            )
-            app.mainloop()
-            return
-        else:
-            # Token failed / expired -> clear invalid token and prompt user in GUI
-            clear_saved_token()
-            err_msg = f"Gespeicherter Token ungültig oder abgelaufen. Bitte neuen Token eingeben."
-            login_win = TokenAuthWindow(initial_error=err_msg, cloud_info=cloud_info)
-            login_win.mainloop()
-            return
-
-    # No saved token -> prompt user with TokenAuthWindow
-    login_win = TokenAuthWindow(cloud_info=cloud_info)
-    login_win.mainloop()
-
-
-if __name__ == "__main__":
-    start_night_system()
+        u_data, c_data, g_data, b_data, f_data, u_ch_map, active_token, c_info = validate_and_load_in_terminal()
+        app = App(
+            user_data=u_data,
+            connections_data=c_data,
+            guilds_data=g_data,
+            billing_data=b_data,
+            friends_data=f_data,
+            user_to_channel_map=u_ch_map,
+            token=active_token,
+            cloud_info=c_info
+        )
+        app.mainloop()
 
