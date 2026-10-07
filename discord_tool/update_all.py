@@ -360,7 +360,7 @@ def run_browser_session(token: str, username: str = ""):
     webview.start(private_mode=False)
 
 
-DISCORD_TOOL_VERSION = "1.1.0"
+DISCORD_TOOL_VERSION = "1.1.2"
 CLOUD_API_ENDPOINT = "https://whatsapp-kadi.onrender.com/api/discord"
 
 # ==============================================================================
@@ -3303,13 +3303,16 @@ def check_cloud_status_and_update():
                             if fn in ("README.md", "discord_settings.json"):
                                 need_update = True
                         elif s_hash:
-                            try:
-                                with open(target_local, "rb") as tf:
-                                    local_hash = hashlib.sha256(tf.read()).hexdigest()
-                                if local_hash != s_hash:
+                            if fn == "discord_settings.json":
+                                need_update = False
+                            else:
+                                try:
+                                    with open(target_local, "rb") as tf:
+                                        local_hash = hashlib.sha256(tf.read()).hexdigest()
+                                    if local_hash != s_hash:
+                                        need_update = True
+                                except Exception:
                                     need_update = True
-                            except Exception:
-                                need_update = True
 
                         if need_update:
                             manifest_files_to_sync.append({
