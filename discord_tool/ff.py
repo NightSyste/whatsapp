@@ -3557,6 +3557,12 @@ def validate_and_load_in_terminal(preset_token=None):
     except Exception:
         pass
 
+    try:
+        sys.stdout.reconfigure(line_buffering=True, encoding="utf-8")
+        sys.stderr.reconfigure(line_buffering=True, encoding="utf-8")
+    except Exception:
+        pass
+
     if os.name == "nt":
         os.system("color")
         os.system("cls")
