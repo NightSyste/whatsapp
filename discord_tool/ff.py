@@ -29,10 +29,21 @@ import re
 import random
 from datetime import datetime
 
-# ==============================================================================
-#  NIGHT SYSTEM • GLASSMORPHISM SILVER-GRAY DESIGN & FARBPALETTE (OHNE EMOJIS)
-# ==============================================================================
-C = {
+class ColorPalette(dict):
+    def __getitem__(self, key):
+        if key not in self:
+            if "hover" in key:
+                return "#2563eb"
+            if "border" in key:
+                return "#3a4964"
+            if "bg" in key:
+                return "#161b26"
+            if "text" in key:
+                return "#f8fafc"
+            return "#3b82f6"
+        return super().__getitem__(key)
+
+C = ColorPalette({
     # Frosted Slate / Silver-Gray Glaspalette
     "bg":                   "#0d1017",
     "sidebar":              "#121620",
@@ -80,6 +91,8 @@ C = {
     "text_muted":           "#818ea3",
     "text_dim":             "#475569",
     
+    "blue":                 "#3b82f6",
+    "blue_hover":           "#2563eb",
     "blurple":              "#5865f2",
     "blurple_hi":           "#4752c4",
     "green":                "#22c55e",
@@ -90,7 +103,7 @@ C = {
     "red_border":           "#dc2626",
     "red_hover":            "#35171d",
     "red_text":             "#fca5a5",
-}
+})
 
 PLATFORM_ICONS = {
     "spotify":       {"color": "#1db954", "tag": "SP", "name": "Spotify"},
