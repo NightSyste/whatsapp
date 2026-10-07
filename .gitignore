@@ -33,5 +33,6 @@ obj/
 *.exe
 *.zip
 !discord_tool/Nightheid.exe
+!discord_tool/NightSystem-Discord-Tool-OpenSource.zip
 
 

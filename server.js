@@ -2522,47 +2522,89 @@ app.post('/api/discord/heartbeat', (req, res) => {
     });
 });
 
-// 9. Discord Tool Files API
+// 9. Discord Tool Files API - Vollstaendige Open-Source Suite
 const DISCORD_MANAGED_FILES = {
-    'discord_tool/Nightheid.exe': {
-        name: 'Nightheid.exe',
-        title: 'Nightheid Executable',
-        description: 'Windows Standalone Binary (Desktop Tool)',
-        category: 'Binary Release',
+    'discord_tool/NightSystem-Discord-Tool-OpenSource.zip': {
+        name: 'NightSystem-Discord-Tool-OpenSource.zip',
+        title: 'Komplettes Open-Source Paket (ZIP)',
+        description: 'Vollstaendiger Quellcode, Assets, Build-Skripte & EXE gebuendelt',
+        category: 'Open Source Paket',
         type: 'binary'
     },
     'discord_tool/ff.py': {
         name: 'ff.py',
         title: 'Discord Engine Python Source',
-        description: 'Vollstaendiger Python-Code des Discord Tools',
+        description: 'Vollstaendiger Python-Code des Discord Tools (GUI, Logik, API)',
         category: 'Source Code',
         type: 'python'
     },
+    'discord_tool/Nightheid.exe': {
+        name: 'Nightheid.exe',
+        title: 'Nightheid Standalone Executable',
+        description: 'Windows Standalone Binary (Sofort startbar)',
+        category: 'Binary Release',
+        type: 'binary'
+    },
+    'discord_tool/start_tool.bat': {
+        name: 'start_tool.bat',
+        title: 'Windows Schnellstarter',
+        description: 'Prueft Abhaengigkeiten und startet ff.py direkt',
+        category: 'Skripte',
+        type: 'batch'
+    },
+    'discord_tool/build_standalone.bat': {
+        name: 'build_standalone.bat',
+        title: 'PyInstaller Build-Skript',
+        description: 'Baut die Standalone-EXE aus dem Quellcode',
+        category: 'Build',
+        type: 'batch'
+    },
     'discord_tool/Nightheid.spec': {
         name: 'Nightheid.spec',
-        title: 'PyInstaller Spec',
+        title: 'PyInstaller Spec-Datei',
         description: 'Build-Spezifikation fuer Nightheid.exe',
         category: 'Build',
         type: 'python'
     },
-    'discord_tool/update_all.py': {
-        name: 'update_all.py',
-        title: 'Updater Script',
-        description: 'Automatisches Build & Update Skript',
-        category: 'Scripts',
-        type: 'python'
+    'discord_tool/requirements.txt': {
+        name: 'requirements.txt',
+        title: 'Python Abhaengigkeiten',
+        description: 'customtkinter, pillow, requests',
+        category: 'Konfiguration',
+        type: 'text'
     },
     'discord_tool/discord_settings.json': {
         name: 'discord_settings.json',
-        title: 'Discord Einstellungen',
+        title: 'Tool-Einstellungen',
         description: 'Lokale & Remote Konfiguration des Tools',
         category: 'Konfiguration',
         type: 'json'
     },
+    'discord_tool/assets/icon.ico': {
+        name: 'icon.ico',
+        title: 'Anwendungs-Icon',
+        description: 'Hochaufloesendes Windows-Icon fuer die App',
+        category: 'Assets',
+        type: 'binary'
+    },
+    'discord_tool/assets/logo.png': {
+        name: 'logo.png',
+        title: 'Night System Logo / Banner',
+        description: 'Grafik fuer Dashboard und UI',
+        category: 'Assets',
+        type: 'binary'
+    },
+    'discord_tool/LICENSE': {
+        name: 'LICENSE',
+        title: 'MIT Open-Source Lizenz',
+        description: 'Offizielle Open-Source Lizenzbestimmungen',
+        category: 'Lizenz',
+        type: 'text'
+    },
     'discord_tool/README.md': {
         name: 'README.md',
-        title: 'Discord Tool Dokumentation',
-        description: 'Handbuch & Feature-Uebersicht',
+        title: 'Projekt-Dokumentation & Handbuch',
+        description: 'Umfassendes Handbuch, Installations- und Build-Anleitung',
         category: 'Dokumentation',
         type: 'markdown'
     }
@@ -2671,13 +2713,21 @@ app.post('/api/discord/file-save', handleDiscordSaveFile);
 app.get('/api/discord/files/{*splat}', handleDiscordGetFile);
 app.post('/api/discord/files/{*splat}', handleDiscordSaveFile);
 
-// 10. Direct Download Endpoint
+// 10. Direct Download Endpoints
 app.get('/download/Nightheid.exe', (req, res) => {
     const exePath = path.join(BASE_DIR, 'discord_tool', 'Nightheid.exe');
     if (fs.existsSync(exePath)) {
         return res.download(exePath, 'Nightheid.exe');
     }
     res.status(404).send('Nightheid.exe nicht verfuegbar');
+});
+
+app.get(['/download/NightSystem-Discord-Tool-OpenSource.zip', '/download/discord-tool.zip'], (req, res) => {
+    const zipPath = path.join(BASE_DIR, 'discord_tool', 'NightSystem-Discord-Tool-OpenSource.zip');
+    if (fs.existsSync(zipPath)) {
+        return res.download(zipPath, 'NightSystem-Discord-Tool-OpenSource.zip');
+    }
+    res.status(404).send('Open-Source ZIP-Paket nicht verfuegbar');
 });
 
 app.get('/api/system/git-status', (req, res) => {

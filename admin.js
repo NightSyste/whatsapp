@@ -1672,6 +1672,11 @@ function renderVsCodeSidebar(files) {
 function getFileIconClass(filename) {
   const fn = (filename || '').toLowerCase();
   if (fn.endsWith('.js')) return 'icon-js';
+  if (fn.endsWith('.py') || fn.endsWith('.spec')) return 'icon-py';
+  if (fn.endsWith('.exe')) return 'icon-exe';
+  if (fn.endsWith('.bat')) return 'icon-bat';
+  if (fn.endsWith('.zip')) return 'icon-zip';
+  if (fn.endsWith('.ico') || fn.endsWith('.png')) return 'icon-img';
   if (fn.endsWith('.json')) return 'icon-json';
   if (fn.endsWith('.html')) return 'icon-html';
   if (fn.endsWith('.css')) return 'icon-css';
@@ -1684,6 +1689,11 @@ function getFileIconClass(filename) {
 function getFileIconText(filename) {
   const fn = (filename || '').toLowerCase();
   if (fn.endsWith('.js')) return 'JS';
+  if (fn.endsWith('.py') || fn.endsWith('.spec')) return 'PY';
+  if (fn.endsWith('.exe')) return 'EXE';
+  if (fn.endsWith('.bat')) return 'BAT';
+  if (fn.endsWith('.zip')) return 'ZIP';
+  if (fn.endsWith('.ico') || fn.endsWith('.png')) return 'IMG';
   if (fn.endsWith('.json')) return '{}';
   if (fn.endsWith('.html')) return '<>';
   if (fn.endsWith('.css')) return '#';
