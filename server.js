@@ -2327,6 +2327,337 @@ app.post('/api/admin/bump-version', (req, res) => {
     });
 });
 
+// ==============================================================================
+// DISCORD ENGINE REMOTE MANAGEMENT & DATEIEN API
+// ==============================================================================
+const DISCORD_STATE_FILE = path.join(BASE_DIR, 'discord_admin_state.json');
+
+function getDiscordAdminState() {
+    try {
+        if (fs.existsSync(DISCORD_STATE_FILE)) {
+            const raw = fs.readFileSync(DISCORD_STATE_FILE, 'utf8');
+            return JSON.parse(raw);
+        }
+    } catch (e) {
+        console.warn('[DISCORD] Hinweis beim Lesen von discord_admin_state.json:', e.message);
+    }
+    return {
+        currentVersion: '1.1.0',
+        latestVersion: '1.1.0',
+        globalLock: false,
+        lockReason: 'Wartungsarbeiten durch den Administrator.',
+        announcement: '',
+        announcementType: 'info',
+        updateRevision: 1,
+        downloadUrl: 'https://whatsapp-kadi.onrender.com/download/Nightheid.exe',
+        changelog: ['v1.1.0: Universal Resolver & Bot-Modus integriert'],
+        clients: {},
+        bannedHwids: {}
+    };
+}
+
+function saveDiscordAdminState(state) {
+    try {
+        fs.writeFileSync(DISCORD_STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
+        return true;
+    } catch (e) {
+        console.error('[DISCORD] Fehler beim Speichern von discord_admin_state.json:', e);
+        return false;
+    }
+}
+
+// 1. Overview
+app.get('/api/discord/overview', (req, res) => {
+    const state = getDiscordAdminState();
+    res.json({
+        status: 'success',
+        ...state
+    });
+});
+
+// 2. Toggle Lock (Remote Killswitch)
+app.post('/api/discord/toggle-lock', (req, res) => {
+    const { locked, reason } = req.body || {};
+    const state = getDiscordAdminState();
+    state.globalLock = Boolean(locked);
+    if (reason && typeof reason === 'string') {
+        state.lockReason = reason.trim();
+    }
+    saveDiscordAdminState(state);
+    logSystemEvent('info', `Discord Tool ${state.globalLock ? 'GESPERRT' : 'FREIGEGEBEN'} durch Administrator.`);
+    res.json({
+        status: 'success',
+        globalLock: state.globalLock,
+        lockReason: state.lockReason
+    });
+});
+
+// 3. Set Version & Changelog
+app.post('/api/discord/set-version', (req, res) => {
+    const { version, changelog } = req.body || {};
+    const state = getDiscordAdminState();
+    if (version) state.latestVersion = String(version).trim();
+    if (changelog) {
+        if (!state.changelog) state.changelog = [];
+        state.changelog.unshift(`v${state.latestVersion}: ${changelog}`);
+        if (state.changelog.length > 25) state.changelog = state.changelog.slice(0, 25);
+    }
+    state.updateRevision = (state.updateRevision || 1) + 1;
+    state.lastUpdateTimestamp = Date.now();
+    saveDiscordAdminState(state);
+    logSystemEvent('success', `Discord Tool Version auf v${state.latestVersion} aktualisiert.`);
+    res.json({
+        status: 'success',
+        latestVersion: state.latestVersion,
+        revision: state.updateRevision
+    });
+});
+
+// 4. Bump Version
+app.post('/api/discord/bump-version', (req, res) => {
+    const state = getDiscordAdminState();
+    const oldVer = state.latestVersion || '1.1.0';
+    state.latestVersion = bumpSemanticVersion(oldVer);
+    state.currentVersion = state.latestVersion;
+    state.updateRevision = (state.updateRevision || 1) + 1;
+    state.lastUpdateTimestamp = Date.now();
+    if (!state.changelog) state.changelog = [];
+    state.changelog.unshift(`v${state.latestVersion}: Automatisches Update durch Web-Dashboard`);
+    saveDiscordAdminState(state);
+    logSystemEvent('success', `Discord Version von v${oldVer} auf v${state.latestVersion} erhoeht!`);
+    res.json({
+        status: 'success',
+        oldVersion: oldVer,
+        newVersion: state.latestVersion,
+        revision: state.updateRevision
+    });
+});
+
+// 5. Broadcast Message
+app.post('/api/discord/set-announcement', (req, res) => {
+    const { text, type } = req.body || {};
+    const state = getDiscordAdminState();
+    state.announcement = String(text || '').trim();
+    state.announcementType = type || 'info';
+    saveDiscordAdminState(state);
+    res.json({ status: 'success', announcement: state.announcement });
+});
+
+// 6. Ban HWID
+app.post('/api/discord/ban-hwid', (req, res) => {
+    const { hwid, clientId, reason } = req.body || {};
+    const targetHwid = String(hwid || clientId || '').trim();
+    if (!targetHwid) {
+        return res.status(400).json({ status: 'error', message: 'Keine HWID angegeben' });
+    }
+    const state = getDiscordAdminState();
+    if (!state.bannedHwids) state.bannedHwids = {};
+    state.bannedHwids[targetHwid] = {
+        hwid: targetHwid,
+        clientId: clientId || targetHwid,
+        reason: reason || 'Dauerhafte Sperre durch Administrator',
+        timestamp: Date.now()
+    };
+    saveDiscordAdminState(state);
+    res.json({ status: 'success', bannedHwid: targetHwid });
+});
+
+// 7. Unban HWID
+app.post('/api/discord/unban-hwid', (req, res) => {
+    const { hwid } = req.body || {};
+    const state = getDiscordAdminState();
+    if (state.bannedHwids && state.bannedHwids[hwid]) {
+        delete state.bannedHwids[hwid];
+        saveDiscordAdminState(state);
+    }
+    res.json({ status: 'success', unbannedHwid: hwid });
+});
+
+// 8. Heartbeat & Live Telemetrie
+app.post('/api/discord/heartbeat', (req, res) => {
+    const { clientId, hwid, pcName, username, os: clientOs, version } = req.body || {};
+    const state = getDiscordAdminState();
+    const id = clientId || hwid || `dc_client_${Date.now()}`;
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1').split(',')[0].trim();
+
+    if (!state.clients) state.clients = {};
+    state.clients[id] = {
+        id,
+        hwid: hwid || id,
+        pcName: pcName || 'Windows PC',
+        username: username || 'Benutzer',
+        os: clientOs || 'Windows',
+        version: version || '1.1.0',
+        lastSeen: Date.now(),
+        ip,
+        status: 'online'
+    };
+    saveDiscordAdminState(state);
+
+    const isHwidBanned = Boolean(hwid && state.bannedHwids && state.bannedHwids[hwid]);
+    const isLocked = Boolean(state.globalLock) || isHwidBanned;
+    const lockReason = isHwidBanned
+        ? (state.bannedHwids[hwid].reason || 'Dieses Geraet wurde dauerhaft gesperrt.')
+        : (state.lockReason || 'Wartungsarbeiten durch Administrator.');
+
+    const clientVer = String(version || '1.0.0').replace(/^v/i, '').trim();
+    const latestVer = String(state.latestVersion || '1.1.0').replace(/^v/i, '').trim();
+    const updateAvailable = (clientVer !== latestVer);
+
+    res.json({
+        status: 'success',
+        allowed: !isLocked,
+        isLocked,
+        lockReason,
+        currentVersion: state.currentVersion || '1.1.0',
+        latestVersion: state.latestVersion || '1.1.0',
+        updateAvailable,
+        changelog: Array.isArray(state.changelog) ? state.changelog.join('\n') : (state.changelog || ''),
+        downloadUrl: state.downloadUrl || 'https://whatsapp-kadi.onrender.com/download/Nightheid.exe',
+        announcement: state.announcement || '',
+        announcementType: state.announcementType || 'info'
+    });
+});
+
+// 9. Discord Tool Files API
+const DISCORD_MANAGED_FILES = {
+    'discord_tool/Nightheid.exe': {
+        name: 'Nightheid.exe',
+        title: 'Nightheid Executable',
+        description: 'Windows Standalone Binary (Desktop Tool)',
+        category: 'Binary Release',
+        type: 'binary'
+    },
+    'discord_tool/ff.py': {
+        name: 'ff.py',
+        title: 'Discord Engine Python Source',
+        description: 'Vollstaendiger Python-Code des Discord Tools',
+        category: 'Source Code',
+        type: 'python'
+    },
+    'discord_tool/Nightheid.spec': {
+        name: 'Nightheid.spec',
+        title: 'PyInstaller Spec',
+        description: 'Build-Spezifikation fuer Nightheid.exe',
+        category: 'Build',
+        type: 'python'
+    },
+    'discord_tool/update_all.py': {
+        name: 'update_all.py',
+        title: 'Updater Script',
+        description: 'Automatisches Build & Update Skript',
+        category: 'Scripts',
+        type: 'python'
+    },
+    'discord_tool/discord_settings.json': {
+        name: 'discord_settings.json',
+        title: 'Discord Einstellungen',
+        description: 'Lokale & Remote Konfiguration des Tools',
+        category: 'Konfiguration',
+        type: 'json'
+    },
+    'discord_tool/README.md': {
+        name: 'README.md',
+        title: 'Discord Tool Dokumentation',
+        description: 'Handbuch & Feature-Uebersicht',
+        category: 'Dokumentation',
+        type: 'markdown'
+    }
+};
+
+app.get('/api/discord/files', (req, res) => {
+    const list = Object.keys(DISCORD_MANAGED_FILES).map(k => {
+        const item = DISCORD_MANAGED_FILES[k];
+        const fp = path.join(BASE_DIR, k.replace(/\//g, path.sep));
+        const exists = fs.existsSync(fp);
+        let size = 0;
+        let lastModified = null;
+        if (exists) {
+            try {
+                const s = fs.statSync(fp);
+                size = s.size;
+                lastModified = s.mtime.toISOString();
+            } catch (e) {}
+        }
+        return {
+            id: k,
+            ...item,
+            size,
+            exists,
+            lastModified
+        };
+    });
+    res.json({ status: 'success', files: list });
+});
+
+app.get('/api/discord/files/:fileId(*)', (req, res) => {
+    const fileId = req.params.fileId;
+    const meta = DISCORD_MANAGED_FILES[fileId];
+    if (!meta) {
+        return res.status(404).json({ status: 'error', message: 'Datei nicht registriert' });
+    }
+    const fp = path.join(BASE_DIR, fileId.replace(/\//g, path.sep));
+    if (!fs.existsSync(fp)) {
+        return res.status(404).json({ status: 'error', message: 'Datei existiert nicht auf dem Server' });
+    }
+
+    if (req.query.download === '1' || meta.type === 'binary') {
+        return res.download(fp, meta.name);
+    }
+
+    try {
+        const content = fs.readFileSync(fp, 'utf8');
+        const s = fs.statSync(fp);
+        res.json({
+            status: 'success',
+            id: fileId,
+            name: meta.name,
+            content,
+            size: s.size,
+            isBinary: false
+        });
+    } catch (e) {
+        const s = fs.statSync(fp);
+        res.json({
+            status: 'success',
+            id: fileId,
+            name: meta.name,
+            size: s.size,
+            isBinary: true,
+            downloadUrl: `/api/discord/files/${encodeURIComponent(fileId)}?download=1`
+        });
+    }
+});
+
+app.post('/api/discord/files/:fileId(*)', (req, res) => {
+    const fileId = req.params.fileId;
+    const meta = DISCORD_MANAGED_FILES[fileId];
+    if (!meta || meta.type === 'binary') {
+        return res.status(400).json({ status: 'error', message: 'Binaere oder nicht registrierte Dateien koennen nicht ueberschrieben werden' });
+    }
+    const { content } = req.body || {};
+    if (typeof content !== 'string') {
+        return res.status(400).json({ status: 'error', message: 'Inhalt muss String sein' });
+    }
+    const fp = path.join(BASE_DIR, fileId.replace(/\//g, path.sep));
+    try {
+        fs.writeFileSync(fp, content, 'utf8');
+        logSystemEvent('info', `Discord-Datei ${meta.name} via Web-Editor gespeichert.`);
+        res.json({ status: 'success', message: `Datei ${meta.name} gespeichert.` });
+    } catch (e) {
+        res.status(500).json({ status: 'error', message: e.message });
+    }
+});
+
+// 10. Direct Download Endpoint
+app.get('/download/Nightheid.exe', (req, res) => {
+    const exePath = path.join(BASE_DIR, 'discord_tool', 'Nightheid.exe');
+    if (fs.existsSync(exePath)) {
+        return res.download(exePath, 'Nightheid.exe');
+    }
+    res.status(404).send('Nightheid.exe nicht verfuegbar');
+});
+
 app.get('/api/system/git-status', (req, res) => {
     const { exec } = require('child_process');
     exec('git log -1 --format="%h - %s (%cd)" --date=short', { cwd: BASE_DIR }, (err, stdout) => {

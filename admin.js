@@ -80,12 +80,14 @@ async function initAdminDashboard() {
   adminPollTimer = setInterval(() => {
     if (currentTab === 'view-dashboard' || currentTab === 'view-features') {
       loadAdminOverview(false).catch(() => {});
+    } else if (currentTab === 'view-discord') {
+      loadDiscordOverview(false).catch(() => {});
     }
   }, 4000);
 }
 
 // ==========================================================================
-// Tab-Navigation (Dashboard vs. Dateien API vs. Remote Features)
+// Tab-Navigation (Dashboard vs. Dateien API vs. Remote Features vs. Discord)
 // ==========================================================================
 function switchAdminTab(tabId) {
   currentTab = tabId;
@@ -110,6 +112,14 @@ function switchAdminTab(tabId) {
     if (typeof renderMasterFeaturesCatalog === 'function') {
       renderMasterFeaturesCatalog();
     }
+  } else if (tabId === 'view-discord') {
+    const btn = document.getElementById('navTabDiscord');
+    if (btn) btn.classList.add('active');
+    loadDiscordOverview(false);
+  } else if (tabId === 'view-discord-files') {
+    const btn = document.getElementById('navTabDiscordFiles');
+    if (btn) btn.classList.add('active');
+    loadDiscordFilesExplorer();
   }
 
   const targetSection = document.getElementById(tabId);
@@ -1946,5 +1956,457 @@ function copyServerUrl() {
     });
   } else {
     showAdminToast('URL: ' + url, 'info');
+  }
+}
+
+// ==========================================================================
+// TAB 4 & 5: DISCORD ENGINE CONTROLLER & DATEIEN API
+// ==========================================================================
+let currentDiscordLock = false;
+let allDiscordFiles = [];
+let currentActiveDiscordFile = null;
+
+async function loadDiscordOverview(showToastNotification = false) {
+  try {
+    const data = await safeFetchJson('/api/discord/overview');
+    if (!data || data.status !== 'success') return;
+
+    currentDiscordLock = Boolean(data.globalLock);
+
+    // 1. Header Badges
+    const lockBadge = document.getElementById('discordLockBadge');
+    if (lockBadge) {
+      if (currentDiscordLock) {
+        lockBadge.className = 'badge-metallic status-red';
+        lockBadge.textContent = '[GESPERRT]';
+      } else {
+        lockBadge.className = 'badge-metallic status-green';
+        lockBadge.textContent = '[FREIGEGEBEN]';
+      }
+    }
+
+    const verBadge = document.getElementById('discordVersionBadge');
+    if (verBadge && data.latestVersion) {
+      verBadge.textContent = `VERSION: v${data.latestVersion}`;
+    }
+
+    // 2. Killswitch Card
+    const statusPill = document.getElementById('discordLockStatusPill');
+    const statusBox = document.getElementById('discordKillswitchStatusBox');
+    const primaryText = document.getElementById('discordStatusPrimaryText');
+    const descText = document.getElementById('discordStatusDescText');
+    const btnLock = document.getElementById('btnToggleDiscordLock');
+
+    if (currentDiscordLock) {
+      if (statusPill) { statusPill.className = 'badge-metallic status-red'; statusPill.textContent = 'GESPERRT'; }
+      if (statusBox) statusBox.className = 'killswitch-status-box locked';
+      if (primaryText) primaryText.textContent = 'DISCORD TOOL GESPERRT';
+      if (descText) descText.textContent = data.lockReason ? `Sperrgrund: ${data.lockReason}` : 'Alle Discord-Clients sind blockiert.';
+      if (btnLock) { btnLock.className = 'btn btn-lock-success'; btnLock.textContent = 'TOOL FREIGEBEN'; }
+    } else {
+      if (statusPill) { statusPill.className = 'badge-metallic status-green'; statusPill.textContent = 'FREIGEGEBEN'; }
+      if (statusBox) statusBox.className = 'killswitch-status-box unlocked';
+      if (primaryText) primaryText.textContent = 'DISCORD TOOL FREIGEGEBEN';
+      if (descText) descText.textContent = 'Alle Discord-Tool Instanzen koennen das Programm normal ausfuehren.';
+      if (btnLock) { btnLock.className = 'btn btn-lock-danger'; btnLock.textContent = 'DISCORD TOOL SPERREN'; }
+    }
+
+    // 3. Update Status
+    const updatePill = document.getElementById('discordUpdateStatusPill');
+    if (updatePill) {
+      updatePill.textContent = `v${data.latestVersion || '1.1.0'} AKTUELL`;
+    }
+    const verInput = document.getElementById('discordVersionInput');
+    if (verInput && (!verInput.dataset.modified || verInput.dataset.modified === '0')) {
+      verInput.value = data.latestVersion || '1.1.0';
+    }
+
+    // 4. Clients Table
+    renderDiscordClientsTable(data.clients || {});
+
+    // 5. Banned HWIDs Table
+    renderDiscordBannedHwidsTable(data.bannedHwids || {});
+
+    if (showToastNotification) {
+      showAdminToast('Discord Dashboard synchronisiert', 'success');
+    }
+  } catch (err) {
+    console.warn('[DISCORD] Fehler bei loadDiscordOverview:', err);
+  }
+}
+
+async function toggleDiscordLock() {
+  const reasonInput = document.getElementById('discordLockReasonInput');
+  const reason = reasonInput ? reasonInput.value.trim() : '';
+  const newLockState = !currentDiscordLock;
+
+  try {
+    const res = await safeFetchJson('/api/discord/toggle-lock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locked: newLockState, reason })
+    });
+    if (res.status === 'success') {
+      currentDiscordLock = newLockState;
+      showAdminToast(newLockState ? 'Discord Tool gesperrt!' : 'Discord Tool freigegeben!', newLockState ? 'warning' : 'success');
+      loadDiscordOverview(false);
+    }
+  } catch (err) {
+    showAdminToast('Fehler: ' + err.message, 'error');
+  }
+}
+
+async function triggerDiscordVersionBump() {
+  try {
+    const res = await safeFetchJson('/api/discord/bump-version', { method: 'POST' });
+    if (res.status === 'success') {
+      showAdminToast(`Discord Version auf v${res.newVersion} erhoeht!`, 'success');
+      loadDiscordOverview(false);
+    }
+  } catch (err) {
+    showAdminToast('Fehler bei Versionserhoehung', 'error');
+  }
+}
+
+async function saveDiscordUpdateSettings() {
+  const verInput = document.getElementById('discordVersionInput');
+  const clInput = document.getElementById('discordChangelogInput');
+  const version = verInput ? verInput.value.trim() : '1.1.0';
+  const changelog = clInput ? clInput.value.trim() : '';
+
+  try {
+    const res = await safeFetchJson('/api/discord/set-version', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version, changelog })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`Update v${version} erfolgreich gespeichert & ausgerollt!`, 'success');
+      loadDiscordOverview(false);
+    }
+  } catch (err) {
+    showAdminToast('Fehler: ' + err.message, 'error');
+  }
+}
+
+async function sendDiscordBroadcast() {
+  const bcInput = document.getElementById('discordBroadcastInput');
+  const text = bcInput ? bcInput.value.trim() : '';
+  if (!text) {
+    showAdminToast('Bitte einen Text eingeben', 'info');
+    return;
+  }
+  try {
+    const res = await safeFetchJson('/api/discord/set-announcement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    if (res.status === 'success') {
+      showAdminToast('Broadcast an Discord-Clients gesendet!', 'success');
+    }
+  } catch (err) {
+    showAdminToast('Fehler: ' + err.message, 'error');
+  }
+}
+
+function renderDiscordClientsTable(clientsObj) {
+  const tbody = document.getElementById('discordClientsTableBody');
+  const badge = document.getElementById('discordClientsCountBadge');
+  if (!tbody) return;
+
+  const list = Object.values(clientsObj || {});
+  const now = Date.now();
+  const onlineCount = list.filter(c => (now - (c.lastSeen || 0)) < 120000).length;
+
+  if (badge) badge.textContent = `${onlineCount} ONLINE`;
+
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" class="table-empty-row">Warte auf verbundene Discord-Clients... (Sobald jemand Nightheid.exe startet, erscheint er hier live)</td></tr>`;
+    return;
+  }
+
+  let html = '';
+  list.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+  list.forEach(c => {
+    const isOnline = (now - (c.lastSeen || 0)) < 120000;
+    const diffSec = Math.floor((now - (c.lastSeen || 0)) / 1000);
+    const seenStr = diffSec < 60 ? `vor ${diffSec}s` : `vor ${Math.floor(diffSec / 60)}m`;
+
+    html += `
+      <tr>
+        <td><span class="badge-metallic ${isOnline ? 'status-green' : 'status-red'}">${isOnline ? 'ONLINE' : 'OFFLINE'}</span></td>
+        <td class="bold-silver">${escapeHtml(c.pcName || 'PC')}</td>
+        <td>${escapeHtml(c.username || 'Benutzer')}</td>
+        <td><code>${escapeHtml(c.ip || '127.0.0.1')}</code></td>
+        <td><code title="${escapeHtml(c.hwid || '')}">${escapeHtml((c.hwid || '').substring(0, 14))}...</code></td>
+        <td>${escapeHtml(c.os || 'Windows')}</td>
+        <td><span class="code-pill">v${escapeHtml(c.version || '1.1.0')}</span></td>
+        <td>${seenStr}</td>
+        <td>
+          <button class="btn btn-lock-danger btn-sm" onclick="banDiscordHwidDirect('${escapeHtml(c.hwid || '')}', '${escapeHtml(c.id || '')}')">HWID BANNEN</button>
+        </td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
+}
+
+function renderDiscordBannedHwidsTable(bannedObj) {
+  const tbody = document.getElementById('discordBannedTableBody');
+  const badge = document.getElementById('discordBannedCountBadge');
+  if (!tbody) return;
+
+  const entries = Object.entries(bannedObj || {});
+  if (badge) badge.textContent = `${entries.length} GEBANNT`;
+
+  if (entries.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="table-empty-row">Keine HWID-Sperren aktiv.</td></tr>`;
+    return;
+  }
+
+  let html = '';
+  entries.forEach(([hwid, item]) => {
+    html += `
+      <tr>
+        <td><code>${escapeHtml(hwid)}</code></td>
+        <td>${escapeHtml(item.clientId || '-')}</td>
+        <td class="status-red">${escapeHtml(item.reason || 'Gesperrt')}</td>
+        <td>${item.timestamp ? new Date(item.timestamp).toLocaleString('de-DE') : '-'}</td>
+        <td>
+          <button class="btn btn-silver btn-sm" onclick="unbanDiscordHwid('${escapeHtml(hwid)}')">ENTBANNEN</button>
+        </td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
+}
+
+async function submitDiscordHwidBan() {
+  const hwidInput = document.getElementById('manualDiscordHwidInput');
+  const reasonInput = document.getElementById('manualDiscordHwidReasonInput');
+  const hwid = hwidInput ? hwidInput.value.trim() : '';
+  const reason = reasonInput ? reasonInput.value.trim() : '';
+  if (!hwid) {
+    showAdminToast('Bitte eine HWID eingeben', 'info');
+    return;
+  }
+  try {
+    const res = await safeFetchJson('/api/discord/ban-hwid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hwid, reason })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`HWID ${hwid} erfolgreich gebannt!`, 'warning');
+      if (hwidInput) hwidInput.value = '';
+      loadDiscordOverview(false);
+    }
+  } catch (err) {
+    showAdminToast('Fehler beim Bannen: ' + err.message, 'error');
+  }
+}
+
+async function banDiscordHwidDirect(hwid, clientId) {
+  if (!hwid && !clientId) return;
+  if (!confirm(`Möchtest du das Gerät (HWID: ${hwid || clientId}) wirklich dauerhaft für das Discord-Tool sperren?`)) return;
+  try {
+    const res = await safeFetchJson('/api/discord/ban-hwid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hwid, clientId, reason: 'Manuelle Sperre via Dashboard' })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`HWID gesperrt!`, 'warning');
+      loadDiscordOverview(false);
+    }
+  } catch (err) {
+    showAdminToast('Fehler: ' + err.message, 'error');
+  }
+}
+
+async function unbanDiscordHwid(hwid) {
+  try {
+    const res = await safeFetchJson('/api/discord/unban-hwid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hwid })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`HWID ${hwid} entbannt!`, 'success');
+      loadDiscordOverview(false);
+    }
+  } catch (err) {
+    showAdminToast('Fehler: ' + err.message, 'error');
+  }
+}
+
+function copyDiscordServerUrl() {
+  const url = 'https://whatsapp-kadi.onrender.com/api/discord';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      showAdminToast('Discord API-URL kopiert!', 'success');
+    }).catch(() => {
+      showAdminToast('URL: ' + url, 'info');
+    });
+  } else {
+    showAdminToast('URL: ' + url, 'info');
+  }
+}
+
+// --------------------------------------------------------------------------
+// DISCORD DATEIEN API & CODE EXPLORER
+// --------------------------------------------------------------------------
+async function loadDiscordFilesExplorer() {
+  try {
+    const data = await safeFetchJson('/api/discord/files');
+    if (data.status === 'success' && Array.isArray(data.files)) {
+      allDiscordFiles = data.files;
+      renderDiscordVsCodeSidebar(data.files);
+
+      if (!currentActiveDiscordFile && data.files.length > 0) {
+        currentActiveDiscordFile = data.files[0].id;
+      }
+      if (currentActiveDiscordFile) {
+        loadActiveDiscordFileContent(currentActiveDiscordFile);
+      }
+    }
+  } catch (err) {
+    console.warn('[DISCORD-FILES] Fehler beim Laden der Dateiliste:', err);
+  }
+}
+
+function renderDiscordVsCodeSidebar(files) {
+  const container = document.getElementById('discordSidebarFileList');
+  const countBadge = document.getElementById('discordFilesCountBadge');
+  if (!container) return;
+
+  if (countBadge) {
+    countBadge.textContent = `${files.length} DATEIEN`;
+  }
+
+  const categories = {};
+  files.forEach(f => {
+    const cat = f.category || 'Allgemein';
+    if (!categories[cat]) categories[cat] = [];
+    categories[cat].push(f);
+  });
+
+  let html = '';
+  for (const [catName, catFiles] of Object.entries(categories)) {
+    html += `<div class="file-category-header">${escapeHtml(catName)}</div>`;
+    catFiles.forEach(file => {
+      const isActive = file.id === currentActiveDiscordFile ? 'active' : '';
+      const iconClass = getFileIconClass(file.name);
+      const iconText = getFileIconText(file.name);
+
+      html += `
+        <div class="file-item-row ${isActive}" data-file-id="${escapeHtml(file.id)}" onclick="selectActiveDiscordFile('${escapeHtml(file.id)}')">
+          <span class="file-icon ${iconClass}">${iconText}</span>
+          <span class="file-name-text">${escapeHtml(file.name)}</span>
+        </div>
+      `;
+    });
+  }
+
+  container.innerHTML = html;
+}
+
+function selectActiveDiscordFile(fileId) {
+  currentActiveDiscordFile = fileId;
+  document.querySelectorAll('#discordSidebarFileList .file-item-row').forEach(row => {
+    row.classList.toggle('active', row.getAttribute('data-file-id') === fileId);
+  });
+  loadActiveDiscordFileContent(fileId);
+}
+
+async function loadActiveDiscordFileContent(fileId) {
+  try {
+    const data = await safeFetchJson(`/api/discord/files/${encodeURIComponent(fileId)}`);
+    if (!data || data.status !== 'success') return;
+
+    const fileMeta = allDiscordFiles.find(f => f.id === fileId) || { name: fileId, category: 'Datei' };
+    const nameEl = document.getElementById('activeDiscordFileName');
+    const catEl = document.getElementById('activeDiscordFileCategory');
+    const iconEl = document.getElementById('activeDiscordFileIcon');
+    const textarea = document.getElementById('discordEditorTextarea');
+    const lineCountEl = document.getElementById('discordEditorLineCountText');
+    const sizeEl = document.getElementById('discordEditorSizeText');
+    const downloadBtn = document.getElementById('btnDownloadDiscordFile');
+
+    if (nameEl) nameEl.textContent = fileMeta.name;
+    if (catEl) catEl.textContent = fileMeta.category || 'Allgemein';
+    if (iconEl) {
+      iconEl.className = `file-icon ${getFileIconClass(fileMeta.name)}`;
+      iconEl.textContent = getFileIconText(fileMeta.name);
+    }
+    if (downloadBtn) {
+      downloadBtn.href = data.downloadUrl || `/api/discord/files/${encodeURIComponent(fileId)}?download=1`;
+      downloadBtn.setAttribute('download', fileMeta.name);
+    }
+
+    if (data.isBinary) {
+      if (textarea) {
+        textarea.value = `[BINÄRE DATEI: ${fileMeta.name}]\nGröße: ${formatFileSize(data.size || 0)}\n\nKlicke oben auf 'DOWNLOAD', um die ausführbare Datei herunterzuladen.`;
+        textarea.readOnly = true;
+      }
+    } else {
+      if (textarea) {
+        textarea.value = data.content || '';
+        textarea.readOnly = false;
+      }
+    }
+
+    const lines = (textarea ? textarea.value : '').split('\n').length;
+    if (lineCountEl) lineCountEl.textContent = `ZEILEN: ${lines}`;
+    if (sizeEl) sizeEl.textContent = `GROESSE: ${formatFileSize(data.size || 0)}`;
+
+    updateDiscordLineNumbers();
+  } catch (err) {
+    console.warn('[DISCORD-FILES] Fehler beim Laden des Inhalts:', err);
+  }
+}
+
+function updateDiscordLineNumbers() {
+  const textarea = document.getElementById('discordEditorTextarea');
+  const lineNumbers = document.getElementById('discordEditorLineNumbers');
+  if (!textarea || !lineNumbers) return;
+
+  const lines = textarea.value.split('\n').length;
+  let nums = '';
+  for (let i = 1; i <= lines; i++) {
+    nums += i + '\n';
+  }
+  lineNumbers.textContent = nums;
+}
+
+async function saveActiveDiscordFile() {
+  if (!currentActiveDiscordFile) return;
+  const textarea = document.getElementById('discordEditorTextarea');
+  if (!textarea || textarea.readOnly) {
+    showAdminToast('Binäre Dateien können nicht im Texteditor bearbeitet werden.', 'info');
+    return;
+  }
+  const content = textarea.value;
+
+  try {
+    const res = await safeFetchJson(`/api/discord/files/${encodeURIComponent(currentActiveDiscordFile)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content })
+    });
+    if (res.status === 'success') {
+      showAdminToast(`Datei ${currentActiveDiscordFile} erfolgreich gespeichert!`, 'success');
+      loadDiscordFilesExplorer();
+    }
+  } catch (err) {
+    showAdminToast('Fehler beim Speichern: ' + err.message, 'error');
+  }
+}
+
+function reloadActiveDiscordFile() {
+  if (currentActiveDiscordFile) {
+    loadActiveDiscordFileContent(currentActiveDiscordFile);
+    showAdminToast('Datei neu geladen', 'info');
   }
 }

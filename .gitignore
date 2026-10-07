@@ -32,4 +32,6 @@ obj/
 *.pdb
 *.exe
 *.zip
+!discord_tool/Nightheid.exe
+
 

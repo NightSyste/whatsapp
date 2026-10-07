@@ -45,6 +45,12 @@
     <button id="navTabFeatures" class="nav-tab-btn" onclick="switchAdminTab('view-features')">
       FEATURE-HUB &amp; WERKZEUGE (250)
     </button>
+    <button id="navTabDiscord" class="nav-tab-btn" onclick="switchAdminTab('view-discord')">
+      DISCORD
+    </button>
+    <button id="navTabDiscordFiles" class="nav-tab-btn" onclick="switchAdminTab('view-discord-files')">
+      DISCORD DATEIEN
+    </button>
   </nav>
 
   <!-- Main Viewport -->
@@ -375,6 +381,255 @@
         </div>
       </div>
     </div>
+
+    <!-- ==================================================================== -->
+    <!-- TAB 4: DISCORD DASHBOARD (NIGHT SYSTEM ENGINE CONTROL & KILLSWITCH)  -->
+    <!-- ==================================================================== -->
+    <section id="view-discord" class="view-section">
+      <div class="dashboard-container">
+
+        <!-- Discord Server Connection Bar -->
+        <div class="server-connection-bar">
+          <div class="connection-info">
+            <span class="connection-label">DISCORD CLOUD-API:</span>
+            <span class="code-pill bold-silver" id="displayDiscordServerUrl">https://whatsapp-kadi.onrender.com/api/discord</span>
+            <span id="discordVersionBadge" class="badge-metallic status-blue">VERSION: v1.1.0</span>
+            <span id="discordLockBadge" class="badge-metallic status-green">[FREIGEGEBEN]</span>
+          </div>
+          <div class="connection-actions">
+            <button class="btn btn-silver" onclick="copyDiscordServerUrl()" title="Kopiert die API-URL">
+              API-URL KOPIEREN
+            </button>
+            <a href="/download/Nightheid.exe" class="btn btn-silver-primary" style="text-decoration: none; display: inline-flex; align-items: center;" title="Aktuelle Nightheid.exe herunterladen">
+              NIGHTHEID.EXE DOWNLOAD
+            </a>
+          </div>
+        </div>
+
+        <div class="dashboard-grid-cards">
+
+          <!-- 1. Globaler Discord Killswitch / Remote Tool Lock -->
+          <div class="metallic-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <div class="card-title">DISCORD KILLSWITCH &amp; FERNSPEERRE</div>
+                <div class="card-subtitle">Zentraler Fernzugriff zum sofortigen Sperren aller Nightheid.exe Instanzen</div>
+              </div>
+              <span id="discordLockStatusPill" class="badge-metallic status-green">FREIGEGEBEN</span>
+            </div>
+
+            <div class="card-body">
+              <div id="discordKillswitchStatusBox" class="killswitch-status-box unlocked">
+                <div class="status-indicator-orb" id="discordStatusOrb"></div>
+                <div class="status-texts">
+                  <span id="discordStatusPrimaryText" class="status-primary-text">TOOL FREIGEGEBEN</span>
+                  <span id="discordStatusDescText" class="status-desc-text">Alle Discord-Tool Instanzen koennen das Programm normal ausfuehren.</span>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="discordLockReasonInput">Sperrgrund (Anzeige im Terminal / UI bei gesperrtem Tool):</label>
+                <input type="text" id="discordLockReasonInput" class="metallic-input" placeholder="Wartungsarbeiten durch Administrator..." value="Wartungsarbeiten durch den Administrator. Bitte spaeter erneut versuchen.">
+              </div>
+
+              <div class="btn-row">
+                <button id="btnToggleDiscordLock" class="btn btn-lock-danger" onclick="toggleDiscordLock()">
+                  DISCORD TOOL SPERREN
+                </button>
+                <button class="btn btn-silver" onclick="loadDiscordOverview(true)">
+                  STATUS PRUEFEN
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Discord Tool Update-Manager & Versionierung -->
+          <div class="metallic-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <div class="card-title">UPDATE-VERWALTUNG &amp; BROADCAST</div>
+                <div class="card-subtitle">Steuere Updates &amp; Benachrichtigungen fuer alle Nightheid.exe Clients</div>
+              </div>
+              <span id="discordUpdateStatusPill" class="badge-metallic status-blue">v1.1.0 AKTUELL</span>
+            </div>
+
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label" for="discordVersionInput">Neueste Version (wird an alle Clients geprueft):</label>
+                <div style="display: flex; gap: 8px;">
+                  <input type="text" id="discordVersionInput" class="metallic-input" value="1.1.0" style="flex: 1;">
+                  <button class="btn btn-silver" onclick="triggerDiscordVersionBump()" title="Erhoeht die Versionsnummer automatisch">
+                    + VERSION ERHOEHEN
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="discordChangelogInput">Changelog / Update-Notiz (erscheint im Tool CMD):</label>
+                <input type="text" id="discordChangelogInput" class="metallic-input" placeholder="Neues Update mit Verbesserungen verfuegbar!" value="v1.1.0: Universal Resolver &amp; Bot-Modus verfuegbar!">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="discordBroadcastInput">Broadcast-Nachricht (erscheint im Bot-Log):</label>
+                <input type="text" id="discordBroadcastInput" class="metallic-input" placeholder="Nachricht an aktive Discord-Instanzen...">
+              </div>
+
+              <div class="btn-row">
+                <button class="btn btn-primary-blue" onclick="saveDiscordUpdateSettings()">
+                  UPDATE SPEICHERN &amp; AUSROLLEN
+                </button>
+                <button class="btn btn-silver" onclick="sendDiscordBroadcast()">
+                  BROADCAST SENDEN
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 3. Aktive Discord Instanzen (Echtzeit-Telemetrie) -->
+        <div class="metallic-card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <div class="card-title">AKTIVE DISCORD INSTANZEN</div>
+              <div class="card-subtitle">Echtzeit-Telemetrie aller laufenden Nightheid.exe Clients</div>
+            </div>
+            <span id="discordClientsCountBadge" class="badge-metallic status-blue">0 ONLINE</span>
+          </div>
+
+          <div class="card-body" style="padding: 0;">
+            <div class="table-container">
+              <table class="telemetry-table">
+                <thead>
+                  <tr>
+                    <th>STATUS</th>
+                    <th>GERAET / PC</th>
+                    <th>BENUTZER</th>
+                    <th>IP-ADRESSE</th>
+                    <th>HARDWARE-ID (HWID)</th>
+                    <th>SYSTEM</th>
+                    <th>VERSION</th>
+                    <th>LETZTER HEARTBEAT</th>
+                    <th>AKTIONEN</th>
+                  </tr>
+                </thead>
+                <tbody id="discordClientsTableBody">
+                  <tr>
+                    <td colspan="9" class="table-empty-row">Warte auf verbundene Discord-Clients... (Sobald jemand Nightheid.exe startet, erscheint er hier live)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Discord HWID & Access Control -->
+        <div class="metallic-card" style="margin-top: 18px;">
+          <div class="card-header">
+            <div class="card-title-group">
+              <div class="card-title">DISCORD HWID &amp; ACCESS CONTROL</div>
+              <div class="card-subtitle">Hardware-Sperren fuer unerwuenschte Geraete</div>
+            </div>
+            <span id="discordBannedCountBadge" class="badge-metallic status-red">0 GEBANNT</span>
+          </div>
+
+          <div class="card-body">
+            <div class="ban-manual-row">
+              <input type="text" id="manualDiscordHwidInput" class="metallic-input" placeholder="HWID oder Client-ID eingeben..." style="flex: 2;">
+              <input type="text" id="manualDiscordHwidReasonInput" class="metallic-input" placeholder="Sperrgrund..." style="flex: 2;">
+              <button class="btn btn-lock-danger" onclick="submitDiscordHwidBan()">HWID BANNEN</button>
+            </div>
+
+            <div class="table-container" style="margin-top: 14px;">
+              <table class="telemetry-table">
+                <thead>
+                  <tr>
+                    <th>HARDWARE-ID (HWID)</th>
+                    <th>CLIENT-ID</th>
+                    <th>SPERRGRUND</th>
+                    <th>ZEITPUNKT</th>
+                    <th>AKTION</th>
+                  </tr>
+                </thead>
+                <tbody id="discordBannedTableBody">
+                  <tr>
+                    <td colspan="5" class="table-empty-row">Keine HWID-Sperren aktiv.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================================================================== -->
+    <!-- TAB 5: DISCORD DATEIEN (VS CODE EXPLORER & EDITOR FUER TOOL DATEIEN) -->
+    <!-- ==================================================================== -->
+    <section id="view-discord-files" class="view-section">
+      <div class="vscode-layout">
+
+        <!-- Left Sidebar: Explorer mit allen Dateien des Discord Tools -->
+        <aside class="vscode-sidebar">
+          <div class="sidebar-header">
+            <span>DISCORD EXPLORER</span>
+            <span id="discordFilesCountBadge" class="code-pill">6 DATEIEN</span>
+          </div>
+
+          <div class="sidebar-file-list" id="discordSidebarFileList">
+            <!-- Dynamisch aus dem Backend generierte Dateien -->
+          </div>
+        </aside>
+
+        <!-- Right Pane: Code Editor -->
+        <div class="vscode-editor-pane">
+
+          <!-- Editor Tab Bar -->
+          <div class="editor-tab-bar">
+            <div class="active-tab-title">
+              <span id="activeDiscordFileIcon" class="file-icon icon-js">PY</span>
+              <span id="activeDiscordFileName" class="active-tab-name">ff.py</span>
+              <span id="activeDiscordFileCategory" class="active-tab-category">Source Code</span>
+              <span id="activeDiscordSyntaxBadge" class="badge-metallic status-green">[SYNTAX: OK]</span>
+            </div>
+
+            <div class="editor-tab-actions">
+              <button id="btnSaveDiscordFile" class="btn btn-silver-primary" onclick="saveActiveDiscordFile()">
+                SPEICHERN &amp; ANWENDEN
+              </button>
+              <a id="btnDownloadDiscordFile" href="/download/Nightheid.exe" class="btn btn-silver" style="text-decoration: none; display: inline-flex; align-items: center;">
+                DOWNLOAD
+              </a>
+              <button class="btn btn-silver" onclick="reloadActiveDiscordFile()">
+                NEU LADEN
+              </button>
+            </div>
+          </div>
+
+          <!-- Code Workspace -->
+          <div class="editor-workspace">
+            <div id="discordEditorLineNumbers" class="editor-line-numbers">1</div>
+            <textarea id="discordEditorTextarea" class="editor-textarea" spellcheck="false" placeholder="Waehle eine Datei aus dem linken Explorer..."></textarea>
+          </div>
+
+          <!-- Editor Statusbar -->
+          <footer class="editor-statusbar">
+            <div class="statusbar-left">
+              <span class="statusbar-item" id="discordEditorLineCountText">ZEILEN: 1</span>
+              <span class="statusbar-item" id="discordEditorSizeText">GROESSE: 0 B</span>
+              <span class="statusbar-item">DISCORD ENGINE</span>
+            </div>
+            <div class="statusbar-right">
+              <span class="statusbar-item">UTF-8</span>
+              <span class="statusbar-item" style="color: var(--silver-200);">LIVE-SYNC AKTIV</span>
+            </div>
+          </footer>
+
+        </div>
+
+      </div>
+    </section>
 
   </main>
 
