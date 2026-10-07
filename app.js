@@ -2712,7 +2712,7 @@ async function applyFixitVersion() {
     await new Promise(r => setTimeout(r, 400));
 
     const centralUrl = getCentralServerUrl();
-    const filesToFetch = (changedFile && changedFile !== 'System-Dateien' && changedFile !== 'README.md')
+    const filesToFetch = (changedFile && changedFile !== 'System-Dateien')
       ? [changedFile, 'app.js', 'index.html', 'style.css']
       : ['index.html', 'style.css', 'app.js', 'server.js', 'features-catalog.js'];
 

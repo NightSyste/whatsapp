@@ -78,3 +78,4 @@ Die fertige, portable `.exe` wird im Ordner `dist` erzeugt.
 
 ## Lizenz
 Dieses Projekt ist lizenziert unter der MIT-Lizenz. Freie Nutzung, Modifikation und Weiterverbreitung erlaubt.
+

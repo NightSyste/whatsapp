@@ -2406,8 +2406,11 @@ async function saveActiveDiscordFile() {
       body: JSON.stringify({ fileId: currentActiveDiscordFile, content })
     });
     if (res.status === 'success') {
-      showAdminToast(`Datei ${currentActiveDiscordFile} erfolgreich gespeichert!`, 'success');
+      showAdminToast(`[OK] ${res.file || currentActiveDiscordFile} gespeichert! Neue Version v${res.version || '1.1.x'} (Rev #${res.revision || '?'}) live!`, 'success');
       loadDiscordFilesExplorer();
+      if (typeof loadDiscordOverview === 'function') {
+        loadDiscordOverview(false);
+      }
     }
   } catch (err) {
     showAdminToast('Fehler beim Speichern: ' + err.message, 'error');

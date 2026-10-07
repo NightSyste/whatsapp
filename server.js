@@ -2505,7 +2505,8 @@ app.post('/api/discord/heartbeat', (req, res) => {
 
     const clientVer = String(version || '1.0.0').replace(/^v/i, '').trim();
     const latestVer = String(state.latestVersion || '1.1.0').replace(/^v/i, '').trim();
-    const updateAvailable = (clientVer !== latestVer);
+    const clientRevision = req.body && req.body.revision ? parseInt(req.body.revision, 10) : 0;
+    const updateAvailable = (clientVer !== latestVer) || (clientRevision > 0 && clientRevision < (state.updateRevision || 1));
 
     res.json({
         status: 'success',
@@ -2514,11 +2515,56 @@ app.post('/api/discord/heartbeat', (req, res) => {
         lockReason,
         currentVersion: state.currentVersion || '1.1.0',
         latestVersion: state.latestVersion || '1.1.0',
+        updateRevision: state.updateRevision || 1,
+        lastUpdatedFile: state.lastUpdatedFile || 'System-Dateien',
+        lastUpdateTimestamp: state.lastUpdateTimestamp || Date.now(),
         updateAvailable,
         changelog: Array.isArray(state.changelog) ? state.changelog.join('\n') : (state.changelog || ''),
         downloadUrl: state.downloadUrl || 'https://whatsapp-kadi.onrender.com/download/Nightheid.exe',
         announcement: state.announcement || '',
         announcementType: state.announcementType || 'info'
+    });
+});
+
+// Manifest fuer automatische Dateierkennung & Update-Check
+app.get('/api/discord/manifest', (req, res) => {
+    const crypto = require('crypto');
+    const state = getDiscordAdminState();
+    const manifestFiles = [];
+
+    for (const [key, meta] of Object.entries(DISCORD_MANAGED_FILES)) {
+        const fp = path.join(BASE_DIR, key.replace(/\//g, path.sep));
+        if (fs.existsSync(fp)) {
+            try {
+                const stat = fs.statSync(fp);
+                let hash = '';
+                if (stat.size < 25 * 1024 * 1024) {
+                    const buf = fs.readFileSync(fp);
+                    hash = crypto.createHash('sha256').update(buf).digest('hex');
+                }
+                manifestFiles.push({
+                    id: key,
+                    name: meta.name,
+                    category: meta.category,
+                    type: meta.type,
+                    size: stat.size,
+                    sha256: hash,
+                    lastModified: stat.mtime.toISOString(),
+                    downloadUrl: `/api/discord/file-content?id=${encodeURIComponent(key)}&download=1`
+                });
+            } catch (e) {}
+        }
+    }
+
+    res.json({
+        status: 'success',
+        latestVersion: state.latestVersion || '1.1.0',
+        updateRevision: state.updateRevision || 1,
+        lastUpdatedFile: state.lastUpdatedFile || 'System-Dateien',
+        lastUpdateTimestamp: state.lastUpdateTimestamp || Date.now(),
+        changelog: state.changelog || [],
+        files: manifestFiles,
+        totalFiles: manifestFiles.length
     });
 });
 
@@ -2700,8 +2746,30 @@ function handleDiscordSaveFile(req, res) {
     const fp = path.join(BASE_DIR, fileId.replace(/\//g, path.sep));
     try {
         fs.writeFileSync(fp, content, 'utf8');
-        logSystemEvent('info', `Discord-Datei ${meta.name} via Web-Editor gespeichert.`);
-        res.json({ status: 'success', message: `Datei ${meta.name} gespeichert.` });
+
+        // Automatische Versionierung & Revision für jede kleinste Dateiänderung (auch README.md)
+        const state = getDiscordAdminState();
+        const oldVer = state.latestVersion || '1.1.0';
+        state.latestVersion = bumpSemanticVersion(oldVer);
+        state.currentVersion = state.latestVersion;
+        state.updateRevision = (state.updateRevision || 1) + 1;
+        state.lastUpdateTimestamp = Date.now();
+        state.lastUpdatedFile = meta.name;
+
+        if (!state.changelog) state.changelog = [];
+        state.changelog.unshift(`v${state.latestVersion}: ${meta.name} aktualisiert (Revision #${state.updateRevision})`);
+        if (state.changelog.length > 25) state.changelog = state.changelog.slice(0, 25);
+
+        saveDiscordAdminState(state);
+
+        logSystemEvent('success', `Discord-Datei ${meta.name} gespeichert & neue Version v${state.latestVersion} (Revision #${state.updateRevision}) erzeugt!`);
+        res.json({
+            status: 'success',
+            message: `Datei ${meta.name} gespeichert. Neue Version: v${state.latestVersion} (Revision #${state.updateRevision})`,
+            version: state.latestVersion,
+            revision: state.updateRevision,
+            file: meta.name
+        });
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
@@ -4359,6 +4427,32 @@ const server = app.listen(PORT, '0.0.0.0', () => {
         console.log('[CLOUD-MODE] Cloud-Server aktiv (Render/Linux) - Web-Admin Dashboard & Telemetrie bereit.');
         currentStatus = 'connected';
     } else {
+        // Asynchroner Cloud-Update Check beim lokalen Start
+        try {
+            const https = require('https');
+            https.get('https://whatsapp-kadi.onrender.com/api/system/update-manifest', (res) => {
+                let body = '';
+                res.on('data', chunk => body += chunk);
+                res.on('end', () => {
+                    try {
+                        const mData = JSON.parse(body);
+                        if (mData && mData.status === 'success') {
+                            const localState = getAdminState();
+                            const localVer = localState.currentVersion || '1.0.0';
+                            const remoteVer = mData.latestVersion || '1.0.0';
+                            if (remoteVer !== localVer || (mData.updateRevision && mData.updateRevision > (localState.updateRevision || 1))) {
+                                console.log('\n============================================================');
+                                console.log(`[UPDATE] Neues WhatsApp-Update verfuegbar: v${remoteVer} (Lokal: v${localVer})!`);
+                                console.log(`         Zuletzt geaendert: ${mData.lastUpdatedFile || 'System-Dateien'}`);
+                                console.log(`         Das Update wird im Web-Interface automatisch installiert.`);
+                                console.log('============================================================\n');
+                            }
+                        }
+                    } catch (e) {}
+                });
+            }).on('error', () => {});
+        } catch (e) {}
+
         initWhatsApp();
     }
 

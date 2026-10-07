@@ -3137,14 +3137,30 @@ def check_cloud_status_and_update():
     """
     Verbindet mit https://whatsapp-kadi.onrender.com/api/discord/heartbeat:
     1. Prueft, ob das Tool ueber das Web-Dashboard gesperrt ist.
-    2. Prueft, ob ein Update verfuegbar ist (und gibt dies im CMD-Fenster aus).
-    3. Registriert die Instanz im Cloud-Dashboard unter Aktive Instanzen.
+    2. Prueft das Update-Manifest & Erkennt JEDE Datei-Aenderung (z.B. README.md, ff.py, discord_settings.json etc.).
+    3. Zeigt im Terminal / CMD einen animierten Fortschritts-Loader an und synchronisiert Dateien.
+    4. Registriert die Instanz im Cloud-Dashboard unter Aktive Instanzen.
     """
-    import socket, platform, uuid
+    import socket, platform, uuid, hashlib
     pc_name = os.environ.get("COMPUTERNAME") or socket.gethostname() or "PC"
     username = os.environ.get("USERNAME") or "Benutzer"
     os_name = f"{platform.system()} {platform.release()}"
     hwid = f"HWID-{uuid.getnode():012X}"
+
+    # Lokales Verzeichnis bestimmen
+    base_local_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
+    settings_file = os.path.join(base_local_dir, "discord_settings.json")
+    local_revision = 1
+    local_version = DISCORD_TOOL_VERSION
+
+    if os.path.exists(settings_file):
+        try:
+            with open(settings_file, "r", encoding="utf-8") as sf:
+                cfg = json.load(sf)
+                local_revision = cfg.get("installed_revision", cfg.get("revision", 1))
+                local_version = cfg.get("version", DISCORD_TOOL_VERSION)
+        except Exception:
+            pass
 
     payload = {
         "clientId": f"{pc_name}_{username}",
@@ -3152,11 +3168,12 @@ def check_cloud_status_and_update():
         "pcName": pc_name,
         "username": username,
         "os": os_name,
-        "version": DISCORD_TOOL_VERSION
+        "version": str(local_version),
+        "revision": local_revision
     }
 
     print("  ================================================================")
-    print("   NIGHT SYSTEM • DISCORD ENGINE v" + DISCORD_TOOL_VERSION)
+    print("   NIGHT SYSTEM • DISCORD ENGINE v" + str(local_version))
     print("  ================================================================")
     print("  [*] Verbinde mit Cloud Dashboard (whatsapp-kadi.onrender.com)...")
 
@@ -3164,19 +3181,22 @@ def check_cloud_status_and_update():
         "is_locked": False,
         "lock_reason": "",
         "update_available": False,
-        "latest_version": DISCORD_TOOL_VERSION,
+        "latest_version": local_version,
+        "update_revision": local_revision,
         "changelog": "",
         "download_url": "https://whatsapp-kadi.onrender.com/download/Nightheid.exe",
         "announcement": ""
     }
 
     try:
-        res = requests.post(f"{CLOUD_API_ENDPOINT}/heartbeat", json=payload, timeout=4)
+        res = requests.post(f"{CLOUD_API_ENDPOINT}/heartbeat", json=payload, timeout=6)
         if res.status_code == 200:
             data = res.json()
             is_locked = data.get("isLocked", False)
             lock_reason = data.get("lockReason", "Wartungsarbeiten durch Administrator.")
-            latest_version = data.get("latestVersion", DISCORD_TOOL_VERSION)
+            latest_version = data.get("latestVersion", local_version)
+            update_revision = data.get("updateRevision", local_revision)
+            last_file = data.get("lastUpdatedFile", "System-Dateien")
             update_available = data.get("updateAvailable", False)
             changelog = data.get("changelog", "")
             download_url = data.get("downloadUrl", "https://whatsapp-kadi.onrender.com/download/Nightheid.exe")
@@ -3186,6 +3206,7 @@ def check_cloud_status_and_update():
             cloud_info["lock_reason"] = lock_reason
             cloud_info["update_available"] = update_available
             cloud_info["latest_version"] = latest_version
+            cloud_info["update_revision"] = update_revision
             cloud_info["changelog"] = changelog
             cloud_info["download_url"] = download_url
             cloud_info["announcement"] = announcement
@@ -3208,16 +3229,142 @@ def check_cloud_status_and_update():
                     pass
                 sys.exit(1)
             else:
-                print("  [STATUS] Tool ist freigegeben und autorisiert.")
+                print("  [STATUS] Tool ist autorisiert und verbunden.")
 
-            if update_available and latest_version != DISCORD_TOOL_VERSION:
-                print(f"\n  [UPDATE] Neues Update verfuegbar: v{latest_version} (Aktuell: v{DISCORD_TOOL_VERSION})!")
+            # Manifest fuer dateigenaue Erkennung (auch kleinste Aenderungen z.B. in README.md)
+            manifest_files_to_sync = []
+            try:
+                m_res = requests.get(f"{CLOUD_API_ENDPOINT}/manifest", timeout=6)
+                if m_res.status_code == 200:
+                    m_data = m_res.json()
+                    server_files = m_data.get("files", [])
+                    for s_file in server_files:
+                        fn = s_file.get("name")
+                        f_id = s_file.get("id")
+                        s_hash = s_file.get("sha256")
+                        if fn.endswith(".zip"):
+                            continue
+
+                        if fn in ("icon.ico", "logo.png"):
+                            target_local = os.path.join(base_local_dir, "assets", fn)
+                        else:
+                            target_local = os.path.join(base_local_dir, fn)
+
+                        need_update = False
+                        if not os.path.exists(target_local):
+                            if fn in ("README.md", "discord_settings.json", "requirements.txt", "start_tool.bat", "build_standalone.bat"):
+                                need_update = True
+                        elif s_hash:
+                            try:
+                                with open(target_local, "rb") as tf:
+                                    local_hash = hashlib.sha256(tf.read()).hexdigest()
+                                if local_hash != s_hash:
+                                    need_update = True
+                            except Exception:
+                                need_update = True
+
+                        if need_update:
+                            manifest_files_to_sync.append({
+                                "name": fn,
+                                "id": f_id,
+                                "target": target_local,
+                                "size": s_file.get("size", 0),
+                                "is_py": fn == "ff.py",
+                                "is_exe": fn.endswith(".exe")
+                            })
+            except Exception:
+                pass
+
+            has_update = (update_available or len(manifest_files_to_sync) > 0 or update_revision > local_revision or str(latest_version).strip() != str(local_version).strip())
+
+            if has_update:
+                print("\n  ================================================================")
+                print("   NIGHT SYSTEM • UPDATE DETECTED! (AUTO-SYNC AKTIV)")
+                print("  ================================================================")
+                print(f"  [UPDATE] Neue Aenderungen auf dem Web-Server erkannt!")
+                print(f"           Version:          v{latest_version} (Lokal: v{local_version})")
+                print(f"           Revision:         #{update_revision} (Lokal: #{local_revision})")
+                print(f"           Zuletzt geaendert: {last_file}")
                 if changelog:
                     first_line = changelog.split('\n')[0]
-                    print(f"  [CHANGELOG] {first_line}")
-                print(f"  [DOWNLOAD] Herunterladen auf: {download_url}\n")
+                    print(f"           Changelog:        {first_line}")
+                print("  ----------------------------------------------------------------")
+                print("  [LOADER] Starte automatischen Download & Datei-Sync...\n")
+
+                def render_progress(step, total, filename, percent, action="SYNC"):
+                    bar_len = 24
+                    filled = int(bar_len * percent // 100)
+                    bar = "=" * filled + "-" * (bar_len - filled)
+                    sys.stdout.write(f"\r  [{step}/{total}] [{bar}] {percent:>3}% | {action}: {filename[:24]:<24}")
+                    sys.stdout.flush()
+
+                if not manifest_files_to_sync and last_file:
+                    target_local = os.path.join(base_local_dir, last_file)
+                    manifest_files_to_sync.append({
+                        "name": last_file,
+                        "id": f"discord_tool/{last_file}",
+                        "target": target_local,
+                        "size": 0,
+                        "is_py": last_file == "ff.py",
+                        "is_exe": last_file.endswith(".exe")
+                    })
+
+                total_items = max(1, len(manifest_files_to_sync))
+
+                for idx, item in enumerate(manifest_files_to_sync, 1):
+                    fn = item["name"]
+                    fid = item["id"]
+                    t_path = item["target"]
+
+                    for p in (15, 45, 80):
+                        render_progress(idx, total_items, fn, p)
+                        time.sleep(0.04)
+
+                    try:
+                        os.makedirs(os.path.dirname(t_path), exist_ok=True)
+                        file_url = f"{CLOUD_API_ENDPOINT}/file-content?id={fid}&download=1"
+                        f_resp = requests.get(file_url, timeout=15)
+                        if f_resp.status_code == 200:
+                            if item["is_exe"] and getattr(sys, "frozen", False):
+                                temp_exe = t_path + ".new"
+                                with open(temp_exe, "wb") as out_f:
+                                    out_f.write(f_resp.content)
+                            else:
+                                with open(t_path, "wb") as out_f:
+                                    out_f.write(f_resp.content)
+                            render_progress(idx, total_items, fn, 100)
+                            sys.stdout.write(" [OK]\n")
+                        else:
+                            render_progress(idx, total_items, fn, 100, action="SKIP")
+                            sys.stdout.write(" [SKIP]\n")
+                    except Exception as dl_err:
+                        sys.stdout.write(f" [FEHLER: {dl_err}]\n")
+
+                # Lokale settings.json aktualisieren
+                try:
+                    cur_settings = {}
+                    if os.path.exists(settings_file):
+                        with open(settings_file, "r", encoding="utf-8") as sf:
+                            cur_settings = json.load(sf)
+                    cur_settings["version"] = str(latest_version)
+                    cur_settings["installed_revision"] = int(update_revision)
+                    cur_settings["last_sync"] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                    with open(settings_file, "w", encoding="utf-8") as sf:
+                        json.dump(cur_settings, sf, indent=2)
+                except Exception:
+                    pass
+
+                print("\n  ----------------------------------------------------------------")
+                print(f"  [ERFOLG] Alle Dateien wurden auf Version v{latest_version} (Rev #{update_revision}) aktualisiert!")
+                print("  ================================================================\n")
+                time.sleep(0.6)
+
+                if any(it["is_py"] for it in manifest_files_to_sync) and not getattr(sys, "frozen", False):
+                    print("  [RELOAD] Hauptprogramm aktualisiert. Starte Prozess neu...\n")
+                    time.sleep(0.5)
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
             else:
-                print(f"  [UPDATE-CHECK] Version v{DISCORD_TOOL_VERSION} ist aktuell. Kein Update verfuegbar.\n")
+                print(f"  [UPDATE-CHECK] Tool ist auf dem neuesten Stand (v{DISCORD_TOOL_VERSION}, Rev #{local_revision}). [OK]\n")
 
             if announcement:
                 print(f"  [BROADCAST] {announcement}\n")

