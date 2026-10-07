@@ -549,7 +549,7 @@ class App(ctk.CTk):
                         pass
 
                     print("  [UPDATE] Download abgeschlossen. Starte Tool neu...\n")
-                    ps_cmd = f"Start-Sleep -Milliseconds 600; Move-Item -Path '{temp_exe}' -Destination '{exe_path}' -Force; Start-Process -FilePath '{exe_path}'"
+                    ps_cmd = f"$r = 20; while ($r -gt 0) {{ try {{ Move-Item -Path '{temp_exe}' -Destination '{exe_path}' -Force -ErrorAction Stop; break }} catch {{ Start-Sleep -Milliseconds 250; $r-- }} }}; Start-Process -FilePath '{exe_path}'"
                     subprocess.Popen(["powershell", "-NoProfile", "-Command", ps_cmd])
                     sys.exit(0)
             except Exception as ex:
@@ -3392,9 +3392,9 @@ def check_cloud_status_and_update():
                     exe_target = os.path.join(base_local_dir, "Nightheid.exe")
                     temp_exe = exe_target + ".new"
                     if os.path.exists(temp_exe):
-                        ps_cmd = f"Start-Sleep -Milliseconds 700; Move-Item -Path '{temp_exe}' -Destination '{exe_target}' -Force; Start-Process -FilePath '{exe_target}'"
+                        ps_cmd = f"$r = 20; while ($r -gt 0) {{ try {{ Move-Item -Path '{temp_exe}' -Destination '{exe_target}' -Force -ErrorAction Stop; break }} catch {{ Start-Sleep -Milliseconds 250; $r-- }} }}; Start-Process -FilePath '{exe_target}'"
                         subprocess.Popen(
-                            ["powershell", "-WindowStyle", "Hidden", "-NoProfile", "-Command", ps_cmd],
+                            ["powershell", "-NoProfile", "-Command", ps_cmd],
                             creationflags=0x08000000
                         )
                         sys.exit(0)
