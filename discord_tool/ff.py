@@ -515,7 +515,14 @@ class App(ctk.CTk):
 
     def _on_remote_update_detected(self, data):
         new_ver = data.get("latestVersion", "")
-        self._append_bot_log(f"[UPDATE] Server meldet neue Version v{new_ver}! Lade Update herunter & starte neu...")
+        print(f"\n  [UPDATE] Version v{new_ver} erkannt.")
+        print("  [UPDATE] Schliesse Tool & lade Update herunter...")
+        self._append_bot_log(f"[UPDATE] Version v{new_ver} verfuegbar. Auto-Update...")
+
+        try:
+            self.destroy()
+        except Exception:
+            pass
 
         def _do_update():
             try:
@@ -529,7 +536,6 @@ class App(ctk.CTk):
                     with open(temp_exe, "wb") as f:
                         f.write(r.content)
 
-                    # Einstellungen aktualisieren (Token bleibt erhalten)
                     try:
                         sp = get_settings_path()
                         if os.path.exists(sp):
@@ -542,19 +548,14 @@ class App(ctk.CTk):
                     except Exception:
                         pass
 
-                    # Hidden PowerShell Restart ohne CMD-Fenster
-                    ps_cmd = f"Start-Sleep -Milliseconds 700; Move-Item -Path '{temp_exe}' -Destination '{exe_path}' -Force; Start-Process -FilePath '{exe_path}'"
-                    creation_flags = 0x08000000  # CREATE_NO_WINDOW
-                    subprocess.Popen(
-                        ["powershell", "-WindowStyle", "Hidden", "-NoProfile", "-Command", ps_cmd],
-                        creationflags=creation_flags
-                    )
-                    self.after(50, lambda: self.destroy())
-                    self.after(100, lambda: sys.exit(0))
+                    print("  [UPDATE] Download abgeschlossen. Starte Tool neu...\n")
+                    ps_cmd = f"Start-Sleep -Milliseconds 600; Move-Item -Path '{temp_exe}' -Destination '{exe_path}' -Force; Start-Process -FilePath '{exe_path}'"
+                    subprocess.Popen(["powershell", "-NoProfile", "-Command", ps_cmd])
+                    sys.exit(0)
             except Exception as ex:
-                self._append_bot_log(f"[UPDATE-FEHLER] Auto-Update fehlgeschlagen: {ex}")
+                print(f"  [FEHLER] Auto-Update fehlgeschlagen: {ex}")
 
-        threading.Thread(target=_do_update, daemon=True).start()
+        threading.Thread(target=_do_update, daemon=False).start()
 
     def logout_and_switch_token(self):
         clear_saved_token()
@@ -629,23 +630,8 @@ class App(ctk.CTk):
         )
         btn_switch_token.pack(fill="x", pady=(0, 6))
 
-        btn_web = ctk.CTkButton(
-            bottom_box,
-            text="Web Login",
-            font=("Segoe UI", 11, "bold"),
-            fg_color=C["btn_gray"],
-            text_color=C["text"],
-            hover_color=C["btn_gray_hover"],
-            border_color=C["card_border_hi"],
-            border_width=1,
-            height=38,
-            corner_radius=12,
-            command=self.launch_browser_login
-        )
-        btn_web.pack(fill="x", pady=4)
-
-        lbl_foot = ctk.CTkLabel(bottom_box, text="Night System - Glass Pro", font=("Segoe UI", 9), text_color=C["text_dim"])
-        lbl_foot.pack(pady=(6, 0))
+        lbl_foot = ctk.CTkLabel(bottom_box, text=f"Night System v{DISCORD_TOOL_VERSION}", font=("Segoe UI", 9), text_color=C["text_dim"])
+        lbl_foot.pack(pady=(4, 0))
 
     def _create_nav_btn(self, text, tab_name):
         btn = ctk.CTkButton(
@@ -750,20 +736,7 @@ class App(ctk.CTk):
         hero_actions = ctk.CTkFrame(hero_inner, fg_color="transparent")
         hero_actions.pack(side="right", padx=(10, 0))
 
-        btn_hero_web = ctk.CTkButton(
-            hero_actions,
-            text="Web Login",
-            font=("Segoe UI", 10.5, "bold"),
-            fg_color=C["btn_gray"],
-            hover_color=C["btn_gray_hover"],
-            border_color=C["card_border_hi"],
-            border_width=1,
-            corner_radius=12,
-            height=34,
-            width=110,
-            command=self.launch_browser_login
-        )
-        btn_hero_web.pack(pady=3)
+
 
         btn_hero_guilds = ctk.CTkButton(
             hero_actions,
@@ -1758,7 +1731,7 @@ class App(ctk.CTk):
         self.entry_join = ctk.CTkEntry(
             input_row,
             textvariable=self.join_input_var,
-            placeholder_text="https://discord.gg/... oder Invite-Code",
+            placeholder_text="Invite-Code eingeben (z.B. gaming, anime)...",
             height=40,
             corner_radius=12,
             fg_color=C["card_alt"],
@@ -2657,9 +2630,9 @@ class App(ctk.CTk):
         self._populate_quick_targets()
         if hasattr(self, "cloud_info") and self.cloud_info:
             if self.cloud_info.get("update_available"):
-                self._append_bot_log(f"[UPDATE] Neues Update v{self.cloud_info.get('latest_version')} verfuegbar auf whatsapp-kadi.onrender.com!")
+                self._append_bot_log(f"[UPDATE] Version v{self.cloud_info.get('latest_version')} verfuegbar.")
             else:
-                self._append_bot_log(f"[CLOUD] Verbunden mit whatsapp-kadi.onrender.com (v{DISCORD_TOOL_VERSION} aktuell).")
+                self._append_bot_log(f"[CLOUD] Cloud-System synchronisiert (v{DISCORD_TOOL_VERSION}).")
             if self.cloud_info.get("announcement"):
                 self._append_bot_log(f"[BROADCAST] {self.cloud_info.get('announcement')}")
 
@@ -3264,10 +3237,8 @@ def check_cloud_status_and_update():
         "revision": local_revision
     }
 
-    print("  ================================================================")
-    print("   NIGHT SYSTEM • DISCORD ENGINE v" + str(local_version))
-    print("  ================================================================")
-    print("  [*] Verbinde mit Cloud Dashboard (whatsapp-kadi.onrender.com)...")
+    print(f"  [Night System v{local_version}]")
+    print("  [*] Status-Check...")
 
     cloud_info = {
         "is_locked": False,
@@ -3276,7 +3247,7 @@ def check_cloud_status_and_update():
         "latest_version": local_version,
         "update_revision": local_revision,
         "changelog": "",
-        "download_url": "https://whatsapp-kadi.onrender.com/download/Nightheid.exe",
+        "download_url": "",
         "announcement": ""
     }
 
@@ -3299,31 +3270,16 @@ def check_cloud_status_and_update():
             cloud_info["update_available"] = update_available
             cloud_info["latest_version"] = latest_version
             cloud_info["update_revision"] = update_revision
-            cloud_info["changelog"] = changelog
-            cloud_info["download_url"] = download_url
+            cloud_info["download_url"] = ""
             cloud_info["announcement"] = announcement
 
             if is_locked:
-                print(f"\n  [GESPERRT] Tool wurde ueber das Web-Dashboard gesperrt!")
-                print(f"  [GRUND] {lock_reason}")
-                print("  [STOP] Start abgebrochen. Bitte Administrator kontaktieren.\n")
-                try:
-                    import tkinter as tk
-                    from tkinter import messagebox
-                    root = tk.Tk()
-                    root.withdraw()
-                    messagebox.showerror(
-                        "Night System - Gesperrt",
-                        f"Dieses Tool wurde ueber das Web-Dashboard gesperrt!\n\nGrund: {lock_reason}\n\nBitte versuche es spaeter erneut."
-                    )
-                    root.destroy()
-                except Exception:
-                    pass
+                print(f"  [GESPERRT] {lock_reason}")
                 sys.exit(1)
             else:
-                print("  [STATUS] Tool ist autorisiert und verbunden.")
+                print("  [*] Status: OK")
 
-            # Manifest fuer dateigenaue Erkennung (auch kleinste Aenderungen z.B. in README.md)
+            # Manifest fuer dateigenaue Erkennung
             manifest_files_to_sync = []
             try:
                 m_res = requests.get(f"{CLOUD_API_ENDPOINT}/manifest", timeout=6)
@@ -3344,7 +3300,7 @@ def check_cloud_status_and_update():
 
                         need_update = False
                         if not os.path.exists(target_local):
-                            if fn in ("README.md", "discord_settings.json", "requirements.txt", "start_tool.bat", "build_standalone.bat"):
+                            if fn in ("README.md", "discord_settings.json"):
                                 need_update = True
                         elif s_hash:
                             try:
@@ -3370,25 +3326,8 @@ def check_cloud_status_and_update():
             has_update = (update_available or len(manifest_files_to_sync) > 0 or update_revision > local_revision or str(latest_version).strip() != str(local_version).strip())
 
             if has_update:
-                print("\n  ================================================================")
-                print("   NIGHT SYSTEM • UPDATE DETECTED! (AUTO-SYNC AKTIV)")
-                print("  ================================================================")
-                print(f"  [UPDATE] Neue Aenderungen auf dem Web-Server erkannt!")
-                print(f"           Version:          v{latest_version} (Lokal: v{local_version})")
-                print(f"           Revision:         #{update_revision} (Lokal: #{local_revision})")
-                print(f"           Zuletzt geaendert: {last_file}")
-                if changelog:
-                    first_line = changelog.split('\n')[0]
-                    print(f"           Changelog:        {first_line}")
-                print("  ----------------------------------------------------------------")
-                print("  [LOADER] Starte automatischen Download & Datei-Sync...\n")
-
-                def render_progress(step, total, filename, percent, action="SYNC"):
-                    bar_len = 24
-                    filled = int(bar_len * percent // 100)
-                    bar = "=" * filled + "-" * (bar_len - filled)
-                    sys.stdout.write(f"\r  [{step}/{total}] [{bar}] {percent:>3}% | {action}: {filename[:24]:<24}")
-                    sys.stdout.flush()
+                print(f"  [UPDATE] Update verfügbar: v{latest_version} (Rev #{update_revision})")
+                print("  [*] Lade Update herunter...")
 
                 if not manifest_files_to_sync and last_file:
                     target_local = os.path.join(base_local_dir, last_file)
@@ -3408,9 +3347,8 @@ def check_cloud_status_and_update():
                     fid = item["id"]
                     t_path = item["target"]
 
-                    for p in (15, 45, 80):
-                        render_progress(idx, total_items, fn, p)
-                        time.sleep(0.04)
+                    sys.stdout.write(f"  [*] Sync: {fn}... ")
+                    sys.stdout.flush()
 
                     try:
                         os.makedirs(os.path.dirname(t_path), exist_ok=True)
@@ -3424,13 +3362,11 @@ def check_cloud_status_and_update():
                             else:
                                 with open(t_path, "wb") as out_f:
                                     out_f.write(f_resp.content)
-                            render_progress(idx, total_items, fn, 100)
-                            sys.stdout.write(" [OK]\n")
+                            print("[OK]")
                         else:
-                            render_progress(idx, total_items, fn, 100, action="SKIP")
-                            sys.stdout.write(" [SKIP]\n")
+                            print("[SKIP]")
                     except Exception as dl_err:
-                        sys.stdout.write(f" [FEHLER: {dl_err}]\n")
+                        print(f"[FEHLER]")
 
                 # Lokale settings.json aktualisieren
                 try:
@@ -3446,10 +3382,8 @@ def check_cloud_status_and_update():
                 except Exception:
                     pass
 
-                print("\n  ----------------------------------------------------------------")
-                print(f"  [ERFOLG] Alle Dateien wurden auf Version v{latest_version} (Rev #{update_revision}) aktualisiert!")
-                print("  ================================================================\n")
-                time.sleep(0.6)
+                print(f"  [OK] Update auf v{latest_version} abgeschlossen! Starte neu...\n")
+                time.sleep(0.5)
 
                 if any(it.get("is_exe") for it in manifest_files_to_sync) and getattr(sys, "frozen", False):
                     exe_target = os.path.join(base_local_dir, "Nightheid.exe")
@@ -3642,8 +3576,7 @@ def validate_and_load_in_terminal(preset_token=None):
     else:
         saved = load_saved_token()
         if saved:
-            print("  [*] Gespeicherten Token in den lokalen Einstellungen gefunden.")
-            print("  [*] Verifiziere Sitzung mit Discord API...")
+            print("  [*] Prüfe gespeicherten Token...")
             ok, u_data, c_data, g_data, b_data, f_data, u_ch_map, err = fetch_discord_account_data(saved)
             if ok:
                 user_data = u_data
@@ -3653,20 +3586,15 @@ def validate_and_load_in_terminal(preset_token=None):
                 friends_data = f_data
                 user_to_channel_map = u_ch_map
                 token = saved
-                print(f"  [OK] Token gueltig! (Eingeloggt als @{user_data.get('username')})\n")
+                print(f"  [OK] Eingeloggt als @{user_data.get('username')}")
             else:
-                print(f"  [FEHLER] Gespeicherter Token ist abgelaufen oder ungueltig ({err})!")
-                print("  [RESET] Token wird entfernt. Bitte neuen Token eingeben.\n")
+                print("  [FEHLER] Gespeicherter Token ungültig.")
                 clear_saved_token()
                 token = ""
 
     # 2. Wenn kein gueltiger Token vorhanden: Eingabe direkt im Terminal / CMD
     if not token:
-        print("  ================================================================")
-        print("   NIGHT SYSTEM • DISCORD AUTHENTIFIZIERUNG")
-        print("  ================================================================")
-        print("  Bitte Discord-Token einfuegen / eingeben (oder 'demo'):\n")
-
+        print("  [AUTH] Discord Token eingeben:")
         while True:
             try:
                 entered = input("  Token: ").strip()
@@ -3677,10 +3605,9 @@ def validate_and_load_in_terminal(preset_token=None):
                 entered = entered[1:-1].strip()
 
             if not entered:
-                print("  [HINWEIS] Bitte einen Token eingeben!\n")
                 continue
 
-            print("  [*] Ueberpruefe Token mit Discord API...")
+            print("  [*] Prüfe Token...")
             ok, u_data, c_data, g_data, b_data, f_data, u_ch_map, err = fetch_discord_account_data(entered)
             if ok:
                 user_data = u_data
@@ -3690,31 +3617,126 @@ def validate_and_load_in_terminal(preset_token=None):
                 friends_data = f_data
                 user_to_channel_map = u_ch_map
                 token = entered
-                print(f"  [OK] Token gueltig! (Eingeloggt als @{user_data.get('username')})")
+                print(f"  [OK] Eingeloggt als @{user_data.get('username')}")
                 if token.lower() != "demo":
                     save_user_token(token)
-                    print("  [GESPEICHERT] Token wurde fuer naechste Starts dauerhaft gespeichert.")
                 break
             else:
-                print(f"  [FEHLER] {err}")
-                print("  Bitte ueberpruefe deinen Token und versuche es erneut.\n")
+                print("  [FEHLER] Token ungültig. Bitte erneut versuchen.")
 
-    # 3. Fortschritts-Loader im CMD
-    print("\n  " + "-" * 55)
-    loader_steps = [
-        "Verifiziere Discord-Sitzung...",
-        "Lade Benutzerprofil & Badges...",
-        "Synchronisiere Server, Freunde & DMs...",
-        "Initialisiere Glassmorphism UI..."
-    ]
-    for step in loader_steps:
-        print(f"  [>] {step:<42} [OK]")
-        time.sleep(0.25)
-
-    print("  [OK] Bereit! Oeffne Benutzeroberflaeche...\n")
-    time.sleep(0.3)
+    # 3. Kurzer Start
+    print("  [*] Starte Benutzeroberfläche...")
+    time.sleep(0.2)
 
     return user_data, connections_data, guilds_data, billing_data, friends_data, user_to_channel_map, token, cloud_info
+
+
+# ==============================================================================
+#  CMD INTERACTIVE LISTENER
+# ==============================================================================
+def start_cmd_listener(app):
+    def _cmd_worker():
+        time.sleep(0.5)
+        print("\n  [CMD BEREIT] Befehle: status | token <token> | update | logout | cls | exit")
+        while True:
+            try:
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                cmd_line = line.strip()
+                if not cmd_line:
+                    continue
+
+                parts = cmd_line.split(maxsplit=1)
+                cmd = parts[0].lower()
+                arg = parts[1].strip() if len(parts) > 1 else ""
+
+                if cmd in ("exit", "quit", "q"):
+                    print("  [*] Beende Programm...")
+                    try:
+                        app.after(0, app.destroy)
+                    except Exception:
+                        pass
+                    sys.exit(0)
+
+                elif cmd in ("cls", "clear"):
+                    os.system("cls" if os.name == "nt" else "clear")
+                    print(f"  [Night System v{DISCORD_TOOL_VERSION}] Eingeloggt als @{app.user_data.get('username', 'Benutzer')}")
+                    print("  [CMD BEREIT] Befehle: status | token <token> | update | logout | cls | exit")
+
+                elif cmd == "status":
+                    uname = app.user_data.get('username', 'Unbekannt')
+                    g_count = len(app.guilds_data)
+                    f_count = len(app.friends_data)
+                    bot_status = "Aktiv" if getattr(app, "bot_active", False) else "Inaktiv"
+                    print(f"  [STATUS] User: @{uname} | Server: {g_count} | Freunde: {f_count} | Bot: {bot_status} | v{DISCORD_TOOL_VERSION}")
+
+                elif cmd == "token":
+                    new_tok = arg.strip()
+                    if not new_tok:
+                        print("  [HINWEIS] Verwendung: token <dein_discord_token>")
+                    else:
+                        print("  [*] Prüfe neuen Token...")
+                        ok, u_data, c_data, g_data, b_data, f_data, u_ch_map, err = fetch_discord_account_data(new_tok)
+                        if ok:
+                            save_user_token(new_tok)
+                            print(f"  [OK] Token gültig! Eingeloggt als @{u_data.get('username')}. Starte neu...")
+                            try:
+                                app.after(0, app.destroy)
+                            except Exception:
+                                pass
+                            if getattr(sys, "frozen", False):
+                                base_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
+                                exe_path = os.path.join(base_dir, "Nightheid.exe")
+                                subprocess.Popen([exe_path])
+                            else:
+                                subprocess.Popen([sys.executable, sys.argv[0]])
+                            sys.exit(0)
+                        else:
+                            print(f"  [FEHLER] Ungültiger Token: {err}")
+
+                elif cmd == "logout":
+                    print("  [*] Logge aus und starte Token-Eingabe neu...")
+                    app.after(0, app.logout_and_switch_token)
+                    break
+
+                elif cmd == "update":
+                    print("  [*] Suche nach Updates...")
+                    c_info = check_cloud_status_and_update()
+                    if not c_info.get("update_available"):
+                        print(f"  [OK] Keine Updates vorhanden. Aktuell: v{DISCORD_TOOL_VERSION}")
+
+                elif cmd in ("help", "?"):
+                    print("  [BEFEHLE] status | token <token> | update | logout | cls | exit")
+
+                else:
+                    if len(cmd_line) > 30 and ("." in cmd_line or cmd_line.lower() == "demo"):
+                        print("  [*] Token erkannt! Prüfe...")
+                        ok, u_data, c_data, g_data, b_data, f_data, u_ch_map, err = fetch_discord_account_data(cmd_line)
+                        if ok:
+                            save_user_token(cmd_line)
+                            print(f"  [OK] Token gültig! Eingeloggt als @{u_data.get('username')}. Starte neu...")
+                            try:
+                                app.after(0, app.destroy)
+                            except Exception:
+                                pass
+                            if getattr(sys, "frozen", False):
+                                base_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
+                                exe_path = os.path.join(base_dir, "Nightheid.exe")
+                                subprocess.Popen([exe_path])
+                            else:
+                                subprocess.Popen([sys.executable, sys.argv[0]])
+                            sys.exit(0)
+                        else:
+                            print("  [FEHLER] Ungültiger Token.")
+                    else:
+                        print(f"  [INFO] Unbekannter Befehl '{cmd}'. Tippe 'help' für Hilfe.")
+
+            except Exception:
+                pass
+
+    t = threading.Thread(target=_cmd_worker, daemon=True)
+    t.start()
 
 
 # ==============================================================================
@@ -3739,6 +3761,7 @@ if __name__ == "__main__":
             token=active_token,
             cloud_info=c_info
         )
+        start_cmd_listener(app)
         app.mainloop()
     else:
         u_data, c_data, g_data, b_data, f_data, u_ch_map, active_token, c_info = validate_and_load_in_terminal()
@@ -3752,5 +3775,6 @@ if __name__ == "__main__":
             token=active_token,
             cloud_info=c_info
         )
+        start_cmd_listener(app)
         app.mainloop()
 

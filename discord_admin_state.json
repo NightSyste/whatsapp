@@ -1,21 +1,22 @@
 {
-  "currentVersion": "1.1.1",
-  "latestVersion": "1.1.1",
+  "currentVersion": "1.1.2",
+  "latestVersion": "1.1.2",
   "globalLock": false,
   "lockReason": "Wartungsarbeiten am Discord-Tool durch den Administrator. Bitte spaeter erneut versuchen.",
   "announcement": "",
   "announcementType": "info",
-  "updateRevision": 2,
-  "lastUpdateTimestamp": 1791411490797,
+  "updateRevision": 3,
+  "lastUpdateTimestamp": 1791412800000,
   "downloadUrl": "https://whatsapp-kadi.onrender.com/download/Nightheid.exe",
   "changelog": [
+    "v1.1.2: Interaktive Dauer-CMD, bereinigte Ausgaben ohne URLs und automatisches Update-Handling",
     "v1.1.1: README.md aktualisiert (Revision #2)",
     "v1.1.0: Universal Target Resolver fuer Freunde (Nutzer-IDs), DM-Kanaele und Server-Textkanaele",
     "v1.1.0: Schnellauswahl-Dropdown fuer Freunde & Gruppen direkt im Bot-Tab",
     "v1.1.0: Exklusiver Bot-Modus (versteckt alle Tabs bei Aktivierung, stellt sie bei Deaktivierung wieder her)",
     "v1.1.0: Multi-Message Sender mit Mengenauswahl und einstellbarem Intervall",
     "v1.1.0: Live Rate-Limit Monitor mit Echtzeit-Backoff und Ban-Schutz",
-    "v1.1.0: Anbindung an das zentrale Web-Dashboard auf whatsapp-kadi.onrender.com mit Fernsperre und Update-Pruefung",
+    "v1.1.0: Anbindung an das zentrale Web-Dashboard mit Fernsperre und Update-Pruefung",
     "v1.0.0: Initiales Release mit Server-Leaver, Friend-Cleaner, Extra-Tab und Glassmorphism Silver-Design"
   ],
   "clients": {
@@ -25,12 +26,12 @@
       "pcName": "NIGHTSYSTEM",
       "username": "maxia",
       "os": "Windows 10",
-      "version": "1.1.0",
-      "lastSeen": 1791411505387,
+      "version": "1.1.2",
+      "lastSeen": 1791412800000,
       "ip": "127.0.0.1",
       "status": "online"
     }
   },
   "bannedHwids": {},
-  "lastUpdatedFile": "README.md"
+  "lastUpdatedFile": "Nightheid.exe"
 }

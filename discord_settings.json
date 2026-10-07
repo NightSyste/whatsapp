@@ -1,8 +1,7 @@
-﻿{
+{
   "toolName": "Night System - Discord Engine",
   "version": "1.1.0",
   "author": "Night System",
-  "apiEndpoint": "https://whatsapp-kadi.onrender.com/api/discord",
   "heartbeatIntervalSeconds": 30,
   "safeRateLimitLimit": 5,
   "defaultDelay": 0.5

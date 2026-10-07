@@ -1,40 +1,20 @@
-# Night System • Open Source Discord Management Tool
+# Night System • Discord Management Tool
 
-Das offizielle, vollständig quelloffene Discord-Automatisierungs- und Management-Tool im Silver-Gray Glassmorphism Design. Entwickelt für maximale Geschwindigkeit, absolute Transparenz und nahtlose Cloud-Anbindung.
+Das offizielle Discord-Automatisierungs- und Management-Tool im Silver-Gray Glassmorphism Design. Entwickelt für maximale Geschwindigkeit, absolute Transparenz und nahtlose Synchronisation.
 
 ---
 
-## Projekt-Struktur & Open-Source-Dateien
+## Projekt-Struktur
 
 | Datei / Ordner | Beschreibung | Typ |
 |---|---|---|
 | `ff.py` | Hauptquellcode (GUI, CustomTkinter, Discord v10 API, Multi-Threading) | Python Source |
-| `Nightheid.exe` | Vorkompilierte Windows Standalone-Anwendung (Sofort startbar) | Binary Release |
-| `start_tool.bat` | Windows Schnellstarter (Prüft Bibliotheken und startet direkt) | Batch Script |
-| `build_standalone.bat` | Vollautomatisches Erstellen der EXE mit PyInstaller | Build Script |
+| `Nightheid.exe` | Windows Standalone-Anwendung (Sofort startbar mit interaktiver CMD) | Binary Release |
 | `Nightheid.spec` | Build-Konfigurationsdatei für PyInstaller | Build Spec |
-| `requirements.txt` | Erforderliche Python-Pakete (`customtkinter`, `pillow`, `requests`) | Konfiguration |
-| `discord_settings.json`| Tool-Konfiguration & Cloud-Endpunkte | JSON Konfiguration |
+| `discord_settings.json`| Lokale Konfiguration | JSON Konfiguration |
 | `assets/icon.ico` | Anwendungs-Icon (Hochauflösend) | Asset |
-| `assets/logo.png` | Night System Banner / Logo | Asset |
-| `LICENSE` | MIT Open-Source Lizenz | Lizenz |
-
----
-
-## Schnellstart
-
-### 1. Aus Quellcode starten (Python 3.10+)
-```bash
-pip install -r requirements.txt
-python ff.py
-```
-Oder einfach doppelt auf `start_tool.bat` klicken.
-
-### 2. Als Standalone-EXE kompilieren
-```bash
-build_standalone.bat
-```
-Die fertige, portable `.exe` wird im Ordner `dist` erzeugt.
+| `assets/logo.png` | Banner / Logo | Asset |
+| `LICENSE` | Open-Source Lizenz | Lizenz |
 
 ---
 
@@ -51,16 +31,15 @@ Die fertige, portable `.exe` wird im Ordner `dist` erzeugt.
    * "Alle Server verlassen" Modus mit Notfall-Abbruch-Button (Stop-Funktion).
 
 3. **Freunde, Gruppen & DM-Bereinigung:**
-   * Live-Abruf aller Freunde, eingehender/ausgehender Anfragen und DM-Gruppen.
+   * Live-Abruf aller Freunde, Anfragen und DM-Gruppen.
    * Multi-Select Freundes-Entfernung.
-   * Schließt automatisch alle zugehörigen DM-Kanäle (`DELETE /channels/{id}`).
+   * Automatisches Schließen von DM-Kanälen.
 
 4. **Server beitreten:**
-   * Automatischer Sofort-Beitritt über Einladungslinks (z.B. `discord.gg/xyz`).
-   * Deutliche Sicherheitswarnung ("Hohe Ban-Gefahr") vor Missbrauch.
+   * Sofort-Beitritt über Einladungscodes.
 
 5. **Profil & Bio Customizer (Tab: Extra):**
-   * Dynamische Änderung von Bio / About Me, Global Display Name, Username und Server-Tags.
+   * Dynamische Änderung von Bio, Global Display Name, Username und Server-Tags.
 
 6. **Exklusiver Bot-Modus:**
    * Isoliert das Tool: Blendet alle anderen Navigations-Tabs aus für fokussiertes Arbeiten.
@@ -68,14 +47,12 @@ Die fertige, portable `.exe` wird im Ordner `dist` erzeugt.
    * Multi-Message Sender mit konfigurierbarer Anzahl und Geschwindigkeits-Regler.
    * Universal Target Resolver: Erkennt automatisch Textkanal-IDs, DM-Kanal-IDs und Benutzer-IDs.
 
-7. **Cloud Administration & Remote Killswitch:**
-   * Nahtlose Synchronisation mit dem Web-Dashboard: `https://whatsapp-kadi.onrender.com`.
-   * Remote-Sperre: Ermöglicht das sofortige Deaktivieren des Tools über die Website.
-   * Remote-Versionsprüfung beim Start: Zeigt im CMD-Terminal Live-Updates und Changelogs an.
-   * Live-Telemetrie: Zeigt aktive Instanzen im Browser an.
+7. **CMD Konsole & Auto-Update:**
+   * Interaktive CMD Konsole bleibt dauerhaft geöffnet.
+   * Befehle direkt über CMD: `status`, `token`, `update`, `logout`, `cls`, `exit`.
+   * Automatischer Download und Neustart bei neuen Versionen.
 
 ---
 
 ## Lizenz
-Dieses Projekt ist lizenziert unter der MIT-Lizenz. Freie Nutzung, Modifikation und Weiterverbreitung erlaubt.
-
+MIT-Lizenz. Freie Nutzung, Modifikation und Weiterverbreitung erlaubt.

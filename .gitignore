@@ -27,6 +27,8 @@ __pycache__/
 
 # Build Artefakte & Exe-Outputs
 dist/
+build/
+discord_tool/build/
 bin/
 obj/
 *.pdb
