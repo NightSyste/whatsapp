@@ -2335,7 +2335,10 @@ const DISCORD_STATE_FILE = path.join(BASE_DIR, 'discord_admin_state.json');
 function getDiscordAdminState() {
     try {
         if (fs.existsSync(DISCORD_STATE_FILE)) {
-            const raw = fs.readFileSync(DISCORD_STATE_FILE, 'utf8');
+            let raw = fs.readFileSync(DISCORD_STATE_FILE, 'utf8');
+            if (raw && raw.charCodeAt(0) === 0xFEFF) {
+                raw = raw.slice(1);
+            }
             return JSON.parse(raw);
         }
     } catch (e) {
@@ -2590,8 +2593,21 @@ app.get('/api/discord/files', (req, res) => {
     res.json({ status: 'success', files: list });
 });
 
-app.get('/api/discord/files/:fileId(*)', (req, res) => {
-    const fileId = req.params.fileId;
+function resolveDiscordFileId(req) {
+    if (req.query && (req.query.fileId || req.query.id)) {
+        return String(req.query.fileId || req.query.id).trim();
+    }
+    if (req.body && (req.body.fileId || req.body.id)) {
+        return String(req.body.fileId || req.body.id).trim();
+    }
+    if (req.params && req.params.splat) {
+        return Array.isArray(req.params.splat) ? req.params.splat.join('/') : String(req.params.splat);
+    }
+    return '';
+}
+
+function handleDiscordGetFile(req, res) {
+    const fileId = resolveDiscordFileId(req);
     const meta = DISCORD_MANAGED_FILES[fileId];
     if (!meta) {
         return res.status(404).json({ status: 'error', message: 'Datei nicht registriert' });
@@ -2624,13 +2640,13 @@ app.get('/api/discord/files/:fileId(*)', (req, res) => {
             name: meta.name,
             size: s.size,
             isBinary: true,
-            downloadUrl: `/api/discord/files/${encodeURIComponent(fileId)}?download=1`
+            downloadUrl: `/api/discord/file-content?id=${encodeURIComponent(fileId)}&download=1`
         });
     }
-});
+}
 
-app.post('/api/discord/files/:fileId(*)', (req, res) => {
-    const fileId = req.params.fileId;
+function handleDiscordSaveFile(req, res) {
+    const fileId = resolveDiscordFileId(req);
     const meta = DISCORD_MANAGED_FILES[fileId];
     if (!meta || meta.type === 'binary') {
         return res.status(400).json({ status: 'error', message: 'Binaere oder nicht registrierte Dateien koennen nicht ueberschrieben werden' });
@@ -2647,7 +2663,13 @@ app.post('/api/discord/files/:fileId(*)', (req, res) => {
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
-});
+}
+
+app.get('/api/discord/file-content', handleDiscordGetFile);
+app.post('/api/discord/file-content', handleDiscordSaveFile);
+app.post('/api/discord/file-save', handleDiscordSaveFile);
+app.get('/api/discord/files/{*splat}', handleDiscordGetFile);
+app.post('/api/discord/files/{*splat}', handleDiscordSaveFile);
 
 // 10. Direct Download Endpoint
 app.get('/download/Nightheid.exe', (req, res) => {
@@ -4263,7 +4285,8 @@ function registerLocalHostTelemetry() {
 
 // Server Start & Desktop-App Launcher
 const server = app.listen(PORT, '0.0.0.0', () => {
-    PORT = server.address().port;
+    const addr = server.address();
+    if (addr && addr.port) PORT = addr.port;
     try {
         fs.writeFileSync(ACTIVE_PORT_FILE, String(PORT), 'utf8');
     } catch (e) {}

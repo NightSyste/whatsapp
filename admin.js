@@ -2322,7 +2322,7 @@ function selectActiveDiscordFile(fileId) {
 
 async function loadActiveDiscordFileContent(fileId) {
   try {
-    const data = await safeFetchJson(`/api/discord/files/${encodeURIComponent(fileId)}`);
+    const data = await safeFetchJson(`/api/discord/file-content?id=${encodeURIComponent(fileId)}`);
     if (!data || data.status !== 'success') return;
 
     const fileMeta = allDiscordFiles.find(f => f.id === fileId) || { name: fileId, category: 'Datei' };
@@ -2341,7 +2341,7 @@ async function loadActiveDiscordFileContent(fileId) {
       iconEl.textContent = getFileIconText(fileMeta.name);
     }
     if (downloadBtn) {
-      downloadBtn.href = data.downloadUrl || `/api/discord/files/${encodeURIComponent(fileId)}?download=1`;
+      downloadBtn.href = data.downloadUrl || `/api/discord/file-content?id=${encodeURIComponent(fileId)}&download=1`;
       downloadBtn.setAttribute('download', fileMeta.name);
     }
 
@@ -2390,10 +2390,10 @@ async function saveActiveDiscordFile() {
   const content = textarea.value;
 
   try {
-    const res = await safeFetchJson(`/api/discord/files/${encodeURIComponent(currentActiveDiscordFile)}`, {
+    const res = await safeFetchJson('/api/discord/file-save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content })
+      body: JSON.stringify({ fileId: currentActiveDiscordFile, content })
     });
     if (res.status === 'success') {
       showAdminToast(`Datei ${currentActiveDiscordFile} erfolgreich gespeichert!`, 'success');
