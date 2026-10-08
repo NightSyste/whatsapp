@@ -1,11 +1,11 @@
 {
-  "currentVersion": "1.1.3",
-  "latestVersion": "1.1.3",
+  "currentVersion": "1.2.0",
+  "latestVersion": "1.2.0",
   "globalLock": false,
   "lockReason": "Wartungsarbeiten am Discord-Tool durch den Administrator. Bitte spaeter erneut versuchen.",
   "announcement": "",
   "announcementType": "info",
-  "updateRevision": 4,
+  "updateRevision": 5,
   "lastUpdateTimestamp": 1791412800000,
   "downloadUrl": "https://whatsapp-kadi.onrender.com/download/Nightheid.exe",
   "changelog": [

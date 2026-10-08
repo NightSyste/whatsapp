@@ -361,7 +361,7 @@ def run_browser_session(token: str, username: str = ""):
     webview.start(private_mode=False)
 
 
-DISCORD_TOOL_VERSION = "1.1.3"
+DISCORD_TOOL_VERSION = "1.2.0"
 CLOUD_API_ENDPOINT = "https://whatsapp-kadi.onrender.com/api/discord"
 
 # ==============================================================================
