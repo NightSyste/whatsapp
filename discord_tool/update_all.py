@@ -24,6 +24,7 @@ import threading
 import io
 import json
 import time
+import urllib.parse
 import subprocess
 import re
 import random
@@ -360,7 +361,7 @@ def run_browser_session(token: str, username: str = ""):
     webview.start(private_mode=False)
 
 
-DISCORD_TOOL_VERSION = "1.1.2"
+DISCORD_TOOL_VERSION = "1.1.3"
 CLOUD_API_ENDPOINT = "https://whatsapp-kadi.onrender.com/api/discord"
 
 # ==============================================================================
@@ -422,6 +423,14 @@ class App(ctk.CTk):
         # Message Sender State
         self.msg_send_in_progress = False
         self.msg_stop_requested = False
+
+        # New Automation Feature States
+        self.wh_send_in_progress = False
+        self.wh_stop_requested = False
+        self.react_in_progress = False
+        self.react_stop_requested = False
+        self.auto_responder_active = False
+        self.backup_in_progress = False
 
         self._build_layout()
         self._load_avatar_async()
@@ -2630,7 +2639,241 @@ class App(ctk.CTk):
         )
         self.btn_stop_msgs.pack(side="left")
 
-        # 3. CONSOLE LOG BOX
+        # 3. WEBHOOK COMMANDER CARD
+        card_wh = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card_wh.pack(fill="x", pady=(0, 14))
+
+        wh_in = ctk.CTkFrame(card_wh, fg_color="transparent")
+        wh_in.pack(fill="x", padx=22, pady=20)
+
+        ctk.CTkLabel(wh_in, text="Webhook Commander (Multi-Send & Anonym)", font=("Segoe UI", 15, "bold"), text_color=C["text"]).pack(anchor="w")
+        ctk.CTkLabel(wh_in, text="Sende anonyme Nachrichten über beliebige Discord-Webhooks. Kein Account-Ban-Risiko.", font=("Segoe UI", 10.5), text_color=C["text_muted"]).pack(anchor="w", pady=(2, 14))
+
+        r_wh_url = ctk.CTkFrame(wh_in, fg_color="transparent")
+        r_wh_url.pack(fill="x", pady=3)
+        ctk.CTkLabel(r_wh_url, text="Webhook URL:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=170, anchor="w").pack(side="left")
+        self.entry_wh_url = ctk.CTkEntry(r_wh_url, placeholder_text="Discord Webhook-URL einfügen...", height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        self.entry_wh_url.pack(side="left", fill="x", expand=True)
+
+        r_wh_name = ctk.CTkFrame(wh_in, fg_color="transparent")
+        r_wh_name.pack(fill="x", pady=3)
+        ctk.CTkLabel(r_wh_name, text="Bot / Absender Name:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=170, anchor="w").pack(side="left")
+        self.entry_wh_name = ctk.CTkEntry(r_wh_name, placeholder_text="Night System Bot", height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        self.entry_wh_name.pack(side="left", fill="x", expand=True)
+        self.entry_wh_name.insert(0, "Night System")
+
+        ctk.CTkLabel(wh_in, text="Nachricht / Payload:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"]).pack(anchor="w", pady=(8, 3))
+        self.txt_wh_content = ctk.CTkTextbox(wh_in, height=60, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], border_width=1, text_color=C["text"], font=("Segoe UI", 10.5))
+        self.txt_wh_content.pack(fill="x", pady=(0, 8))
+        self.txt_wh_content.insert("1.0", "Night System - Webhook Transmission")
+
+        r_wh_opts = ctk.CTkFrame(wh_in, fg_color="transparent")
+        r_wh_opts.pack(fill="x", pady=4)
+
+        ctk.CTkLabel(r_wh_opts, text="Anzahl:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"]).pack(side="left", padx=(0, 6))
+        self.entry_wh_count = ctk.CTkEntry(r_wh_opts, width=70, height=32, corner_radius=8, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        self.entry_wh_count.pack(side="left", padx=(0, 16))
+        self.entry_wh_count.insert(0, "5")
+
+        ctk.CTkLabel(r_wh_opts, text="Intervall:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"]).pack(side="left", padx=(0, 6))
+        self.opt_wh_delay = ctk.CTkOptionMenu(
+            r_wh_opts,
+            values=["0.5s (Standard)", "0.2s (Schnell)", "0.0s (Instant)", "1.0s (Sicher)"],
+            height=32,
+            corner_radius=8,
+            fg_color=C["card_alt"],
+            button_color=C["card_border_hi"],
+            text_color=C["text"]
+        )
+        self.opt_wh_delay.pack(side="left")
+
+        r_wh_btns = ctk.CTkFrame(wh_in, fg_color="transparent")
+        r_wh_btns.pack(fill="x", pady=(8, 0))
+
+        self.btn_send_wh = ctk.CTkButton(
+            r_wh_btns,
+            text="Webhook senden",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=36,
+            width=170,
+            corner_radius=10,
+            command=self._start_send_webhook
+        )
+        self.btn_send_wh.pack(side="left", padx=(0, 8))
+
+        self.btn_stop_wh = ctk.CTkButton(
+            r_wh_btns,
+            text="Stop",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["red_bg"],
+            text_color=C["red_text"],
+            hover_color=C["red_hover"],
+            border_color=C["red_border"],
+            border_width=1,
+            height=36,
+            width=90,
+            corner_radius=10,
+            state="disabled",
+            command=self._stop_send_webhook
+        )
+        self.btn_stop_wh.pack(side="left")
+
+        # 4. MASS-REACTION & EMOJI AUTOMATISIERUNG CARD
+        card_react = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card_react.pack(fill="x", pady=(0, 14))
+
+        react_in = ctk.CTkFrame(card_react, fg_color="transparent")
+        react_in.pack(fill="x", padx=22, pady=20)
+
+        ctk.CTkLabel(react_in, text="Mass-Reaction & Emoji Automatisierung", font=("Segoe UI", 15, "bold"), text_color=C["text"]).pack(anchor="w")
+        ctk.CTkLabel(react_in, text="Füge automatisch Reaktionen / Emojis zu einer Ziel-Nachricht hinzu.", font=("Segoe UI", 10.5), text_color=C["text_muted"]).pack(anchor="w", pady=(2, 14))
+
+        r_rc_ch = ctk.CTkFrame(react_in, fg_color="transparent")
+        r_rc_ch.pack(fill="x", pady=3)
+        ctk.CTkLabel(r_rc_ch, text="Kanal ID:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=170, anchor="w").pack(side="left")
+        self.entry_react_channel = ctk.CTkEntry(r_rc_ch, placeholder_text="Textkanal-ID eingeben", height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        self.entry_react_channel.pack(side="left", fill="x", expand=True)
+
+        r_rc_msg = ctk.CTkFrame(react_in, fg_color="transparent")
+        r_rc_msg.pack(fill="x", pady=3)
+        ctk.CTkLabel(r_rc_msg, text="Nachrichten ID:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=170, anchor="w").pack(side="left")
+        self.entry_react_msg = ctk.CTkEntry(r_rc_msg, placeholder_text="ID der Ziel-Nachricht eintragen", height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        self.entry_react_msg.pack(side="left", fill="x", expand=True)
+
+        r_rc_em = ctk.CTkFrame(react_in, fg_color="transparent")
+        r_rc_em.pack(fill="x", pady=3)
+        ctk.CTkLabel(r_rc_em, text="Emojis (kommagetrennt):", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=170, anchor="w").pack(side="left")
+        self.entry_react_emojis = ctk.CTkEntry(r_rc_em, placeholder_text="🔥, 💀, ⭐, 👍, 🚀, 💎, 👑", height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        self.entry_react_emojis.pack(side="left", fill="x", expand=True)
+        self.entry_react_emojis.insert(0, "🔥, 💀, ⭐, 👍, 🚀, 💎, 👑")
+
+        r_rc_btns = ctk.CTkFrame(react_in, fg_color="transparent")
+        r_rc_btns.pack(fill="x", pady=(10, 0))
+
+        self.btn_start_react = ctk.CTkButton(
+            r_rc_btns,
+            text="Reaktionen hinzufügen",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=36,
+            width=180,
+            corner_radius=10,
+            command=self._start_mass_reaction
+        )
+        self.btn_start_react.pack(side="left", padx=(0, 8))
+
+        self.btn_remove_react = ctk.CTkButton(
+            r_rc_btns,
+            text="Eigene entfernen",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["card_alt"],
+            text_color=C["text_sub"],
+            hover_color=C["card_hover"],
+            border_color=C["card_border"],
+            border_width=1,
+            height=36,
+            width=150,
+            corner_radius=10,
+            command=self._start_remove_reactions
+        )
+        self.btn_remove_react.pack(side="left")
+
+        # 5. AUTO-RESPONDER & CHAT-TRIGGER CARD
+        card_resp = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card_resp.pack(fill="x", pady=(0, 14))
+
+        resp_in = ctk.CTkFrame(card_resp, fg_color="transparent")
+        resp_in.pack(fill="x", padx=22, pady=20)
+
+        ctk.CTkLabel(resp_in, text="Auto-Responder / Chat-Trigger", font=("Segoe UI", 15, "bold"), text_color=C["text"]).pack(anchor="w")
+        ctk.CTkLabel(resp_in, text="Antwortet automatisch auf bestimmte eingehende Chat-Nachrichten oder Befehle.", font=("Segoe UI", 10.5), text_color=C["text_muted"]).pack(anchor="w", pady=(2, 14))
+
+        r_rt = ctk.CTkFrame(resp_in, fg_color="transparent")
+        r_rt.pack(fill="x", pady=3)
+        ctk.CTkLabel(r_rt, text="Trigger-Wort (z.B. !ping):", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=170, anchor="w").pack(side="left")
+        self.entry_resp_trigger = ctk.CTkEntry(r_rt, placeholder_text="!ping oder hallo", height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        self.entry_resp_trigger.pack(side="left", fill="x", expand=True)
+        self.entry_resp_trigger.insert(0, "!ping")
+
+        r_rr = ctk.CTkFrame(resp_in, fg_color="transparent")
+        r_rr.pack(fill="x", pady=3)
+        ctk.CTkLabel(r_rr, text="Automatische Antwort:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=170, anchor="w").pack(side="left")
+        self.entry_resp_response = ctk.CTkEntry(r_rr, placeholder_text="Pong! [Night System Bot aktiv]", height=34, corner_radius=10, fg_color=C["card_alt"], border_color=C["card_border"], text_color=C["text"])
+        self.entry_resp_response.pack(side="left", fill="x", expand=True)
+        self.entry_resp_response.insert(0, "Pong! [Night System Bot aktiv]")
+
+        r_resp_btns = ctk.CTkFrame(resp_in, fg_color="transparent")
+        r_resp_btns.pack(fill="x", pady=(10, 0))
+
+        self.btn_toggle_responder = ctk.CTkButton(
+            r_resp_btns,
+            text="Auto-Responder aktivieren",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=36,
+            width=210,
+            corner_radius=10,
+            command=self._toggle_auto_responder
+        )
+        self.btn_toggle_responder.pack(side="left", padx=(0, 8))
+
+        self.lbl_responder_status = ctk.CTkLabel(r_resp_btns, text="Status: Inaktiv", font=("Segoe UI", 10.5, "bold"), text_color=C["text_dim"])
+        self.lbl_responder_status.pack(side="left", padx=(8, 0))
+
+        # 6. SERVER-STRUKTUR BACKUP & ANALYSE CARD
+        card_bkp = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
+        card_bkp.pack(fill="x", pady=(0, 14))
+
+        bkp_in = ctk.CTkFrame(card_bkp, fg_color="transparent")
+        bkp_in.pack(fill="x", padx=22, pady=20)
+
+        ctk.CTkLabel(bkp_in, text="Server-Struktur Backup & Analyse", font=("Segoe UI", 15, "bold"), text_color=C["text"]).pack(anchor="w")
+        ctk.CTkLabel(bkp_in, text="Liest Kanäle, Kategorien und Rollen eines Servers aus und sichert die Struktur lokal.", font=("Segoe UI", 10.5), text_color=C["text_muted"]).pack(anchor="w", pady=(2, 14))
+
+        r_bkp_s = ctk.CTkFrame(bkp_in, fg_color="transparent")
+        r_bkp_s.pack(fill="x", pady=3)
+        ctk.CTkLabel(r_bkp_s, text="Server auswählen:", font=("Segoe UI", 11, "bold"), text_color=C["text_sub"], width=170, anchor="w").pack(side="left")
+        g_names = [f"{g.get('name', 'Server')} ({g.get('id')})" for g in self.guilds_data[:30]]
+        self.opt_backup_guild = ctk.CTkOptionMenu(
+            r_bkp_s,
+            values=g_names if g_names else ["-- Keine Server vorhanden --"],
+            height=32,
+            corner_radius=8,
+            fg_color=C["card_alt"],
+            button_color=C["card_border_hi"],
+            text_color=C["text"]
+        )
+        self.opt_backup_guild.pack(side="left", fill="x", expand=True)
+
+        r_bkp_btns = ctk.CTkFrame(bkp_in, fg_color="transparent")
+        r_bkp_btns.pack(fill="x", pady=(10, 0))
+
+        self.btn_start_backup = ctk.CTkButton(
+            r_bkp_btns,
+            text="Server-Struktur sichern",
+            font=("Segoe UI", 11, "bold"),
+            fg_color=C["btn_gray"],
+            hover_color=C["btn_gray_hover"],
+            border_color=C["card_border_hi"],
+            border_width=1,
+            height=36,
+            width=210,
+            corner_radius=10,
+            command=self._start_server_backup
+        )
+        self.btn_start_backup.pack(side="left")
+
+        # 7. CONSOLE LOG BOX
         card_log = ctk.CTkFrame(scroll, fg_color=C["card"], corner_radius=18, border_width=1, border_color=C["card_border"])
         card_log.pack(fill="both", expand=True, pady=(0, 10))
 
@@ -3002,6 +3245,419 @@ class App(ctk.CTk):
                 self.lbl_rl_badge.configure(text="SICHER", fg_color=C["green_bg"], text_color=C["green"])
                 self.lbl_rl_status.configure(text=f"Verbleibend: {remaining} / {limit} Anfragen | Reset-Fenster: {reset_after}s | Status: 200 OK", text_color=C["text_sub"])
         self.after(0, _ui)
+
+    # --------------------------------------------------------------------------
+    # BOT AUTOMATION HANDLERS
+    # --------------------------------------------------------------------------
+    def _start_send_webhook(self):
+        if getattr(self, "wh_send_in_progress", False):
+            return
+
+        url = self.entry_wh_url.get().strip() if hasattr(self, "entry_wh_url") else ""
+        name = self.entry_wh_name.get().strip() if hasattr(self, "entry_wh_name") else ""
+        content = self.txt_wh_content.get("1.0", "end-1c").strip() if hasattr(self, "txt_wh_content") else ""
+        count_str = self.entry_wh_count.get().strip() if hasattr(self, "entry_wh_count") else "1"
+
+        if not url:
+            self._append_bot_log("[FEHLER] Bitte eine Discord Webhook-URL eingeben.")
+            return
+        if not (url.startswith("http://") or url.startswith("https://")):
+            self._append_bot_log("[FEHLER] Ungültige Webhook-URL (muss mit http/https beginnen).")
+            return
+        if not content:
+            self._append_bot_log("[FEHLER] Bitte einen Nachrichtentext für den Webhook eingeben.")
+            return
+
+        try:
+            total_count = max(1, int(count_str))
+        except ValueError:
+            total_count = 1
+
+        delay_map = {
+            "1.0s (Sicher)": 1.0,
+            "0.5s (Standard)": 0.5,
+            "0.2s (Schnell)": 0.2,
+            "0.0s (Instant)": 0.0
+        }
+        delay_sec = delay_map.get(self.opt_wh_delay.get() if hasattr(self, "opt_wh_delay") else "", 0.5)
+
+        self.wh_send_in_progress = True
+        self.wh_stop_requested = False
+        if hasattr(self, "btn_send_wh"):
+            self.btn_send_wh.configure(state="disabled")
+        if hasattr(self, "btn_stop_wh"):
+            self.btn_stop_wh.configure(state="normal", text="Stop")
+
+        def _worker():
+            self._append_bot_log(f"[START] Sende {total_count}x Webhook-Nachrichten (Intervall: {delay_sec}s)...")
+            success_cnt = 0
+            fail_cnt = 0
+
+            for i in range(1, total_count + 1):
+                if getattr(self, "wh_stop_requested", False):
+                    self._append_bot_log("[STOP] Webhook-Versand manuell gestoppt.")
+                    break
+
+                payload = {"content": content}
+                if name:
+                    payload["username"] = name
+
+                try:
+                    res = requests.post(url, json=payload, timeout=7)
+                    if res.status_code in (200, 204):
+                        success_cnt += 1
+                        self._append_bot_log(f"[OK] Webhook {i}/{total_count} erfolgreich übermittelt.")
+                    elif res.status_code == 429:
+                        try:
+                            retry_after = float(res.json().get("retry_after", 1.5))
+                        except Exception:
+                            retry_after = 1.5
+                        self._append_bot_log(f"[RATE-LIMIT] Webhook Rate-Limit! Warte {retry_after:.1f}s...")
+                        time.sleep(retry_after)
+                        res2 = requests.post(url, json=payload, timeout=7)
+                        if res2.status_code in (200, 204):
+                            success_cnt += 1
+                            self._append_bot_log(f"[OK] Webhook {i}/{total_count} nach Pause gesendet.")
+                        else:
+                            fail_cnt += 1
+                    else:
+                        fail_cnt += 1
+                        self._append_bot_log(f"[FEHLER] Webhook Status {res.status_code}: {res.text[:80]}")
+                except Exception as ex:
+                    fail_cnt += 1
+                    self._append_bot_log(f"[FEHLER] Webhook Übertragungsfehler: {ex}")
+
+                if delay_sec > 0 and i < total_count and not getattr(self, "wh_stop_requested", False):
+                    time.sleep(delay_sec)
+
+            self.wh_send_in_progress = False
+            self.wh_stop_requested = False
+            self.after(0, lambda: [
+                self.btn_send_wh.configure(state="normal") if hasattr(self, "btn_send_wh") else None,
+                self.btn_stop_wh.configure(state="disabled", text="Stop") if hasattr(self, "btn_stop_wh") else None,
+                self._append_bot_log(f"[FERTIG] Webhook-Versand beendet: {success_cnt} erfolgreich, {fail_cnt} fehlgeschlagen.")
+            ])
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _stop_send_webhook(self):
+        self.wh_stop_requested = True
+        if hasattr(self, "btn_stop_wh"):
+            self.btn_stop_wh.configure(text="Stoppe...", state="disabled")
+
+    def _start_mass_reaction(self):
+        if getattr(self, "react_in_progress", False):
+            return
+
+        raw_cid = self.entry_react_channel.get().strip() if hasattr(self, "entry_react_channel") else ""
+        raw_mid = self.entry_react_msg.get().strip() if hasattr(self, "entry_react_msg") else ""
+        raw_emojis = self.entry_react_emojis.get().strip() if hasattr(self, "entry_react_emojis") else ""
+
+        if not raw_cid:
+            self._append_bot_log("[FEHLER] Bitte eine Kanal-ID für Reaktionen eingeben.")
+            return
+        if not raw_mid:
+            self._append_bot_log("[FEHLER] Bitte eine Nachrichten-ID eingeben.")
+            return
+        if not raw_emojis:
+            self._append_bot_log("[FEHLER] Bitte mindestens ein Emoji angeben.")
+            return
+
+        emojis = [e.strip() for e in raw_emojis.replace(";", ",").split(",") if e.strip()]
+        if not emojis:
+            self._append_bot_log("[FEHLER] Keine gültigen Emojis gefunden.")
+            return
+
+        self.react_in_progress = True
+        self.react_stop_requested = False
+        if hasattr(self, "btn_start_react"):
+            self.btn_start_react.configure(state="disabled")
+
+        def _worker():
+            resolved_cid, _ = self._resolve_target_to_channel_id(raw_cid)
+            target_cid = resolved_cid or raw_cid
+            self._append_bot_log(f"[START] Reagiere mit {len(emojis)} Emojis auf Nachricht {raw_mid}...")
+
+            succ = 0
+            fail = 0
+            headers = {
+                "Authorization": self.token,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Content-Type": "application/json"
+            }
+
+            for em in emojis:
+                if getattr(self, "react_stop_requested", False):
+                    self._append_bot_log("[STOP] Reaktionen manuell abgebrochen.")
+                    break
+
+                encoded_em = urllib.parse.quote(em)
+                if not self.token or "DEMO" in self.token:
+                    time.sleep(0.3)
+                    succ += 1
+                    self._append_bot_log(f"[DEMO] Reaktion hinzugefügt: {em}")
+                else:
+                    url = f"https://discord.com/api/v9/channels/{target_cid}/messages/{raw_mid}/reactions/{encoded_em}/%40me"
+                    try:
+                        res = requests.put(url, headers=headers, timeout=6)
+                        if res.status_code in (200, 204):
+                            succ += 1
+                            self._append_bot_log(f"[OK] Reaktion hinzugefügt: {em}")
+                        elif res.status_code == 429:
+                            try:
+                                r_wait = float(res.json().get("retry_after", 1.0))
+                            except Exception:
+                                r_wait = 1.0
+                            self._append_bot_log(f"[RATE-LIMIT] Warte {r_wait:.1f}s...")
+                            time.sleep(r_wait)
+                            res2 = requests.put(url, headers=headers, timeout=6)
+                            if res2.status_code in (200, 204):
+                                succ += 1
+                                self._append_bot_log(f"[OK] Reaktion hinzugefügt: {em}")
+                            else:
+                                fail += 1
+                        else:
+                            fail += 1
+                            self._append_bot_log(f"[FEHLER] Reaktion {em} fehlgeschlagen (Status {res.status_code}).")
+                    except Exception as ex:
+                        fail += 1
+                        self._append_bot_log(f"[FEHLER] Reaktion {em} Fehler: {ex}")
+
+                time.sleep(0.3)
+
+            self.react_in_progress = False
+            self.after(0, lambda: [
+                self.btn_start_react.configure(state="normal") if hasattr(self, "btn_start_react") else None,
+                self._append_bot_log(f"[FERTIG] Reaktionen abgeschlossen: {succ} hinzugefügt, {fail} fehlgeschlagen.")
+            ])
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _start_remove_reactions(self):
+        raw_cid = self.entry_react_channel.get().strip() if hasattr(self, "entry_react_channel") else ""
+        raw_mid = self.entry_react_msg.get().strip() if hasattr(self, "entry_react_msg") else ""
+        raw_emojis = self.entry_react_emojis.get().strip() if hasattr(self, "entry_react_emojis") else ""
+
+        if not raw_cid or not raw_mid:
+            self._append_bot_log("[FEHLER] Kanal-ID und Nachrichten-ID erforderlich zum Entfernen.")
+            return
+
+        emojis = [e.strip() for e in raw_emojis.replace(";", ",").split(",") if e.strip()]
+        if not emojis:
+            return
+
+        if hasattr(self, "btn_remove_react"):
+            self.btn_remove_react.configure(state="disabled")
+
+        def _worker():
+            resolved_cid, _ = self._resolve_target_to_channel_id(raw_cid)
+            target_cid = resolved_cid or raw_cid
+            self._append_bot_log(f"[INFO] Entferne eigene Reaktionen von Nachricht {raw_mid}...")
+
+            headers = {
+                "Authorization": self.token,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+
+            for em in emojis:
+                encoded_em = urllib.parse.quote(em)
+                if not self.token or "DEMO" in self.token:
+                    time.sleep(0.2)
+                    self._append_bot_log(f"[DEMO] Eigene Reaktion entfernt: {em}")
+                else:
+                    url = f"https://discord.com/api/v9/channels/{target_cid}/messages/{raw_mid}/reactions/{encoded_em}/%40me"
+                    try:
+                        requests.delete(url, headers=headers, timeout=5)
+                        self._append_bot_log(f"[OK] Reaktion entfernt: {em}")
+                    except Exception:
+                        pass
+                time.sleep(0.25)
+
+            self.after(0, lambda: [
+                self.btn_remove_react.configure(state="normal") if hasattr(self, "btn_remove_react") else None,
+                self._append_bot_log("[FERTIG] Reaktionen-Bereinigung abgeschlossen.")
+            ])
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _toggle_auto_responder(self):
+        if getattr(self, "auto_responder_active", False):
+            self.auto_responder_active = False
+            if hasattr(self, "btn_toggle_responder"):
+                self.btn_toggle_responder.configure(text="Auto-Responder aktivieren", fg_color=C["btn_gray"], hover_color=C["btn_gray_hover"])
+            if hasattr(self, "lbl_responder_status"):
+                self.lbl_responder_status.configure(text="Status: Inaktiv", text_color=C["text_dim"])
+            self._append_bot_log("[RESPONDER] Auto-Responder deaktiviert.")
+        else:
+            trigger = self.entry_resp_trigger.get().strip() if hasattr(self, "entry_resp_trigger") else ""
+            reply = self.entry_resp_response.get().strip() if hasattr(self, "entry_resp_response") else ""
+
+            if not trigger:
+                self._append_bot_log("[FEHLER] Bitte ein Trigger-Wort definieren.")
+                return
+            if not reply:
+                self._append_bot_log("[FEHLER] Bitte einen Antworttext definieren.")
+                return
+
+            self.auto_responder_active = True
+            if hasattr(self, "btn_toggle_responder"):
+                self.btn_toggle_responder.configure(text="Auto-Responder stoppen", fg_color=C["red_bg"], hover_color=C["red_hover"])
+            if hasattr(self, "lbl_responder_status"):
+                self.lbl_responder_status.configure(text=f"Status: AKTIV ({trigger})", text_color=C["green"])
+            self._append_bot_log(f"[RESPONDER] Aktiviert! Wartet auf '{trigger}'...")
+
+            def _listener():
+                seen_msg_ids = set()
+                headers = {
+                    "Authorization": self.token,
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Content-Type": "application/json"
+                }
+                my_id = str(self.user_data.get("id", ""))
+
+                c_ids = list(getattr(self, "user_to_channel_map", {}).values())
+                if not c_ids and hasattr(self, "friends_data") and self.friends_data:
+                    c_ids = [str(f.get("id")) for f in self.friends_data[:10]]
+
+                while getattr(self, "auto_responder_active", False):
+                    try:
+                        if not self.token or "DEMO" in self.token:
+                            time.sleep(3)
+                            continue
+
+                        for cid in c_ids[:8]:
+                            if not getattr(self, "auto_responder_active", False):
+                                break
+                            try:
+                                r = requests.get(f"https://discord.com/api/v9/channels/{cid}/messages?limit=2", headers=headers, timeout=5)
+                                if r.status_code == 200:
+                                    msgs = r.json()
+                                    for m in msgs:
+                                        mid = str(m.get("id", ""))
+                                        author_id = str(m.get("author", {}).get("id", ""))
+                                        content_msg = m.get("content", "").strip()
+
+                                        if mid in seen_msg_ids:
+                                            continue
+                                        seen_msg_ids.add(mid)
+
+                                        if author_id == my_id:
+                                            continue
+
+                                        if content_msg.lower().startswith(trigger.lower()) or trigger.lower() in content_msg.lower():
+                                            author_name = m.get("author", {}).get("username", "Nutzer")
+                                            self._append_bot_log(f"[RESPONDER] Trigger von @{author_name} erkannt! Sende Antwort...")
+                                            time.sleep(0.5)
+                                            requests.post(
+                                                f"https://discord.com/api/v9/channels/{cid}/messages",
+                                                headers=headers,
+                                                json={"content": reply, "tts": False},
+                                                timeout=6
+                                            )
+                                            self._append_bot_log(f"[RESPONDER] Antwort gesendet an {author_name}.")
+                            except Exception:
+                                pass
+                            time.sleep(1.0)
+                    except Exception:
+                        pass
+                    time.sleep(2.5)
+
+            threading.Thread(target=_listener, daemon=True).start()
+
+    def _start_server_backup(self):
+        if getattr(self, "backup_in_progress", False):
+            return
+
+        guild_sel = self.opt_backup_guild.get() if hasattr(self, "opt_backup_guild") else ""
+        if not guild_sel or "--" in guild_sel:
+            self._append_bot_log("[FEHLER] Bitte einen gültigen Server aus der Liste auswählen.")
+            return
+
+        m = re.search(r"\((\d+)\)", guild_sel)
+        guild_id = m.group(1) if m else ""
+        if not guild_id:
+            self._append_bot_log(f"[FEHLER] Keine Server-ID in Auswahl '{guild_sel}' gefunden.")
+            return
+
+        self.backup_in_progress = True
+        if hasattr(self, "btn_start_backup"):
+            self.btn_start_backup.configure(state="disabled")
+
+        def _worker():
+            self._append_bot_log(f"[BACKUP] Starte Server-Analyse & Struktur-Sicherung für Server {guild_id}...")
+
+            headers = {
+                "Authorization": self.token,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+
+            backup_data = {
+                "guild_id": guild_id,
+                "backup_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "version": DISCORD_TOOL_VERSION,
+                "guild_info": {},
+                "roles": [],
+                "channels": [],
+                "categories": []
+            }
+
+            guild_name = "Server"
+
+            if not self.token or "DEMO" in self.token:
+                time.sleep(1.0)
+                guild_name = "DemoServer"
+                backup_data["guild_info"] = {"id": guild_id, "name": guild_name, "member_count": 42}
+                backup_data["channels"] = [{"id": "1", "name": "allgemein", "type": 0}, {"id": "2", "name": "bot-spam", "type": 0}]
+                backup_data["roles"] = [{"id": "1", "name": "@everyone", "permissions": "0"}]
+            else:
+                try:
+                    rg = requests.get(f"https://discord.com/api/v9/guilds/{guild_id}", headers=headers, timeout=6)
+                    if rg.status_code == 200:
+                        gjson = rg.json()
+                        guild_name = gjson.get("name", f"Server_{guild_id}")
+                        backup_data["guild_info"] = gjson
+                    time.sleep(0.3)
+
+                    rr = requests.get(f"https://discord.com/api/v9/guilds/{guild_id}/roles", headers=headers, timeout=6)
+                    if rr.status_code == 200:
+                        backup_data["roles"] = rr.json()
+                    time.sleep(0.3)
+
+                    rc = requests.get(f"https://discord.com/api/v9/guilds/{guild_id}/channels", headers=headers, timeout=6)
+                    if rc.status_code == 200:
+                        ch_list = rc.json()
+                        for c in ch_list:
+                            if c.get("type") == 4:
+                                backup_data["categories"].append(c)
+                            else:
+                                backup_data["channels"].append(c)
+                except Exception as ex:
+                    self._append_bot_log(f"[WARNUNG] Teilweise Server-Daten nicht abrufbar: {ex}")
+
+            base_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
+            backup_dir = os.path.join(base_dir, "backups")
+            try:
+                os.makedirs(backup_dir, exist_ok=True)
+                clean_name = re.sub(r'[\\/*?:"<>| ]', "_", guild_name)[:30]
+                filename = f"backup_{clean_name}_{guild_id}.json"
+                file_path = os.path.join(backup_dir, filename)
+
+                with open(file_path, "w", encoding="utf-8") as f:
+                    json.dump(backup_data, f, indent=2, ensure_ascii=False)
+
+                num_ch = len(backup_data.get("channels", []))
+                num_roles = len(backup_data.get("roles", []))
+                self._append_bot_log(f"[ERFOLG] Backup gespeichert: backups/{filename}")
+                self._append_bot_log(f"  -> Struktur: {num_ch} Kanäle, {num_roles} Rollen erfasst.")
+            except Exception as ex:
+                self._append_bot_log(f"[FEHLER] Konnte Backup nicht schreiben: {ex}")
+
+            self.backup_in_progress = False
+            self.after(0, lambda: [
+                self.btn_start_backup.configure(state="normal") if hasattr(self, "btn_start_backup") else None
+            ])
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     # --------------------------------------------------------------------------
     # 8. EXTRA-TAB: CLICK INSTANT (AUCH ALS EXTERNES FENSTER)
@@ -3679,7 +4335,7 @@ def validate_and_load_in_terminal(preset_token=None):
 def start_cmd_listener(app):
     def _cmd_worker():
         time.sleep(0.5)
-        print("\n  [CMD BEREIT] Befehle: status | token <token> | update | logout | cls | exit")
+        print("  [CMD BEREIT] Befehle: status | token <token> | webhook | react | responder | backup | update | logout | cls | exit")
         while True:
             try:
                 line = sys.stdin.readline()
@@ -3704,7 +4360,7 @@ def start_cmd_listener(app):
                 elif cmd in ("cls", "clear"):
                     os.system("cls" if os.name == "nt" else "clear")
                     print(f"  [Night System v{DISCORD_TOOL_VERSION}] Eingeloggt als @{app.user_data.get('username', 'Benutzer')}")
-                    print("  [CMD BEREIT] Befehle: status | token <token> | update | logout | cls | exit")
+                    print("  [CMD BEREIT] Befehle: status | token <token> | webhook | react | responder | backup | update | logout | cls | exit")
 
                 elif cmd == "status":
                     uname = app.user_data.get('username', 'Unbekannt')
@@ -3742,6 +4398,97 @@ def start_cmd_listener(app):
                     app.after(0, app.logout_and_switch_token)
                     break
 
+                elif cmd == "webhook":
+                    wh_args = arg.split(maxsplit=2)
+                    if len(wh_args) < 3:
+                        print("  [HINWEIS] Verwendung: webhook <url> <anzahl> <nachricht>")
+                    else:
+                        wh_url = wh_args[0]
+                        try:
+                            wh_count = max(1, int(wh_args[1]))
+                        except ValueError:
+                            wh_count = 1
+                        wh_msg = wh_args[2]
+                        print(f"  [*] Sende {wh_count}x Webhook-Nachrichten...")
+                        def _wh_worker(u, cnt, m):
+                            s = 0
+                            for _ in range(cnt):
+                                try:
+                                    r = requests.post(u, json={"content": m, "username": "Night System"}, timeout=6)
+                                    if r.status_code in (200, 204): s += 1
+                                except Exception: pass
+                                time.sleep(0.4)
+                            print(f"  [OK] Webhook fertig: {s}/{cnt} erfolgreich.")
+                        threading.Thread(target=_wh_worker, args=(wh_url, wh_count, wh_msg), daemon=True).start()
+
+                elif cmd == "react":
+                    rc_args = arg.split(maxsplit=2)
+                    if len(rc_args) < 3:
+                        print("  [HINWEIS] Verwendung: react <channel_id> <msg_id> <emoji>")
+                    else:
+                        rc_cid, rc_mid, rc_em = rc_args[0], rc_args[1], rc_args[2]
+                        print(f"  [*] Füge Reaktion {rc_em} zu Nachricht {rc_mid} hinzu...")
+                        def _rc_worker(cid, mid, em):
+                            encoded = urllib.parse.quote(em)
+                            url = f"https://discord.com/api/v9/channels/{cid}/messages/{mid}/reactions/{encoded}/%40me"
+                            headers = {"Authorization": app.token, "User-Agent": "Mozilla/5.0"}
+                            try:
+                                r = requests.put(url, headers=headers, timeout=6)
+                                if r.status_code in (200, 204):
+                                    print(f"  [OK] Reaktion {em} hinzugefügt.")
+                                else:
+                                    print(f"  [FEHLER] Status: {r.status_code}")
+                            except Exception as ex:
+                                print(f"  [FEHLER] {ex}")
+                        threading.Thread(target=_rc_worker, args=(rc_cid, rc_mid, rc_em), daemon=True).start()
+
+                elif cmd == "responder":
+                    sub = arg.split(maxsplit=2)
+                    mode = sub[0].lower() if sub else ""
+                    if mode in ("on", "start", "1"):
+                        trig = sub[1] if len(sub) > 1 else "!ping"
+                        rep = sub[2] if len(sub) > 2 else "Pong! [Night System]"
+                        if hasattr(app, "entry_resp_trigger"):
+                            app.entry_resp_trigger.delete(0, "end")
+                            app.entry_resp_trigger.insert(0, trig)
+                        if hasattr(app, "entry_resp_response"):
+                            app.entry_resp_response.delete(0, "end")
+                            app.entry_resp_response.insert(0, rep)
+                        if not getattr(app, "auto_responder_active", False):
+                            app.after(0, app._toggle_auto_responder)
+                        print(f"  [OK] Auto-Responder AKTIV (Trigger: {trig})")
+                    elif mode in ("off", "stop", "0"):
+                        if getattr(app, "auto_responder_active", False):
+                            app.after(0, app._toggle_auto_responder)
+                        print("  [OK] Auto-Responder DEAKTIVIERT.")
+                    else:
+                        print("  [HINWEIS] Verwendung: responder on|off [trigger] [antwort]")
+
+                elif cmd == "backup":
+                    gid = arg.strip()
+                    if gid:
+                        print(f"  [*] Sichere Server {gid}...")
+                        def _bkp_worker(guild_id):
+                            base_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else os.getcwd()
+                            backup_dir = os.path.join(base_dir, "backups")
+                            os.makedirs(backup_dir, exist_ok=True)
+                            headers = {"Authorization": app.token, "User-Agent": "Mozilla/5.0"}
+                            try:
+                                rg = requests.get(f"https://discord.com/api/v9/guilds/{guild_id}", headers=headers, timeout=6)
+                                rc = requests.get(f"https://discord.com/api/v9/guilds/{guild_id}/channels", headers=headers, timeout=6)
+                                gdata = rg.json() if rg.status_code == 200 else {}
+                                cdata = rc.json() if rc.status_code == 200 else []
+                                fn = os.path.join(backup_dir, f"backup_{guild_id}.json")
+                                with open(fn, "w", encoding="utf-8") as f:
+                                    json.dump({"guild": gdata, "channels": cdata}, f, indent=2)
+                                print(f"  [OK] Server {guild_id} in backups/backup_{guild_id}.json gesichert.")
+                            except Exception as ex:
+                                print(f"  [FEHLER] Backup fehlgeschlagen: {ex}")
+                        threading.Thread(target=_bkp_worker, args=(gid,), daemon=True).start()
+                    else:
+                        app.after(0, app._start_server_backup)
+                        print("  [*] Server-Struktur-Backup über UI-Auswahl gestartet...")
+
                 elif cmd == "update":
                     print("  [*] Suche nach Updates...")
                     c_info = check_cloud_status_and_update()
@@ -3749,7 +4496,7 @@ def start_cmd_listener(app):
                         print(f"  [OK] Keine Updates vorhanden. Aktuell: v{DISCORD_TOOL_VERSION}")
 
                 elif cmd in ("help", "?"):
-                    print("  [BEFEHLE] status | token <token> | update | logout | cls | exit")
+                    print("  [BEFEHLE] status | token <token> | webhook | react | responder | backup | update | logout | cls | exit")
 
                 else:
                     if len(cmd_line) > 30 and ("." in cmd_line or cmd_line.lower() == "demo"):

@@ -41,15 +41,19 @@ Das offizielle Discord-Automatisierungs- und Management-Tool im Silver-Gray Glas
 5. **Profil & Bio Customizer (Tab: Extra):**
    * Dynamische Änderung von Bio, Global Display Name, Username und Server-Tags.
 
-6. **Exklusiver Bot-Modus:**
+6. **Exklusiver Bot-Modus & Automatisierung:**
    * Isoliert das Tool: Blendet alle anderen Navigations-Tabs aus für fokussiertes Arbeiten.
    * Integrierter Rate-Limit-Monitor für maximale Accountsicherheit.
    * Multi-Message Sender mit konfigurierbarer Anzahl und Geschwindigkeits-Regler.
    * Universal Target Resolver: Erkennt automatisch Textkanal-IDs, DM-Kanal-IDs und Benutzer-IDs.
+   * Webhook Commander: Anonyme Multi-Send Nachrichten über Discord-Webhooks ohne Ban-Risiko.
+   * Mass-Reaction Tool: Reagiert automatisch mit Emoji-Listen oder entfernt eigene Reaktionen.
+   * Auto-Responder / Chat-Trigger: Erkennt Stichwörter in Direktnachrichten und antwortet vollautomatisch.
+   * Server Structure Cloner: Analysiert und exportiert Server-Strukturen (Kanäle, Kategorien, Rollen).
 
 7. **CMD Konsole & Auto-Update:**
    * Interaktive CMD Konsole bleibt dauerhaft geöffnet.
-   * Befehle direkt über CMD: `status`, `token`, `update`, `logout`, `cls`, `exit`.
+   * Befehle direkt über CMD: `status`, `token`, `webhook`, `react`, `responder`, `backup`, `update`, `logout`, `cls`, `exit`.
    * Automatischer Download und Neustart bei neuen Versionen.
 
 ---
